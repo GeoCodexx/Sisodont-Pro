@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
@@ -14,33 +13,90 @@ import {
   IconButton,
   Tooltip,
   Divider,
+  Avatar,
 } from "@mui/material";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PeopleIcon from "@mui/icons-material/People";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import PaymentIcon from "@mui/icons-material/Payment";
 import MedicalServicesIcon from "@mui/icons-material/MedicalServices";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import PersonIcon from "@mui/icons-material/Person";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useAuthStore } from "../stores/useAuthStore";
 import { useThemeStore } from "../stores/useThemeStore";
 
-const DRAWER_WIDTH = 220;
+const DRAWER_WIDTH = 224;
 
 const NAV_ITEMS = [
-  { label: "Dashboard", path: "/dashboard", icon: <DashboardIcon /> },
-  { label: "Pacientes", path: "/patients", icon: <PeopleIcon /> },
-  { label: "Citas", path: "/appointments", icon: <CalendarMonthIcon /> },
-  { label: "Pagos", path: "/payments", icon: <PaymentIcon /> },
-  { label: "Odontograma", path: "/odontogram", icon: <MedicalServicesIcon /> },
+  {
+    label: "Dashboard",
+    path: "/dashboard",
+    icon: <DashboardIcon />,
+    roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
+  },
+  {
+    label: "Usuarios",
+    path: "/users",
+    icon: <AdminPanelSettingsIcon />,
+    roles: ["ADMIN"],
+  },
+  {
+    label: "Pacientes",
+    path: "/patients",
+    icon: <PeopleIcon />,
+    roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
+  },
+  {
+    label: "Citas",
+    path: "/appointments",
+    icon: <CalendarMonthIcon />,
+    roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
+  },
+  {
+    label: "Pagos",
+    path: "/payments",
+    icon: <PaymentIcon />,
+    roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
+  },
+  {
+    label: "Odontograma",
+    path: "/odontogram",
+    icon: <MedicalServicesIcon />,
+    roles: ["ADMIN", "DOCTOR"],
+  },
+  {
+    label: "Mi perfil",
+    path: "/profile",
+    icon: <PersonIcon />,
+    roles: ["ADMIN", "DOCTOR", "ASSISTANT", "PATIENT"],
+  },
 ];
+
+function initials(name = "") {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+}
 
 export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { signOut, profile } = useAuthStore();
   const { darkMode, toggle } = useThemeStore();
+
+  const visibleItems = NAV_ITEMS.filter((item) =>
+    item.roles.includes(profile?.role),
+  );
+
+  const activeLabel =
+    visibleItems.find((i) => location.pathname.startsWith(i.path))?.label ??
+    "Sisodont Pro";
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
@@ -58,8 +114,7 @@ export default function MainLayout() {
       >
         <Toolbar sx={{ justifyContent: "space-between" }}>
           <Typography variant="body1" fontWeight={500}>
-            {NAV_ITEMS.find((i) => location.pathname.startsWith(i.path))
-              ?.label ?? "Sisodont Pro"}
+            {activeLabel}
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Typography variant="body2" color="text.secondary">
@@ -96,14 +151,24 @@ export default function MainLayout() {
           },
         }}
       >
-        <Toolbar sx={{ px: 2 }}>
-          <Typography variant="h6" fontWeight={500} color="primary">
+        <Toolbar sx={{ px: 2, gap: 1.5 }}>
+          <Avatar
+            sx={{
+              width: 28,
+              height: 28,
+              bgcolor: "primary.main",
+              fontSize: 12,
+            }}
+          >
+            {initials(profile?.full_name)}
+          </Avatar>
+          <Typography variant="body1" fontWeight={500} color="primary">
             Sisodont Pro
           </Typography>
         </Toolbar>
         <Divider />
-        <List sx={{ px: 1, pt: 1 }}>
-          {NAV_ITEMS.map(({ label, path, icon }) => {
+        <List sx={{ px: 1, pt: 1, flexGrow: 1 }}>
+          {visibleItems.map(({ label, path, icon }) => {
             const active = location.pathname.startsWith(path);
             return (
               <ListItem key={path} disablePadding sx={{ mb: 0.5 }}>
