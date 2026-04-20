@@ -3,6 +3,8 @@ import { ProtectedRoute, RoleRoute } from "../components/RoleRoute";
 import MainLayout from "../layouts/MainLayout";
 import LoginPage from "../pages/auth/LoginPage";
 import UsersPage from "../pages/auth/UsersPage";
+import PatientsPage from "../pages/patients/PatientsPage";
+import PatientDetailPage from "../pages/patients/PatientDetailPage";
 
 const Placeholder = ({ title }) => (
   <div style={{ padding: 32 }}>
@@ -34,7 +36,22 @@ export const router = createBrowserRouter([
           </RoleRoute>
         ),
       },
-      { path: "patients", element: <Placeholder title="Pacientes" /> },
+      {
+        path: "patients",
+        element: (
+          <RoleRoute allowed={["ADMIN", "DOCTOR", "ASSISTANT"]}>
+            <PatientsPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: "patients/:id",
+        element: (
+          <RoleRoute allowed={["ADMIN", "DOCTOR", "ASSISTANT"]}>
+            <PatientDetailPage />
+          </RoleRoute>
+        ),
+      },
       { path: "appointments", element: <Placeholder title="Citas" /> },
       { path: "payments", element: <Placeholder title="Pagos" /> },
       { path: "odontogram", element: <Placeholder title="Odontograma" /> },
