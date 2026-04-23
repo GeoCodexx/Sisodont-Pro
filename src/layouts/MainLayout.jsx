@@ -21,6 +21,7 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import PaymentIcon from "@mui/icons-material/Payment";
 import MedicalServicesIcon from "@mui/icons-material/MedicalServices";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import LocalHospitalIcon from "@mui/icons-material/LocalHospital";
 import PersonIcon from "@mui/icons-material/Person";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
@@ -41,6 +42,12 @@ const NAV_ITEMS = [
     label: "Usuarios",
     path: "/users",
     icon: <AdminPanelSettingsIcon />,
+    roles: ["ADMIN"],
+  },
+  {
+    label: "Catálogo",
+    path: "/catalog",
+    icon: <LocalHospitalIcon />,
     roles: ["ADMIN"],
   },
   {
@@ -90,10 +97,7 @@ export default function MainLayout() {
   const { signOut, profile } = useAuthStore();
   const { darkMode, toggle } = useThemeStore();
 
-  const visibleItems = NAV_ITEMS.filter((item) =>
-    item.roles.includes(profile?.role),
-  );
-
+  const visibleItems = NAV_ITEMS.filter((i) => i.roles.includes(profile?.role));
   const activeLabel =
     visibleItems.find((i) => location.pathname.startsWith(i.path))?.label ??
     "Sisodont Pro";
@@ -167,7 +171,7 @@ export default function MainLayout() {
           </Typography>
         </Toolbar>
         <Divider />
-        <List sx={{ px: 1, pt: 1, flexGrow: 1 }}>
+        <List sx={{ px: 1, pt: 1 }}>
           {visibleItems.map(({ label, path, icon }) => {
             const active = location.pathname.startsWith(path);
             return (

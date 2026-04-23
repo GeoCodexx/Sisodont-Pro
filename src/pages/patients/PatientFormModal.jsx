@@ -105,7 +105,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
           Datos personales
         </Typography>
         <Grid container spacing={2} sx={{ mt: 0.5, mb: 2 }}>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               label="Nombre completo *"
               value={form.full_name}
@@ -114,7 +114,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
               fullWidth
             />
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid size={{ xs: 12, sm: 3 }}>
             <TextField
               label="DNI"
               value={form.dni}
@@ -123,7 +123,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
               fullWidth
             />
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid size={{ xs: 12, sm: 3 }}>
             <TextField
               select
               label="Género"
@@ -138,7 +138,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
               <MenuItem value="otro">Otro</MenuItem>
             </TextField>
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid size={{ xs: 12, sm: 3 }}>
             <TextField
               label="Fecha de nacimiento"
               type="date"
@@ -146,10 +146,10 @@ export default function PatientFormModal({ open, patient, onClose }) {
               onChange={set("birth_date")}
               size="small"
               fullWidth
-              InputLabelProps={{ shrink: true }}
+              slotProps={{ inputLabel: { shrink: true } }}
             />
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid size={{ xs: 12, sm: 3 }}>
             <TextField
               label="Teléfono"
               value={form.phone}
@@ -158,7 +158,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
               fullWidth
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               label="Correo electrónico"
               type="email"
@@ -168,7 +168,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
               fullWidth
             />
           </Grid>
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <TextField
               label="Dirección"
               value={form.address}
@@ -184,7 +184,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
           Antecedentes clínicos
         </Typography>
         <Grid container spacing={1} sx={{ mt: 0.5, mb: 2 }}>
-          <Grid item xs={6} sm={3}>
+          <Grid size={{ xs: 6, sm: 3 }}>
             <FormControlLabel
               control={
                 <Checkbox
@@ -196,7 +196,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
               label="Diabetes"
             />
           </Grid>
-          <Grid item xs={6} sm={3}>
+          <Grid size={{ xs: 6, sm: 3 }}>
             <FormControlLabel
               control={
                 <Checkbox
@@ -208,7 +208,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
               label="Hipertensión"
             />
           </Grid>
-          <Grid item xs={6} sm={3}>
+          <Grid size={{ xs: 6, sm: 3 }}>
             <FormControlLabel
               control={
                 <Checkbox
@@ -223,7 +223,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
         </Grid>
 
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               label="Alergias"
               value={form.allergies}
@@ -234,7 +234,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
               rows={2}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               label="Medicamentos actuales"
               value={form.medications}
@@ -245,7 +245,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
               rows={2}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               label="Diagnóstico"
               value={form.diagnosis}
@@ -256,7 +256,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
               rows={3}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               label="Observaciones"
               value={form.observations}

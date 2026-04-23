@@ -115,12 +115,14 @@ export default function PatientsPage() {
         onChange={(e) => setSearch(e.target.value)}
         size="small"
         sx={{ mb: 2, width: 320 }}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon fontSize="small" />
-            </InputAdornment>
-          ),
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+          },
         }}
       />
 

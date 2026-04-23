@@ -84,23 +84,23 @@ export default function PatientDetailPage() {
 
       <Grid container spacing={2}>
         {/* Datos personales */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle2" fontWeight={500} mb={2}>
+              <Typography variant="subtitle1" fontWeight={500} mb={2}>
                 Datos personales
               </Typography>
               <Grid container>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <InfoRow label="DNI" value={p.dni} />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <InfoRow label="Género" value={GENDER_LABEL[p.gender]} />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <InfoRow label="Edad" value={calcAge(p.birth_date)} />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <InfoRow
                     label="Nacimiento"
                     value={
@@ -110,13 +110,13 @@ export default function PatientDetailPage() {
                     }
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <InfoRow label="Teléfono" value={p.phone} />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <InfoRow label="Correo" value={p.email} />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <InfoRow label="Dirección" value={p.address} />
                 </Grid>
               </Grid>
@@ -125,10 +125,10 @@ export default function PatientDetailPage() {
         </Grid>
 
         {/* Antecedentes clínicos */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle2" fontWeight={500} mb={2}>
+              <Typography variant="subtitle1" fontWeight={500} mb={2}>
                 Antecedentes clínicos
               </Typography>
               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
@@ -158,10 +158,10 @@ export default function PatientDetailPage() {
         </Grid>
 
         {/* Historial — placeholder hasta Fase 4 */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle2" fontWeight={500} mb={1}>
+              <Typography variant="subtitle1" fontWeight={500} mb={1}>
                 Historial de citas
               </Typography>
               <Typography variant="body2" color="text.secondary">

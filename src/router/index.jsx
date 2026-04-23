@@ -5,6 +5,7 @@ import LoginPage from "../pages/auth/LoginPage";
 import UsersPage from "../pages/auth/UsersPage";
 import PatientsPage from "../pages/patients/PatientsPage";
 import PatientDetailPage from "../pages/patients/PatientDetailPage";
+import CatalogPage from "../pages/catalog/CatalogPage";
 
 const Placeholder = ({ title }) => (
   <div style={{ padding: 32 }}>
@@ -14,10 +15,7 @@ const Placeholder = ({ title }) => (
 );
 
 export const router = createBrowserRouter([
-  {
-    path: "/login",
-    element: <LoginPage />,
-  },
+  { path: "/login", element: <LoginPage /> },
   {
     path: "/",
     element: (
@@ -49,6 +47,14 @@ export const router = createBrowserRouter([
         element: (
           <RoleRoute allowed={["ADMIN", "DOCTOR", "ASSISTANT"]}>
             <PatientDetailPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: "catalog",
+        element: (
+          <RoleRoute allowed={["ADMIN"]}>
+            <CatalogPage />
           </RoleRoute>
         ),
       },
