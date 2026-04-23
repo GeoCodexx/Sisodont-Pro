@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import PatientHistory from "./PatientHistory";
 import {
   Box,
   Typography,
@@ -84,10 +85,10 @@ export default function PatientDetailPage() {
 
       <Grid container spacing={2}>
         {/* Datos personales */}
-        <Grid size={{ xs: 12, sm: 6 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle1" fontWeight={500} mb={2}>
+              <Typography variant="subtitle2" fontWeight={500} mb={2}>
                 Datos personales
               </Typography>
               <Grid container>
@@ -125,10 +126,10 @@ export default function PatientDetailPage() {
         </Grid>
 
         {/* Antecedentes clínicos */}
-        <Grid size={{ xs: 12, sm: 6 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle1" fontWeight={500} mb={2}>
+              <Typography variant="subtitle2" fontWeight={500} mb={2}>
                 Antecedentes clínicos
               </Typography>
               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
@@ -161,12 +162,10 @@ export default function PatientDetailPage() {
         <Grid size={{ xs: 12 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle1" fontWeight={500} mb={1}>
+              <Typography variant="subtitle2" fontWeight={500} mb={1}>
                 Historial de citas
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Disponible a partir de la Fase 4 — Citas y agenda.
-              </Typography>
+              <PatientHistory patientId={p.id} />
             </CardContent>
           </Card>
         </Grid>

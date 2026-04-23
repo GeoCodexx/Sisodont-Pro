@@ -6,6 +6,7 @@ import UsersPage from "../pages/auth/UsersPage";
 import PatientsPage from "../pages/patients/PatientsPage";
 import PatientDetailPage from "../pages/patients/PatientDetailPage";
 import CatalogPage from "../pages/catalog/CatalogPage";
+import AppointmentsPage from "../pages/appointments/AppointmentsPage";
 
 const Placeholder = ({ title }) => (
   <div style={{ padding: 32 }}>
@@ -58,7 +59,14 @@ export const router = createBrowserRouter([
           </RoleRoute>
         ),
       },
-      { path: "appointments", element: <Placeholder title="Citas" /> },
+      {
+        path: "appointments",
+        element: (
+          <RoleRoute allowed={["ADMIN", "DOCTOR", "ASSISTANT"]}>
+            <AppointmentsPage />
+          </RoleRoute>
+        ),
+      },
       { path: "payments", element: <Placeholder title="Pagos" /> },
       { path: "odontogram", element: <Placeholder title="Odontograma" /> },
       { path: "profile", element: <Placeholder title="Mi perfil" /> },
