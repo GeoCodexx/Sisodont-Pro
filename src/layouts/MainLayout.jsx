@@ -22,6 +22,7 @@ import PaymentIcon from "@mui/icons-material/Payment";
 import MedicalServicesIcon from "@mui/icons-material/MedicalServices";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import LocalHospitalIcon from "@mui/icons-material/LocalHospital";
+import HistoryIcon from "@mui/icons-material/History";
 import PersonIcon from "@mui/icons-material/Person";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
@@ -66,6 +67,12 @@ const NAV_ITEMS = [
     label: "Pagos",
     path: "/payments",
     icon: <PaymentIcon />,
+    roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
+  },
+  {
+    label: "Historial",
+    path: "/history",
+    icon: <HistoryIcon />,
     roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
   },
   {
@@ -201,7 +208,10 @@ export default function MainLayout() {
                     primary={label}
                     slotProps={{
                       primary: {
-                        sx: { fontSize: 14, fontWeight: active ? 500 : 400 },
+                        sx: {
+                          fontSize: 14,
+                          fontWeight: active ? 500 : 400,
+                        },
                       },
                     }}
                   />
