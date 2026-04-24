@@ -10,6 +10,7 @@ import AppointmentsPage  from '../pages/appointments/AppointmentsPage'
 import PaymentsPage      from '../pages/payments/PaymentsPage'
 import HistoryPage       from '../pages/history/HistoryPage'
 import DashboardPage     from '../pages/dashboard/DashboardPage'
+import OdontogramPage    from '../pages/odontogram/OdontogramPage'
 
 const Placeholder = ({ title }) => (
   <div style={{ padding: 32 }}>
@@ -26,7 +27,7 @@ export const router = createBrowserRouter([
     path: '/',
     element: <ProtectedRoute><MainLayout /></ProtectedRoute>,
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
+      { index: true,          element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard',    element: <RoleRoute allowed={STAFF}><DashboardPage /></RoleRoute> },
       { path: 'users',        element: <RoleRoute allowed={['ADMIN']}><UsersPage /></RoleRoute> },
       { path: 'catalog',      element: <RoleRoute allowed={['ADMIN']}><CatalogPage /></RoleRoute> },
@@ -35,7 +36,7 @@ export const router = createBrowserRouter([
       { path: 'appointments', element: <RoleRoute allowed={STAFF}><AppointmentsPage /></RoleRoute> },
       { path: 'payments',     element: <RoleRoute allowed={STAFF}><PaymentsPage /></RoleRoute> },
       { path: 'history',      element: <RoleRoute allowed={STAFF}><HistoryPage /></RoleRoute> },
-      { path: 'odontogram',   element: <Placeholder title="Odontograma" /> },
+      { path: 'odontogram',   element: <RoleRoute allowed={['ADMIN','DOCTOR','ASSISTANT']}><OdontogramPage /></RoleRoute> },
       { path: 'profile',      element: <Placeholder title="Mi perfil" /> },
     ],
   },
