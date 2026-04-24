@@ -9,6 +9,7 @@ import CatalogPage       from '../pages/catalog/CatalogPage'
 import AppointmentsPage  from '../pages/appointments/AppointmentsPage'
 import PaymentsPage      from '../pages/payments/PaymentsPage'
 import HistoryPage       from '../pages/history/HistoryPage'
+import DashboardPage     from '../pages/dashboard/DashboardPage'
 
 const Placeholder = ({ title }) => (
   <div style={{ padding: 32 }}>
@@ -26,7 +27,7 @@ export const router = createBrowserRouter([
     element: <ProtectedRoute><MainLayout /></ProtectedRoute>,
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
-      { path: 'dashboard',    element: <Placeholder title="Dashboard" /> },
+      { path: 'dashboard',    element: <RoleRoute allowed={STAFF}><DashboardPage /></RoleRoute> },
       { path: 'users',        element: <RoleRoute allowed={['ADMIN']}><UsersPage /></RoleRoute> },
       { path: 'catalog',      element: <RoleRoute allowed={['ADMIN']}><CatalogPage /></RoleRoute> },
       { path: 'patients',     element: <RoleRoute allowed={STAFF}><PatientsPage /></RoleRoute> },

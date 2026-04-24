@@ -221,11 +221,18 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
             onChange={(e) => setPayment(e.target.value)}
             size="small"
             sx={{ flex: 1 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">S/</InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">S/</InputAdornment>
+                ),
+              },
             }}
+            // InputProps={{
+            //   startAdornment: (
+            //     <InputAdornment position="start">S/</InputAdornment>
+            //   ),
+            // }}
           />
           <Button variant="outlined" onClick={handlePayment} disabled={saving}>
             {saving ? <CircularProgress size={18} /> : "Agregar"}
