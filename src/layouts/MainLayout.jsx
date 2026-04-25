@@ -24,6 +24,7 @@ import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import LocalHospitalIcon from "@mui/icons-material/LocalHospital";
 import HistoryIcon from "@mui/icons-material/History";
 import PersonIcon from "@mui/icons-material/Person";
+import SettingsIcon from "@mui/icons-material/Settings";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import LogoutIcon from "@mui/icons-material/Logout";
@@ -79,13 +80,19 @@ const NAV_ITEMS = [
     label: "Odontograma",
     path: "/odontogram",
     icon: <MedicalServicesIcon />,
-    roles: ["ADMIN", "DOCTOR"],
+    roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
   },
   {
     label: "Mi perfil",
     path: "/profile",
     icon: <PersonIcon />,
     roles: ["ADMIN", "DOCTOR", "ASSISTANT", "PATIENT"],
+  },
+  {
+    label: "Configuración",
+    path: "/settings",
+    icon: <SettingsIcon />,
+    roles: ["ADMIN"],
   },
 ];
 
@@ -178,48 +185,96 @@ export default function MainLayout() {
           </Typography>
         </Toolbar>
         <Divider />
-        <List sx={{ px: 1, pt: 1 }}>
-          {visibleItems.map(({ label, path, icon }) => {
-            const active = location.pathname.startsWith(path);
-            return (
-              <ListItem key={path} disablePadding sx={{ mb: 0.5 }}>
-                <ListItemButton
-                  onClick={() => navigate(path)}
-                  selected={active}
-                  sx={{
-                    borderRadius: 2,
-                    "&.Mui-selected": {
-                      bgcolor: "primary.main",
-                      color: "white",
-                      "& .MuiListItemIcon-root": { color: "white" },
-                      "&:hover": { bgcolor: "primary.dark" },
-                    },
-                  }}
-                >
-                  <ListItemIcon
+        <List sx={{ px: 1, pt: 1, flexGrow: 1 }}>
+          {visibleItems
+            .filter((i) => i.path !== "/settings")
+            .map(({ label, path, icon }) => {
+              const active = location.pathname.startsWith(path);
+              return (
+                <ListItem key={path} disablePadding sx={{ mb: 0.5 }}>
+                  <ListItemButton
+                    onClick={() => navigate(path)}
+                    selected={active}
                     sx={{
-                      minWidth: 36,
-                      color: active ? "white" : "text.secondary",
-                    }}
-                  >
-                    {icon}
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={label}
-                    slotProps={{
-                      primary: {
-                        sx: {
-                          fontSize: 14,
-                          fontWeight: active ? 500 : 400,
-                        },
+                      borderRadius: 2,
+                      "&.Mui-selected": {
+                        bgcolor: "primary.main",
+                        color: "white",
+                        "& .MuiListItemIcon-root": { color: "white" },
+                        "&:hover": { bgcolor: "primary.dark" },
                       },
                     }}
-                  />
-                </ListItemButton>
-              </ListItem>
-            );
-          })}
+                  >
+                    <ListItemIcon
+                      sx={{
+                        minWidth: 36,
+                        color: active ? "white" : "text.secondary",
+                      }}
+                    >
+                      {icon}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={label}
+                      primaryTypographyProps={{
+                        fontSize: 14,
+                        fontWeight: active ? 500 : 400,
+                      }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              );
+            })}
         </List>
+
+        {/* Configuración al fondo del sidebar — solo ADMIN */}
+        {profile?.role === "ADMIN" && (
+          <>
+            <Divider sx={{ mx: 1 }} />
+            <List sx={{ px: 1, pb: 1 }}>
+              {(() => {
+                const item = NAV_ITEMS.find((i) => i.path === "/settings");
+                const active = location.pathname.startsWith("/settings");
+                return (
+                  <ListItem disablePadding>
+                    <ListItemButton
+                      onClick={() => navigate("/settings")}
+                      selected={active}
+                      sx={{
+                        borderRadius: 2,
+                        "&.Mui-selected": {
+                          bgcolor: "primary.main",
+                          color: "white",
+                          "& .MuiListItemIcon-root": { color: "white" },
+                          "&:hover": { bgcolor: "primary.dark" },
+                        },
+                      }}
+                    >
+                      <ListItemIcon
+                        sx={{
+                          minWidth: 36,
+                          color: active ? "white" : "text.secondary",
+                        }}
+                      >
+                        <SettingsIcon />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Configuración"
+                        slotProps={{
+                          primary: {
+                            sx: {
+                              fontSize: 14,
+                              fontWeight: active ? 500 : 400,
+                            },
+                          },
+                        }}
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                );
+              })()}
+            </List>
+          </>
+        )}
       </Drawer>
 
       <Box
