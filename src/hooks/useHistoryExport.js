@@ -38,6 +38,7 @@ async function fetchAllHistory(filters) {
     .from('appointments_full')
     .select('*')
     .order('date', { ascending: false })
+    .limit(2000) // limite maximo para evitar problemas de memoria, recomendable usar filtros de fechas
 
   if (filters.status !== 'all')  query = query.eq('status', filters.status)
   if (filters.treatment_id)      query = query.eq('treatment_id', filters.treatment_id)

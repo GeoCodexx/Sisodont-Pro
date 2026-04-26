@@ -36,6 +36,7 @@ async function fetchAllPayments(filters) {
     .from('payments_summary')
     .select('*')
     .order('date', { ascending: false })
+    .limit(2000) // limite maximo para evitar problemas de memoria, recomendable usar filtros de fechas
 
   if (filters.status !== 'all')  query = query.eq('status', filters.status)
   if (filters.balance === 'pending') query = query.gt('balance', 0)
