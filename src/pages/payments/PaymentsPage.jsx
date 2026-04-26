@@ -29,6 +29,8 @@ import PaymentDetailModal from "./PaymentDetailModal";
 import FilterDrawer from "../../components/FilterDrawer";
 import FilterButton from "../../components/FilterButton";
 import PageHeader from "../../components/PageHeader";
+import ExportMenu from "../../components/ExportMenu";
+import { usePaymentsExport } from "../../hooks/usePaymentsExport";
 import TablePagination from "../../components/TablePagination";
 
 const STATUS_COLOR = {
@@ -168,6 +170,8 @@ export default function PaymentsPage() {
   const { rows, total, loading, error, filters, setFilter, fetchPayments } =
     usePaymentStore();
 
+  const { handleExcel, handlePdf } = usePaymentsExport(filters);
+
   const [selected, setSelected] = useState(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -267,11 +271,7 @@ export default function PaymentsPage() {
         type="date"
         size="small"
         fullWidth
-        slotProps={{
-          inputLabel: {
-            shrink: true,
-          },
-        }}
+        slotProps={{ inputLabel: { shrink: true } }}
         value={f.dateFrom}
         onChange={(e) => set("dateFrom")(e.target.value)}
       />
@@ -280,11 +280,7 @@ export default function PaymentsPage() {
         type="date"
         size="small"
         fullWidth
-        slotProps={{
-          inputLabel: {
-            shrink: true,
-          },
-        }}
+        slotProps={{ inputLabel: { shrink: true } }}
         value={f.dateTo}
         onChange={(e) => set("dateTo")(e.target.value)}
       />
@@ -296,6 +292,14 @@ export default function PaymentsPage() {
       <PageHeader
         title="Pagos"
         subtitle={total + " registro" + (total !== 1 ? "s" : "")}
+        actions={
+          <ExportMenu
+            onExcelExport={handleExcel}
+            onPdfExport={handlePdf}
+            totalRows={total}
+            disabled={loading}
+          />
+        }
       />
 
       <Grid container spacing={1.5} mb={2.5}>
@@ -330,7 +334,7 @@ export default function PaymentsPage() {
       {/* Filtros desktop */}
       {!isMobile && (
         <Grid container spacing={1.5} mb={2}>
-          <Grid size={{ xs: 6, sm: 4 }}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               size="small"
               fullWidth
@@ -392,11 +396,7 @@ export default function PaymentsPage() {
               type="date"
               size="small"
               fullWidth
-              slotProps={{
-                inputLabel: {
-                  shrink: true,
-                },
-              }}
+              slotProps={{ inputLabel: { shrink: true } }}
               value={filters.dateFrom}
               onChange={(e) => {
                 setFilter("dateFrom", e.target.value);
@@ -410,11 +410,7 @@ export default function PaymentsPage() {
               type="date"
               size="small"
               fullWidth
-              slotProps={{
-                inputLabel: {
-                  shrink: true,
-                },
-              }}
+              slotProps={{ inputLabel: { shrink: true } }}
               value={filters.dateTo}
               onChange={(e) => {
                 setFilter("dateTo", e.target.value);

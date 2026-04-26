@@ -35,6 +35,8 @@ import FilterDrawer from "../../components/FilterDrawer";
 import FilterButton from "../../components/FilterButton";
 import PageHeader from "../../components/PageHeader";
 import TablePagination from "../../components/TablePagination";
+import { usePatientsExport } from "../../hooks/usePatientsExport";
+import ExportMenu from "../../components/ExportMenu";
 
 function calcAge(birth) {
   if (!birth) return "—";
@@ -165,6 +167,8 @@ export default function PatientsPage() {
   const [feedback, setFeedback] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
 
+  const { handleExcel, handlePdf } = usePatientsExport(search);
+
   // Fetch central — se llama cada vez que cambian search, page o pageSize
   const load = useCallback(() => {
     fetchPatients({ search, page, pageSize });
@@ -208,19 +212,27 @@ export default function PatientsPage() {
         title="Pacientes"
         subtitle={total + " registro" + (total !== 1 ? "s" : "")}
         actions={
-          can(["ADMIN", "ASSISTANT"]) && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              size={isMobile ? "small" : "medium"}
-              onClick={() => {
-                setEditTarget(null);
-                setOpenForm(true);
-              }}
-            >
-              {isMobile ? "Nuevo" : "Nuevo paciente"}
-            </Button>
-          )
+          <>
+            <ExportMenu
+              onExcelExport={handleExcel}
+              onPdfExport={handlePdf}
+              totalRows={total}
+              disabled={loading}
+            />
+            {can(["ADMIN", "ASSISTANT"]) && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                size={isMobile ? "small" : "medium"}
+                onClick={() => {
+                  setEditTarget(null);
+                  setOpenForm(true);
+                }}
+              >
+                {isMobile ? "Nuevo" : "Nuevo paciente"}
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -275,7 +287,11 @@ export default function PatientsPage() {
           {isMobile ? (
             <Box>
               {patients.length === 0 ? (
-                <Typography color="text.secondary" textAlign="center" mt={4}>
+                <Typography
+                  color="text.secondary"
+                  mt={4}
+                  sx={{ textAlign: "center" }}
+                >
                   No se encontraron pacientes
                 </Typography>
               ) : (

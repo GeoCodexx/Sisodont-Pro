@@ -29,6 +29,8 @@ import { useBreakpoint } from "../../hooks/useBreakpoint";
 import FilterDrawer from "../../components/FilterDrawer";
 import FilterButton from "../../components/FilterButton";
 import PageHeader from "../../components/PageHeader";
+import ExportMenu from "../../components/ExportMenu";
+import { useHistoryExport } from "../../hooks/useHistoryExport";
 import TablePagination from "../../components/TablePagination";
 
 const STATUS_COLOR = {
@@ -145,6 +147,7 @@ export default function HistoryPage() {
   const [pageSize, setPageSize] = useState(20);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [localFilters, setLocalFilters] = useState(EMPTY_FILTERS);
+  const { handleExcel, handlePdf } = useHistoryExport(filters);
 
   const setF = (k) => (v) => setFilters((p) => ({ ...p, [k]: v }));
   const setLocal = (k) => (v) => setLocalFilters((p) => ({ ...p, [k]: v }));
@@ -274,11 +277,7 @@ export default function HistoryPage() {
         type="date"
         size="small"
         fullWidth
-        slotProps={{
-          inputLabel: {
-            shrink: true,
-          },
-        }}
+        slotProps={{ inputLabel: { shrink: true } }}
         value={f.dateFrom}
         onChange={(e) => set("dateFrom")(e.target.value)}
       />
@@ -287,11 +286,7 @@ export default function HistoryPage() {
         type="date"
         size="small"
         fullWidth
-        slotProps={{
-          inputLabel: {
-            shrink: true,
-          },
-        }}
+        slotProps={{ inputLabel: { shrink: true } }}
         value={f.dateTo}
         onChange={(e) => set("dateTo")(e.target.value)}
       />
@@ -303,6 +298,14 @@ export default function HistoryPage() {
       <PageHeader
         title="Historial clínico"
         subtitle={total + " registro" + (total !== 1 ? "s" : "")}
+        actions={
+          <ExportMenu
+            onExcelExport={handleExcel}
+            onPdfExport={handlePdf}
+            totalRows={total}
+            disabled={loading}
+          />
+        }
       />
 
       {/* Filtros desktop */}
@@ -364,11 +367,7 @@ export default function HistoryPage() {
               type="date"
               size="small"
               fullWidth
-              slotProps={{
-                inputLabel: {
-                  shrink: true,
-                },
-              }}
+              slotProps={{ inputLabel: { shrink: true } }}
               value={filters.dateFrom}
               onChange={(e) => setF("dateFrom")(e.target.value)}
             />
@@ -379,11 +378,7 @@ export default function HistoryPage() {
               type="date"
               size="small"
               fullWidth
-              slotProps={{
-                inputLabel: {
-                  shrink: true,
-                },
-              }}
+              slotProps={{ inputLabel: { shrink: true } }}
               value={filters.dateTo}
               onChange={(e) => setF("dateTo")(e.target.value)}
             />
@@ -418,7 +413,11 @@ export default function HistoryPage() {
           {isMobile ? (
             <Box>
               {rows.length === 0 ? (
-                <Typography color="text.secondary" textAlign="center" mt={4}>
+                <Typography
+                  color="text.secondary"
+                  mt={4}
+                  sx={{ textAlign: "center" }}
+                >
                   No se encontraron registros
                 </Typography>
               ) : (
