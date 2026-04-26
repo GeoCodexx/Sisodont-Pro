@@ -5,8 +5,49 @@
 body {
   margin: 0;
   min-height: 100vh;
+  /* Evitar scroll horizontal en móvil */
+  overflow-x: hidden;
 }
 
 #root {
   min-height: 100vh;
+}
+
+/* Evitar que tablas rompan el layout en móvil */
+.MuiTableContainer-root {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mejorar tap targets en móvil */
+@media (max-width: 600px) {
+  .MuiIconButton-root {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  
+  /* Reducir padding de celdas en tablas pequeñas */
+  .MuiTableCell-root {
+    padding: 8px 6px;
+  }
+  
+  /* Cards sin padding lateral excesivo */
+  .MuiCardContent-root:last-child {
+    padding-bottom: 16px;
+  }
+}
+
+/* Scrollbar más delgada en desktop */
+@media (min-width: 600px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.2);
+    border-radius: 3px;
+  }
 }
