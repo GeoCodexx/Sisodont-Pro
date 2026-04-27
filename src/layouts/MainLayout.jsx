@@ -253,6 +253,11 @@ export default function MainLayout() {
     visibleItems.find((i) => location.pathname.startsWith(i.path))?.label ??
     "Sisodont Pro";
 
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/login", { replace: true });
+  };
+
   return (
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
       {/* AppBar */}
@@ -311,7 +316,7 @@ export default function MainLayout() {
               </IconButton>
             </Tooltip>
             <Tooltip title="Cerrar sesión">
-              <IconButton onClick={signOut} size="small">
+              <IconButton onClick={handleLogout} size="small">
                 <LogoutIcon fontSize="small" />
               </IconButton>
             </Tooltip>

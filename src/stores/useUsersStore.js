@@ -1,5 +1,5 @@
-import { create } from 'zustand'
-import { supabase } from '../services/supabaseClient'
+import { create } from "zustand";
+import { supabase } from "../services/supabaseClient";
 
 export const useUsersStore = create((set, get) => ({
   users: [],
@@ -7,37 +7,40 @@ export const useUsersStore = create((set, get) => ({
   error: null,
 
   fetchUsers: async () => {
-    set({ loading: true, error: null })
+    set({ loading: true, error: null });
     const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false })
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-    if (error) set({ error: error.message })
-    else set({ users: data })
-    set({ loading: false })
+    if (error) set({ error: error.message });
+    else set({ users: data });
+    set({ loading: false });
   },
 
   updateRole: async (userId, role) => {
     const { error } = await supabase
-      .from('profiles')
+      .from("profiles")
       .update({ role })
-      .eq('id', userId)
+      .eq("id", userId);
 
-    if (error) return { error: error.message }
-    await get().fetchUsers()
-    return { error: null }
+    if (error) return { error: error.message };
+    await get().fetchUsers();
+    return { error: null };
   },
 
   toggleActive: async (userId, active) => {
-    const { error } = await supabase
-      .from('profiles')
+    const { error } = await supabase.rpc("update_user_active", {
+      target_user_id: userId,
+      new_active: !active,
+    });
+    /* .from('profiles')
       .update({ active: !active })
-      .eq('id', userId)
+      .eq('id', userId)*/
 
-    if (error) return { error: error.message }
-    await get().fetchUsers()
-    return { error: null }
+    if (error) return { error: error.message };
+    await get().fetchUsers();
+    return { error: null };
   },
 
   // Crear usuario invitado (Supabase Admin API via Edge Function en producción)
@@ -49,9 +52,9 @@ export const useUsersStore = create((set, get) => ({
       options: {
         data: { full_name, role },
       },
-    })
-    if (error) return { error: error.message }
-    await get().fetchUsers()
-    return { error: null, user: data.user }
+    });
+    if (error) return { error: error.message };
+    await get().fetchUsers();
+    return { error: null, user: data.user };
   },
-}))
+}));
