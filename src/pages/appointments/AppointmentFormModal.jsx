@@ -12,6 +12,8 @@ import {
   Alert,
   InputAdornment,
   Autocomplete,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import { useAppointmentStore } from "../../stores/useAppointmentStore";
 import { useCatalogStore } from "../../stores/useCatalogStore";
@@ -35,6 +37,9 @@ const EMPTY = {
 };
 
 export default function AppointmentFormModal({ open, prefillDate, onClose }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
   const { createAppointment, saving } = useAppointmentStore();
   const { doctors, treatments, fetchAll } = useCatalogStore();
   const { patients, fetchPatients } = usePatientStore();
@@ -46,7 +51,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
   useEffect(() => {
     if (open) {
       fetchAll();
-      fetchPatients();
+      fetchPatients({ page: 1, pageSize: 200 });
       setForm({
         ...EMPTY,
         date: prefillDate ? toDatetimeLocal(prefillDate) : "",
@@ -55,7 +60,6 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     }
   }, [open]);
 
-  // Auto-completar precio cuando se elige tratamiento
   useEffect(() => {
     if (form.treatment_id) {
       const t = treatments.find((t) => t.id === form.treatment_id);
@@ -69,7 +73,6 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-
     if (!form.patient_id) {
       setError("Selecciona un paciente.");
       return;
@@ -83,14 +86,13 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       return;
     }
 
-    // Calcular end_date según duración del tratamiento
     const treatment = treatments.find((t) => t.id === form.treatment_id);
     const startDate = new Date(form.date);
     const endDate = new Date(
       startDate.getTime() + (treatment?.duration_min ?? 30) * 60000,
     );
 
-    const payload = {
+    const { error } = await createAppointment({
       patient_id: form.patient_id,
       doctor_id: form.doctor_id,
       treatment_id: form.treatment_id || null,
@@ -99,9 +101,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       total: parseFloat(form.total) || 0,
       notes: form.notes || null,
       created_by: profile?.id ?? null,
-    };
-
-    const { error } = await createAppointment(payload);
+    });
     if (error) {
       setError(error);
       return;
@@ -109,14 +109,21 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     onClose(true);
   };
 
-  // Filtrar doctores por especialidad del tratamiento seleccionado
-  const treatment = treatments.find((t) => t.id === form.treatment_id);
-  const filteredDoctors = treatment?.specialty_id
-    ? doctors.filter((d) => d.specialty_id === treatment.specialty_id)
+  const filteredDoctors = form.treatment_id
+    ? doctors.filter((d) => {
+        const t = treatments.find((t) => t.id === form.treatment_id);
+        return !t?.specialty_id || d.specialty_id === t.specialty_id;
+      })
     : doctors;
 
   return (
-    <Dialog open={open} onClose={() => onClose(false)} maxWidth="sm" fullWidth>
+    <Dialog
+      open={open}
+      onClose={() => onClose(false)}
+      maxWidth="sm"
+      fullWidth
+      fullScreen={isMobile}
+    >
       <DialogTitle>Nueva cita</DialogTitle>
       <DialogContent dividers>
         {error && (
@@ -125,7 +132,6 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
           </Alert>
         )}
         <Grid container spacing={2}>
-          {/* Paciente con búsqueda */}
           <Grid size={{ xs: 12 }}>
             <Autocomplete
               options={patients}
@@ -141,7 +147,6 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             />
           </Grid>
 
-          {/* Tratamiento */}
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               select
@@ -160,7 +165,6 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             </TextField>
           </Grid>
 
-          {/* Doctor (filtrado por especialidad del tratamiento) */}
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               select
@@ -171,7 +175,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
               fullWidth
             >
               {filteredDoctors.length === 0 && (
-                <MenuItem disabled>No hay doctores disponibles</MenuItem>
+                <MenuItem disabled>Sin doctores disponibles</MenuItem>
               )}
               {filteredDoctors.map((d) => (
                 <MenuItem key={d.id} value={d.id}>
@@ -181,7 +185,6 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             </TextField>
           </Grid>
 
-          {/* Fecha y hora */}
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               label="Fecha y hora *"
@@ -198,7 +201,6 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             />
           </Grid>
 
-          {/* Total */}
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               label="Total"
@@ -217,7 +219,6 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             />
           </Grid>
 
-          {/* Notas */}
           <Grid size={{ xs: 12 }}>
             <TextField
               label="Notas"

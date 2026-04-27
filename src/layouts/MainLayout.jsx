@@ -271,7 +271,7 @@ export default function MainLayout() {
           borderColor: "divider",
           bgcolor: "background.paper",
           color: "text.primary",
-          zIndex: theme.zIndex.drawer + 1,
+          zIndex: { xs: theme.zIndex.drawer + 1, md: theme.zIndex.drawer },
         }}
       >
         <Toolbar
