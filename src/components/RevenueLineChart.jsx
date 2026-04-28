@@ -33,7 +33,7 @@ export default function RevenueLineChart({ data }) {
   return (
     <Card variant="outlined" sx={{ height: "100%" }}>
       <CardContent>
-        <Typography variant="subtitle2" fontWeight={500} mb={2}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 2 }}>
           Ingresos mensuales (S/)
         </Typography>
         <ResponsiveContainer width="100%" height={220}>

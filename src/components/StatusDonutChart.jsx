@@ -1,27 +1,34 @@
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { Card, CardContent, Typography, useTheme } from '@mui/material'
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import { Card, CardContent, Typography, useTheme } from "@mui/material";
 
 const COLORS = {
-  Atendidas:  '#1D9E75',
-  Pendientes: '#BA7517',
-  Canceladas: '#A32D2D',
-}
+  Atendidas: "#1D9E75",
+  Pendientes: "#BA7517",
+  Canceladas: "#A32D2D",
+};
 
 export default function StatusDonutChart({ kpis }) {
-  const theme = useTheme()
+  const theme = useTheme();
 
-  if (!kpis) return null
+  if (!kpis) return null;
 
   const data = [
-    { name: 'Atendidas',  value: kpis.attended  },
-    { name: 'Pendientes', value: kpis.pending   },
-    { name: 'Canceladas', value: kpis.cancelled },
-  ].filter(d => d.value > 0)
+    { name: "Atendidas", value: kpis.attended },
+    { name: "Pendientes", value: kpis.pending },
+    { name: "Canceladas", value: kpis.cancelled },
+  ].filter((d) => d.value > 0);
 
   return (
-    <Card variant="outlined" sx={{ height: '100%' }}>
+    <Card variant="outlined" sx={{ height: "100%" }}>
       <CardContent>
-        <Typography variant="subtitle2" fontWeight={500} mb={1}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1 }}>
           Distribución de citas
         </Typography>
         <ResponsiveContainer width="100%" height={220}>
@@ -40,7 +47,7 @@ export default function StatusDonutChart({ kpis }) {
               ))}
             </Pie>
             <Tooltip
-              formatter={(v) => [`${v} citas`, '']}
+              formatter={(v) => [`${v} citas`, ""]}
               contentStyle={{
                 backgroundColor: theme.palette.background.paper,
                 border: `0.5px solid ${theme.palette.divider}`,
@@ -53,5 +60,5 @@ export default function StatusDonutChart({ kpis }) {
         </ResponsiveContainer>
       </CardContent>
     </Card>
-  )
+  );
 }

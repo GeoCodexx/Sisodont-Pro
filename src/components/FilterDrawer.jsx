@@ -1,9 +1,13 @@
 import {
-  Drawer, Box, Typography, IconButton,
-  Button, Divider,
-} from '@mui/material'
-import CloseIcon  from '@mui/icons-material/Close'
-import FilterIcon from '@mui/icons-material/FilterList'
+  Drawer,
+  Box,
+  Typography,
+  IconButton,
+  Button,
+  Divider,
+} from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
+import FilterIcon from "@mui/icons-material/FilterList";
 
 /**
  * Drawer de filtros para vista móvil.
@@ -28,7 +32,7 @@ export default function FilterDrawer({
   onApply,
   onClear,
   activeCount = 0,
-  title = 'Filtros',
+  title = "Filtros",
   children,
 }) {
   return (
@@ -36,36 +40,55 @@ export default function FilterDrawer({
       anchor="bottom"
       open={open}
       onClose={onClose}
-      PaperProps={{
-        sx: {
-          borderRadius: '16px 16px 0 0',
-          maxHeight: '85vh',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
+      slotProps={{
+        paper: {
+          sx: {
+            borderRadius: "16px 16px 0 0",
+            maxHeight: "85vh",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          },
         },
       }}
     >
       {/* Handle visual */}
-      <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1, pb: 0.5 }}>
-        <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: 'divider' }} />
+      <Box sx={{ display: "flex", justifyContent: "center", pt: 1, pb: 0.5 }}>
+        <Box
+          sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: "divider" }}
+        />
       </Box>
 
       {/* Header */}
-      <Box sx={{
-        display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', px: 2.5, py: 1.5,
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          px: 2.5,
+          py: 1.5,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <FilterIcon fontSize="small" color="primary" />
-          <Typography variant="subtitle1" fontWeight={500}>{title}</Typography>
+          <Typography variant="subtitle1" fontWeight={500}>
+            {title}
+          </Typography>
           {activeCount > 0 && (
-            <Box sx={{
-              bgcolor: 'primary.main', color: 'white',
-              borderRadius: '50%', width: 20, height: 20,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 600,
-            }}>
+            <Box
+              sx={{
+                bgcolor: "primary.main",
+                color: "white",
+                borderRadius: "50%",
+                width: 20,
+                height: 20,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            >
               {activeCount}
             </Box>
           )}
@@ -78,13 +101,23 @@ export default function FilterDrawer({
       <Divider />
 
       {/* Contenido scrollable */}
-      <Box sx={{ overflow: 'auto', flex: 1, px: 2.5, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Box
+        sx={{
+          overflow: "auto",
+          flex: 1,
+          px: 2.5,
+          py: 2,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}
+      >
         {children}
       </Box>
 
       {/* Acciones */}
       <Divider />
-      <Box sx={{ display: 'flex', gap: 1.5, p: 2 }}>
+      <Box sx={{ display: "flex", gap: 1.5, p: 2 }}>
         {onClear && (
           <Button variant="outlined" fullWidth onClick={onClear}>
             Limpiar
@@ -97,5 +130,5 @@ export default function FilterDrawer({
         )}
       </Box>
     </Drawer>
-  )
+  );
 }

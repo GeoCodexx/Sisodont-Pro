@@ -50,14 +50,12 @@ function KpiCard({ label, value, color }) {
   return (
     <Card variant="outlined">
       <CardContent sx={{ pb: "16px !important" }}>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
           {label}
         </Typography>
         <Typography
           variant="h6"
-          fontWeight={500}
-          color={color ?? "text.primary"}
-          mt={0.5}
+          sx={{ fontWeight: 500, color: color ?? "text.primary", mt: 0.5 }}
         >
           {value}
         </Typography>
@@ -80,11 +78,11 @@ function PaymentCard({ row, onDetail }) {
           }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" fontWeight={500} noWrap>
+            <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
               {row.patient_name}
             </Typography>
             {row.patient_dni && (
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
                 {row.patient_dni}
               </Typography>
             )}
@@ -98,9 +96,7 @@ function PaymentCard({ row, onDetail }) {
         </Box>
         <Typography
           variant="caption"
-          color="text.secondary"
-          display="block"
-          mb={1}
+          sx={{ color: "text.secondary", display: "block", mb: 1 }}
         >
           {row.treatment_name ?? "—"} · {row.doctor_name ?? "—"} ·{" "}
           {fmt(row.date)}
@@ -116,39 +112,35 @@ function PaymentCard({ row, onDetail }) {
             <Box>
               <Typography
                 variant="caption"
-                color="text.secondary"
-                display="block"
+                sx={{ display: "block", color: "text.secondary" }}
               >
                 Total
               </Typography>
-              <Typography variant="body2" fontWeight={500}>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
                 S/ {Number(row.total).toFixed(2)}
               </Typography>
             </Box>
             <Box>
               <Typography
                 variant="caption"
-                color="text.secondary"
-                display="block"
+                sx={{ display: "block", color: "text.secondary" }}
               >
                 Pagado
               </Typography>
-              <Typography variant="body2" color="success.main">
+              <Typography variant="body2" sx={{ color: "success.main" }}>
                 S/ {Number(row.paid).toFixed(2)}
               </Typography>
             </Box>
             <Box>
               <Typography
                 variant="caption"
-                color="text.secondary"
-                display="block"
+                sx={{ display: "block", color: "text.secondary" }}
               >
                 Saldo
               </Typography>
               <Typography
                 variant="body2"
-                fontWeight={500}
-                color={BALANCE_COLOR(balance)}
+                sx={{ fontWeight: 500, color: BALANCE_COLOR(balance) }}
               >
                 S/ {balance.toFixed(2)}
               </Typography>
@@ -302,7 +294,7 @@ export default function PaymentsPage() {
         }
       />
 
-      <Grid container spacing={1.5} mb={2.5}>
+      <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
         <Grid size={{ xs: 6, sm: 3 }}>
           <KpiCard label="Facturado" value={"S/ " + totalBruto.toFixed(2)} />
         </Grid>
@@ -333,7 +325,7 @@ export default function PaymentsPage() {
 
       {/* Filtros desktop */}
       {!isMobile && (
-        <Grid container spacing={1.5} mb={2}>
+        <Grid container spacing={1.5} sx={{ mb: 2 }}>
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               size="small"
@@ -444,8 +436,7 @@ export default function PaymentsPage() {
               {rows.length === 0 ? (
                 <Typography
                   color="text.secondary"
-                  mt={4}
-                  sx={{ textAlign: "center" }}
+                  sx={{ textAlign: "center", mt: 4 }}
                 >
                   No se encontraron registros
                 </Typography>
@@ -490,11 +481,14 @@ export default function PaymentsPage() {
                   {rows.map((r) => (
                     <TableRow key={r.appointment_id} hover>
                       <TableCell>
-                        <Typography variant="body2" fontWeight={500}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
                           {r.patient_name}
                         </Typography>
                         {r.patient_dni && (
-                          <Typography variant="caption" color="text.secondary">
+                          <Typography
+                            variant="caption"
+                            sx={{ color: "text.secondary" }}
+                          >
                             {r.patient_dni}
                           </Typography>
                         )}
@@ -518,15 +512,17 @@ export default function PaymentsPage() {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" color="success.main">
+                        <Typography
+                          variant="body2"
+                          sx={{ color: "success.main" }}
+                        >
                           S/ {Number(r.paid).toFixed(2)}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Typography
                           variant="body2"
-                          fontWeight={500}
-                          color={BALANCE_COLOR(r.balance)}
+                          sx={{ fontWeight: 500, color: BALANCE_COLOR(r.balance) }}
                         >
                           S/ {Number(r.balance).toFixed(2)}
                         </Typography>

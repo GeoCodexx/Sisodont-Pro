@@ -52,18 +52,18 @@ function TreatmentCard({ t, onEdit, onDelete }) {
           }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" fontWeight={500} noWrap>
+            <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
               {t.name}
             </Typography>
             {t.description && (
               <Typography
                 variant="caption"
-                color="text.secondary"
                 sx={{
                   display: "-webkit-box",
                   WebkitLineClamp: 2,
                   WebkitBoxOrient: "vertical",
                   overflow: "hidden",
+                  color: "text.secondary",
                 }}
               >
                 {t.description}
@@ -100,10 +100,13 @@ function TreatmentCard({ t, onEdit, onDelete }) {
               variant="outlined"
             />
           )}
-          <Typography variant="body2" fontWeight={500} color="success.main">
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 500, color: "success.main" }}
+          >
             S/ {Number(t.price).toFixed(2)}
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
             {t.duration_min} min
           </Typography>
         </Box>
@@ -212,7 +215,9 @@ export default function TreatmentsTab({ onNotify }) {
       {isMobile ? (
         <Box>
           {visible.length === 0 ? (
-            <Typography color="text.secondary" textAlign="center" mt={4}>
+            <Typography
+              sx={{ color: "text.secondary", textAlign: "center", mt: 4 }}
+            >
               No se encontraron tratamientos
             </Typography>
           ) : (
@@ -254,7 +259,7 @@ export default function TreatmentsTab({ onNotify }) {
               {visible.map((t) => (
                 <TableRow key={t.id} hover>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={500}>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
                       {t.name}
                     </Typography>
                     {t.description && (
@@ -282,7 +287,7 @@ export default function TreatmentsTab({ onNotify }) {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={500}>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
                       S/ {Number(t.price).toFixed(2)}
                     </Typography>
                   </TableCell>

@@ -126,17 +126,6 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
       anchor={isMobile ? "bottom" : "right"}
       open={open}
       onClose={onClose}
-      //sx={{ zindex: { md: (theme) => theme.zIndex.appBar + 2 } }}
-      /*PaperProps={{
-        sx: isMobile
-          ? {
-              borderRadius: "16px 16px 0 0",
-              maxHeight: "92vh",
-              display: "flex",
-              flexDirection: "column",
-            }
-          : { width: 400, p: 3 },
-      }}*/
       slotProps={{
         paper: {
           sx: isMobile
@@ -171,7 +160,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
           }}
         >
           <Box>
-            <Typography variant="h6" fontWeight={500}>
+            <Typography variant="h6" sx={{ fontWeight: 500 }}>
               Detalle de cita
             </Typography>
             <Chip
@@ -220,7 +209,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
         <Divider sx={{ my: 2 }} />
 
         {/* Pagos */}
-        <Typography variant="subtitle2" fontWeight={500} mb={1.5}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1.5 }}>
           Pagos
         </Typography>
         <Box
@@ -241,12 +230,11 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
           >
             <Typography
               variant="caption"
-              color="text.secondary"
-              display="block"
+              sx={{ color: "text.secondary", display: "block" }}
             >
               Total
             </Typography>
-            <Typography variant="body2" fontWeight={500}>
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>
               S/ {Number(selected.total).toFixed(2)}
             </Typography>
           </Box>
@@ -260,12 +248,14 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
           >
             <Typography
               variant="caption"
-              color="text.secondary"
-              display="block"
+              sx={{ color: "text.secondary", display: "block" }}
             >
               Pagado
             </Typography>
-            <Typography variant="body2" color="success.main" fontWeight={500}>
+            <Typography
+              variant="body2"
+              sx={{ color: "success.main", fontWeight: 500 }}
+            >
               S/ {Number(selected.paid).toFixed(2)}
             </Typography>
           </Box>
@@ -279,15 +269,16 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
           >
             <Typography
               variant="caption"
-              color="text.secondary"
-              display="block"
+              sx={{ color: "text.secondary", display: "block" }}
             >
               Saldo
             </Typography>
             <Typography
               variant="body2"
-              color={balance > 0 ? "error.main" : "text.secondary"}
-              fontWeight={500}
+              sx={{
+                color: balance > 0 ? "error.main" : "text.secondary",
+                fontWeight: 500,
+              }}
             >
               S/ {balance.toFixed(2)}
             </Typography>
@@ -327,10 +318,10 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
         {/* Cambio de estado */}
         {can(["ADMIN", "DOCTOR", "ASSISTANT"]) && (
           <>
-            <Typography variant="subtitle2" fontWeight={500} mb={1.5}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1.5 }}>
               Cambiar estado
             </Typography>
-            <Stack direction="row" spacing={1} mb={2}>
+            <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
               {["pendiente", "atendido", "cancelado"].map((s) => (
                 <Button
                   key={s}

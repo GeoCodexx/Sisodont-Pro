@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   Box,
-  Typography,
   Grid,
   Card,
   CardContent,
@@ -12,9 +11,12 @@ import {
   Avatar,
   Divider,
   Chip,
+  Typography,
 } from "@mui/material";
 import { supabase } from "../../services/supabaseClient";
 import { useAuthStore } from "../../stores/useAuthStore";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
+import PageHeader from "../../components/PageHeader";
 
 const ROLE_LABELS = {
   ADMIN: "Administrador",
@@ -22,7 +24,6 @@ const ROLE_LABELS = {
   ASSISTANT: "Asistente",
   PATIENT: "Paciente",
 };
-
 const ROLE_COLORS = {
   ADMIN: "error",
   DOCTOR: "primary",
@@ -40,6 +41,7 @@ function initials(name = "") {
 }
 
 export default function ProfilePage() {
+  const { isMobile } = useBreakpoint();
   const { profile, setProfile } = useAuthStore();
 
   const [form, setForm] = useState({ full_name: "", phone: "" });
@@ -74,7 +76,6 @@ export default function ProfilePage() {
       .eq("id", profile.id)
       .select()
       .single();
-
     if (error) setFeedback({ msg: error.message, type: "error" });
     else {
       setProfile(data);
@@ -89,10 +90,7 @@ export default function ProfilePage() {
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (pwForm.password.length < 6) {
-      setFeedbackPw({
-        msg: "La contraseña debe tener al menos 6 caracteres.",
-        type: "error",
-      });
+      setFeedbackPw({ msg: "Mínimo 6 caracteres.", type: "error" });
       return;
     }
     if (pwForm.password !== pwForm.confirm) {
@@ -105,10 +103,7 @@ export default function ProfilePage() {
     });
     if (error) setFeedbackPw({ msg: error.message, type: "error" });
     else {
-      setFeedbackPw({
-        msg: "Contraseña actualizada correctamente.",
-        type: "success",
-      });
+      setFeedbackPw({ msg: "Contraseña actualizada.", type: "success" });
       setPwForm({ password: "", confirm: "" });
     }
     setSavingPw(false);
@@ -117,31 +112,48 @@ export default function ProfilePage() {
   if (!profile) return null;
 
   return (
-    <Box sx={{ maxWidth: 720, mx: "auto" }}>
-      <Typography variant="h6" fontWeight={500} mb={3}>
-        Mi perfil
-      </Typography>
+    <Box sx={{ maxWidth: { sm: 680 }, mx: "auto" }}>
+      <PageHeader title="Mi perfil" />
 
-      <Grid container spacing={3}>
+      <Grid container spacing={{ xs: 2, sm: 3 }}>
         {/* Tarjeta de resumen */}
         <Grid size={{ xs: 12 }}>
           <Card variant="outlined">
-            <CardContent sx={{ display: "flex", alignItems: "center", gap: 3 }}>
+            <CardContent
+              sx={{
+                display: "flex",
+                alignItems: { xs: "flex-start", sm: "center" },
+                flexDirection: { xs: "row", sm: "row" },
+                gap: 2,
+              }}
+            >
               <Avatar
                 sx={{
-                  width: 72,
-                  height: 72,
+                  width: { xs: 52, sm: 72 },
+                  height: { xs: 52, sm: 72 },
                   bgcolor: "primary.main",
-                  fontSize: 28,
+                  fontSize: { xs: 20, sm: 28 },
+                  flexShrink: 0,
                 }}
               >
                 {initials(profile.full_name)}
               </Avatar>
               <Box>
-                <Typography variant="h6" fontWeight={500}>
+                <Typography
+                  variant="h6"
+                  sx={{ lineHeight: 1.2, fontWeight: 500 }}
+                >
                   {profile.full_name}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" mb={1}>
+                <Typography
+                  variant="body2"
+                  //color="text.secondary"
+                  sx={{
+                    wordBreak: "break-all",
+                    mb: 1,
+                    color: "text.secondary",
+                  }}
+                >
                   {profile.email}
                 </Typography>
                 <Chip
@@ -154,11 +166,14 @@ export default function ProfilePage() {
           </Card>
         </Grid>
 
-        {/* Editar datos personales */}
+        {/* Datos personales */}
         <Grid size={{ xs: 12 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle2" fontWeight={500} mb={2}>
+              <Typography
+                variant="subtitle2"
+                sx={{ wordBreak: "break-all", mb: 2 }}
+              >
                 Datos personales
               </Typography>
 
@@ -200,7 +215,7 @@ export default function ProfilePage() {
                       size="small"
                       fullWidth
                       disabled
-                      helperText="El correo no puede modificarse desde aquí"
+                      helperText="No puede modificarse aquí"
                     />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
@@ -210,11 +225,16 @@ export default function ProfilePage() {
                       size="small"
                       fullWidth
                       disabled
-                      helperText="El rol es asignado por el administrador"
+                      helperText="Asignado por el administrador"
                     />
                   </Grid>
                   <Grid size={{ xs: 12 }}>
-                    <Button type="submit" variant="contained" disabled={saving}>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      disabled={saving}
+                      fullWidth={isMobile}
+                    >
                       {saving ? (
                         <CircularProgress size={20} color="inherit" />
                       ) : (
@@ -232,7 +252,7 @@ export default function ProfilePage() {
         <Grid size={{ xs: 12 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle2" fontWeight={500} mb={2}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 2 }}>
                 Cambiar contraseña
               </Typography>
 
@@ -274,6 +294,7 @@ export default function ProfilePage() {
                       type="submit"
                       variant="outlined"
                       disabled={savingPw}
+                      fullWidth={isMobile}
                     >
                       {savingPw ? (
                         <CircularProgress size={20} color="inherit" />

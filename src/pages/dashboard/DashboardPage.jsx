@@ -89,7 +89,7 @@ export default function DashboardPage() {
             mb: 1.5,
           }}
         >
-          <Typography variant="h6" fontWeight={500}>
+          <Typography variant="h6" sx={{ fontWeight: 500 }}>
             Dashboard
           </Typography>
 
@@ -218,7 +218,7 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* ── KPIs: 2 columnas en móvil, 3 en tablet, 6 en desktop ── */}
-          <Grid container spacing={{ xs: 1.5, sm: 2 }} mb={3}>
+          <Grid container spacing={{ xs: 1.5, sm: 2 }} sx={{ mb: 3 }}>
             {[
               {
                 label: "Total citas",
@@ -268,7 +268,11 @@ export default function DashboardPage() {
           </Grid>
 
           {/* ── Gráficos fila 1 ── */}
-          <Grid container spacing={{ xs: 1.5, sm: 2 }} mb={{ xs: 1.5, sm: 2 }}>
+          <Grid
+            container
+            spacing={{ xs: 1.5, sm: 2 }}
+            sx={{ mb: { xs: 1.5, sm: 2 } }}
+          >
             <Grid size={{ xs: 12, md: 8 }}>
               <MonthlyBarChart data={monthly} />
             </Grid>
@@ -278,7 +282,11 @@ export default function DashboardPage() {
           </Grid>
 
           {/* ── Gráficos fila 2 ── */}
-          <Grid container spacing={{ xs: 1.5, sm: 2 }} mb={{ xs: 1.5, sm: 2 }}>
+          <Grid
+            container
+            spacing={{ xs: 1.5, sm: 2 }}
+            sx={{ mb: { xs: 1.5, sm: 2 } }}
+          >
             <Grid size={{ xs: 12, md: 8 }}>
               <RevenueLineChart data={monthly} />
             </Grid>

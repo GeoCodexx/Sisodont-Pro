@@ -73,10 +73,14 @@ function UserCard({ user, onEdit, onToggle }) {
             {initials(user.full_name)}
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" fontWeight={500} noWrap>
+            <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
               {user.full_name}
             </Typography>
-            <Typography variant="caption" color="text.secondary" noWrap>
+            <Typography
+              variant="caption"
+              sx={{ color: "text.secondary" }}
+              noWrap
+            >
               {user.email}
             </Typography>
           </Box>
@@ -103,8 +107,7 @@ function UserCard({ user, onEdit, onToggle }) {
             />
             <Typography
               variant="caption"
-              color="text.secondary"
-              sx={{ alignSelf: "center" }}
+              sx={{ alignSelf: "center", color: "text.secondary" }}
             >
               {new Date(user.created_at).toLocaleDateString("es-PE")}
             </Typography>
@@ -232,7 +235,9 @@ export default function UsersPage() {
           {isMobile ? (
             <Box>
               {users.length === 0 ? (
-                <Typography color="text.secondary" textAlign="center" mt={4}>
+                <Typography
+                  sx={{ color: "text.secondary", textAlign: "center", mt: 4 }}
+                >
                   No hay usuarios
                 </Typography>
               ) : (
@@ -284,13 +289,16 @@ export default function UsersPage() {
                           >
                             {initials(u.full_name)}
                           </Avatar>
-                          <Typography variant="body2" fontWeight={500}>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
                             {u.full_name}
                           </Typography>
                         </Box>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography
+                          variant="body2"
+                          sx={{ color: "text.secondary" }}
+                        >
                           {u.email}
                         </Typography>
                       </TableCell>
@@ -310,7 +318,10 @@ export default function UsersPage() {
                         />
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography
+                          variant="body2"
+                          sx={{ color: "text.secondary" }}
+                        >
                           {new Date(u.created_at).toLocaleDateString("es-PE")}
                         </Typography>
                       </TableCell>

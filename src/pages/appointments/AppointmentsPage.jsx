@@ -75,12 +75,15 @@ function AppointmentList({ appointments, onSelect }) {
   return (
     <Box>
       {Object.entries(groups).map(([day, items]) => (
-        <Box key={day} mb={2}>
+        <Box key={day} sx={{ mb: 2 }}>
           <Typography
             variant="caption"
-            fontWeight={600}
-            color="text.secondary"
-            sx={{ textTransform: "uppercase", letterSpacing: 0.5 }}
+            sx={{
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              fontWeight: 600,
+              color: "text.secondary",
+            }}
           >
             {day}
           </Typography>
@@ -115,16 +118,18 @@ function AppointmentList({ appointments, onSelect }) {
                         >
                           <Typography
                             variant="body2"
-                            fontWeight={500}
                             noWrap
-                            sx={{ flex: 1 }}
+                            sx={{ flex: 1, fontWeight: 500 }}
                           >
                             {a.patient_name}
                           </Typography>
                           <Typography
                             variant="caption"
-                            color="text.secondary"
-                            sx={{ ml: 1, flexShrink: 0 }}
+                            sx={{
+                              ml: 1,
+                              flexShrink: 0,
+                              color: "text.secondary",
+                            }}
                           >
                             {new Date(a.date).toLocaleTimeString("es-PE", {
                               timeStyle: "short",
@@ -143,8 +148,8 @@ function AppointmentList({ appointments, onSelect }) {
                         >
                           <Typography
                             variant="caption"
-                            color="text.secondary"
                             noWrap
+                            sx={{ color: "text.secondary" }}
                           >
                             {a.treatment_name ?? "—"} · {a.doctor_name ?? "—"}
                           </Typography>

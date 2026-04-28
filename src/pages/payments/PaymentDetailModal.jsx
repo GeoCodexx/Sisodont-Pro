@@ -119,8 +119,10 @@ export default function PaymentDetailModal({ open, row, onClose }) {
           <Box>
             <Typography
               variant="caption"
-              color="text.secondary"
-              display="block"
+              sx={{
+                display: "block",
+                color: "text.secondary",
+              }}
             >
               Tratamiento
             </Typography>
@@ -129,8 +131,10 @@ export default function PaymentDetailModal({ open, row, onClose }) {
           <Box>
             <Typography
               variant="caption"
-              color="text.secondary"
-              display="block"
+              sx={{
+                display: "block",
+                color: "text.secondary",
+              }}
             >
               Doctor
             </Typography>
@@ -139,8 +143,10 @@ export default function PaymentDetailModal({ open, row, onClose }) {
           <Box>
             <Typography
               variant="caption"
-              color="text.secondary"
-              display="block"
+              sx={{
+                display: "block",
+                color: "text.secondary",
+              }}
             >
               Total
             </Typography>
@@ -151,27 +157,36 @@ export default function PaymentDetailModal({ open, row, onClose }) {
           <Box>
             <Typography
               variant="caption"
-              color="text.secondary"
-              display="block"
+              sx={{
+                display: "block",
+                color: "text.secondary",
+              }}
             >
               Pagado
             </Typography>
-            <Typography variant="body2" color="success.main" fontWeight={500}>
+            <Typography
+              variant="body2"
+              sx={{ fontWeight: 500, color: "success.main" }}
+            >
               S/ {Number(row.paid).toFixed(2)}
             </Typography>
           </Box>
           <Box>
             <Typography
               variant="caption"
-              color="text.secondary"
-              display="block"
+              sx={{
+                display: "block",
+                color: "text.secondary",
+              }}
             >
               Saldo
             </Typography>
             <Typography
               variant="body2"
-              fontWeight={500}
-              color={balance > 0 ? "error.main" : "text.secondary"}
+              sx={{
+                fontWeight: 500,
+                color: balance > 0 ? "error.main" : "text.secondary",
+              }}
             >
               S/ {balance.toFixed(2)}
             </Typography>
@@ -191,12 +206,12 @@ export default function PaymentDetailModal({ open, row, onClose }) {
         <Divider sx={{ mb: 2 }} />
 
         {/* Historial de transacciones */}
-        <Typography variant="subtitle2" fontWeight={500} mb={1.5}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1.5 }}>
           Historial de transacciones
         </Typography>
 
         {detail.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" mb={2}>
+          <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
             No hay pagos registrados para esta cita.
           </Typography>
         ) : (
@@ -219,8 +234,7 @@ export default function PaymentDetailModal({ open, row, onClose }) {
                   <TableCell>
                     <Typography
                       variant="body2"
-                      fontWeight={500}
-                      color="success.main"
+                      sx={{ fontWeight: 500, color: "success.main" }}
                     >
                       S/ {Number(p.amount).toFixed(2)}
                     </Typography>
@@ -235,7 +249,10 @@ export default function PaymentDetailModal({ open, row, onClose }) {
                     />
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
+                    >
                       {p.created_by_profile?.full_name ?? "—"}
                     </Typography>
                   </TableCell>
@@ -261,7 +278,7 @@ export default function PaymentDetailModal({ open, row, onClose }) {
         {can(["ADMIN", "ASSISTANT"]) && balance > 0 && (
           <>
             <Divider sx={{ mb: 2 }} />
-            <Typography variant="subtitle2" fontWeight={500} mb={1.5}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1.5 }}>
               Registrar pago — Saldo: S/ {balance.toFixed(2)}
             </Typography>
             <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>

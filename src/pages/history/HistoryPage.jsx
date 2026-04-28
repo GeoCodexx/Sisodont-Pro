@@ -61,11 +61,11 @@ function HistoryCard({ row, onView }) {
           }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" fontWeight={500} noWrap>
+            <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
               {row.patient_name}
             </Typography>
             {row.patient_dni && (
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
                 {row.patient_dni}
               </Typography>
             )}
@@ -79,9 +79,7 @@ function HistoryCard({ row, onView }) {
         </Box>
         <Typography
           variant="caption"
-          color="text.secondary"
-          display="block"
-          mb={1}
+          sx={{ color: "text.secondary", display: "block", mb: 1 }}
         >
           {fmt(row.date)} · {row.doctor_name ?? "—"}
         </Typography>
@@ -95,17 +93,17 @@ function HistoryCard({ row, onView }) {
           <Box>
             <Typography variant="body2">{row.treatment_name ?? "—"}</Typography>
             {row.specialty_name && (
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
                 {row.specialty_name}
               </Typography>
             )}
           </Box>
           <Box sx={{ textAlign: "right" }}>
-            <Typography variant="body2" fontWeight={500}>
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>
               S/ {Number(row.total).toFixed(2)}
             </Typography>
             {Number(row.balance) > 0 && (
-              <Typography variant="caption" color="error.main">
+              <Typography variant="caption" sx={{ color: "error.main" }}>
                 Debe: S/ {Number(row.balance).toFixed(2)}
               </Typography>
             )}
@@ -310,7 +308,7 @@ export default function HistoryPage() {
 
       {/* Filtros desktop */}
       {!isMobile && (
-        <Grid container spacing={1.5} mb={2}>
+        <Grid container spacing={1.5} sx={{ mb: 2 }}>
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               size="small"
@@ -464,11 +462,14 @@ export default function HistoryPage() {
                         <Typography variant="body2">{fmt(r.date)}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" fontWeight={500}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
                           {r.patient_name}
                         </Typography>
                         {r.patient_dni && (
-                          <Typography variant="caption" color="text.secondary">
+                          <Typography
+                            variant="caption"
+                            sx={{ color: "text.secondary" }}
+                          >
                             {r.patient_dni}
                           </Typography>
                         )}
@@ -478,7 +479,10 @@ export default function HistoryPage() {
                           {r.treatment_name ?? "—"}
                         </Typography>
                         {r.specialty_name && (
-                          <Typography variant="caption" color="text.secondary">
+                          <Typography
+                            variant="caption"
+                            sx={{ color: "text.secondary" }}
+                          >
                             {r.specialty_name}
                           </Typography>
                         )}
@@ -496,12 +500,13 @@ export default function HistoryPage() {
                       <TableCell>
                         <Typography
                           variant="body2"
-                          fontWeight={500}
-                          color={
-                            Number(r.balance) > 0
-                              ? "error.main"
-                              : "text.secondary"
-                          }
+                          sx={{
+                            fontWeight: 500,
+                            color:
+                              Number(r.balance) > 0
+                                ? "error.main"
+                                : "text.secondary",
+                          }}
                         >
                           S/ {Number(r.balance).toFixed(2)}
                         </Typography>
@@ -517,12 +522,12 @@ export default function HistoryPage() {
                       <TableCell sx={{ maxWidth: 160 }}>
                         <Typography
                           variant="caption"
-                          color="text.secondary"
                           sx={{
                             display: "-webkit-box",
                             WebkitLineClamp: 2,
                             WebkitBoxOrient: "vertical",
                             overflow: "hidden",
+                            color: "text.secondary",
                           }}
                         >
                           {r.notes ?? "—"}

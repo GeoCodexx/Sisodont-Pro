@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   Box,
-  Typography,
   Grid,
   Card,
   CardContent,
@@ -11,11 +10,15 @@ import {
   CircularProgress,
   Divider,
   InputAdornment,
+  Typography,
 } from "@mui/material";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useAuthStore } from "../../stores/useAuthStore";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
+import PageHeader from "../../components/PageHeader";
 
 export default function SettingsPage() {
+  const { isMobile } = useBreakpoint();
   const { settings, loading, saving, fetchSettings, updateMany } =
     useSettingsStore();
   const { profile } = useAuthStore();
@@ -68,22 +71,20 @@ export default function SettingsPage() {
   };
 
   return (
-    <Box sx={{ maxWidth: 720, mx: "auto" }}>
-      <Typography variant="h6" fontWeight={500} mb={3}>
-        Configuración del sistema
-      </Typography>
+    <Box sx={{ maxWidth: { sm: 680 }, mx: "auto" }}>
+      <PageHeader title="Configuración del sistema" />
 
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
           <CircularProgress />
         </Box>
       ) : (
-        <Grid container spacing={3}>
+        <Grid container spacing={{ xs: 2, sm: 3 }}>
           {/* Datos de la clínica */}
           <Grid size={{ xs: 12 }}>
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="subtitle2" fontWeight={500} mb={2}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 2 }}>
                   Datos de la clínica
                 </Typography>
 
@@ -97,7 +98,7 @@ export default function SettingsPage() {
                   </Alert>
                 )}
 
-                <Box component="form" onSubmit={handleSave} sx={{mt:2}}>
+                <Box component="form" onSubmit={handleSave}>
                   <Grid container spacing={2}>
                     <Grid size={{ xs: 12 }}>
                       <TextField
@@ -124,7 +125,7 @@ export default function SettingsPage() {
                         onChange={set("currency")}
                         size="small"
                         fullWidth
-                        helperText="Símbolo que se mostrará en precios (ej: S/, $, €)"
+                        helperText="Símbolo (ej: S/, $, €)"
                       />
                     </Grid>
                     <Grid size={{ xs: 12 }}>
@@ -138,26 +139,17 @@ export default function SettingsPage() {
                     </Grid>
 
                     <Grid size={{ xs: 12 }}>
-                      <Divider sx={{ my: 1 }} />
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        display="block"
-                        mb={2}
-                      >
-                        Agenda
-                      </Typography>
+                      <Divider sx={{ my: 0.5 }} />
                     </Grid>
 
-                    <Grid size={{ xs: 12, sm: 4 }}>
+                    <Grid size={{ xs: 12, sm: 5 }}>
                       <TextField
-                        label="Duración de slot"
+                        label="Duración de slot de cita"
                         type="number"
                         value={form.appointment_slot_minutes}
                         onChange={set("appointment_slot_minutes")}
                         size="small"
                         fullWidth
-                        helperText="Duración base de cada cita en el calendario"
                         slotProps={{
                           input: {
                             endAdornment: (
@@ -167,6 +159,7 @@ export default function SettingsPage() {
                             ),
                           },
                         }}
+                        helperText="Duración base de cada cita en el calendario"
                       />
                     </Grid>
 
@@ -175,6 +168,7 @@ export default function SettingsPage() {
                         type="submit"
                         variant="contained"
                         disabled={saving}
+                        fullWidth={isMobile}
                       >
                         {saving ? (
                           <CircularProgress size={20} color="inherit" />
@@ -193,14 +187,13 @@ export default function SettingsPage() {
           <Grid size={{ xs: 12 }}>
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="subtitle2" fontWeight={500} mb={1}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1 }}>
                   Acciones del odontograma
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Los colores y nombres de las acciones se gestionan desde
-                  <strong> Catálogo → </strong> tabla{" "}
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Los colores y nombres se gestionan desde la tabla{" "}
                   <code>odontogram_actions</code> en Supabase, o puedes agregar
-                  una pestaña de acciones en el módulo de Catálogo en el futuro.
+                  una pestaña en el Catálogo para gestionarlos desde la app.
                 </Typography>
               </CardContent>
             </Card>
@@ -210,7 +203,10 @@ export default function SettingsPage() {
           <Grid size={{ xs: 12 }}>
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="subtitle2" fontWeight={500} mb={1.5}>
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontWeight: 500, mb: 1.5 }}
+                >
                   Información del sistema
                 </Typography>
                 <Grid container spacing={1}>
@@ -221,11 +217,14 @@ export default function SettingsPage() {
                     ["Base de datos", "PostgreSQL (Supabase)"],
                   ].map(([k, v]) => (
                     <Grid size={{ xs: 12, sm: 6 }} key={k}>
-                      <Box sx={{ display: "flex", gap: 1 }}>
+                      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                         <Typography
                           variant="body2"
-                          color="text.secondary"
-                          sx={{ minWidth: 110 }}
+                          //color="text.secondary"
+                          sx={{
+                            minWidth: { xs: "auto", sm: 110 },
+                            color: "text.secondary",
+                          }}
                         >
                           {k}:
                         </Typography>

@@ -78,10 +78,10 @@ function PatientCard({
             {initials(patient.full_name)}
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" fontWeight={500} noWrap>
+            <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
               {patient.full_name}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
               {patient.dni ? "DNI: " + patient.dni : "Sin DNI"} ·{" "}
               {calcAge(patient.birth_date)}
             </Typography>
@@ -114,7 +114,7 @@ function PatientCard({
             !patient.hypertension &&
             !patient.pregnancy &&
             !patient.allergies && (
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
                 Sin antecedentes
               </Typography>
             )}
@@ -288,9 +288,7 @@ export default function PatientsPage() {
             <Box>
               {patients.length === 0 ? (
                 <Typography
-                  color="text.secondary"
-                  mt={4}
-                  sx={{ textAlign: "center" }}
+                  sx={{ textAlign: "center", color: "text.secondary", mt: 4 }}
                 >
                   No se encontraron pacientes
                 </Typography>
@@ -337,11 +335,14 @@ export default function PatientsPage() {
                   {patients.map((p) => (
                     <TableRow key={p.id} hover>
                       <TableCell>
-                        <Typography variant="body2" fontWeight={500}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
                           {p.full_name}
                         </Typography>
                         {p.email && (
-                          <Typography variant="caption" color="text.secondary">
+                          <Typography
+                            variant="caption"
+                            sx={{ color: "text.secondary" }}
+                          >
                             {p.email}
                           </Typography>
                         )}
