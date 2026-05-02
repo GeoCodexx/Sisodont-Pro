@@ -56,7 +56,7 @@ function fmt(iso) {
 function AppointmentList({ appointments, onSelect }) {
   if (appointments.length === 0) {
     return (
-      <Typography color="text.secondary" textAlign="center" mt={6}>
+      <Typography color="text.secondary" sx={{ textAlign: "center", mt: 6 }}>
         No hay citas en este período.
       </Typography>
     );
@@ -353,11 +353,56 @@ export default function AppointmentsPage() {
         <Box
           sx={{
             "& .fc": { fontFamily: "inherit" },
-            "& .fc-button": { textTransform: "capitalize" },
-            "& .fc-event": { cursor: "pointer", fontSize: "0.7rem", px: 0.5 },
-            // En móvil: ocultar toolbar de vistas semana/día para no saturar
-            "& .fc-timeGridWeek-button, & .fc-timeGridDay-button": {
-              display: { xs: "none", sm: "inline-flex" },
+
+            // 🔹 Botones normales (desktop)
+            "& .fc-button": {
+              textTransform: "capitalize",
+            },
+
+            "& .fc-event": {
+              cursor: "pointer",
+              fontSize: "0.8rem",
+              px: 0.5,
+            },
+
+            // 🔥 Toolbar base
+            "& .fc-header-toolbar": {
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              mb: 1, // reducimos espacio vertical
+            },
+
+            "& .fc-toolbar-chunk": {
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+            },
+
+            // 📱 MOBILE FIX
+            "@media (max-width:600px)": {
+              "& .fc-header-toolbar": {
+                flexDirection: "column",
+                gap: 0.5,
+                alignItems: "center",
+              },
+
+              "& .fc-toolbar-chunk": {
+                justifyContent: "center",
+                width: "100%",
+              },
+
+              "& .fc-button": {
+                fontSize: "0.9rem",
+                px: 0.6,
+                py: 0.3,
+                minWidth: "auto",
+              },
+
+              "& .fc-toolbar-title": {
+                fontSize: "1rem",
+                textAlign: "center",
+              },
             },
           }}
         >
@@ -369,7 +414,7 @@ export default function AppointmentsPage() {
             headerToolbar={{
               left: "prev,next today",
               center: "title",
-              right: isMobile ? "" : "dayGridMonth,timeGridWeek,timeGridDay",
+              right: "dayGridMonth,timeGridWeek,timeGridDay",
             }}
             events={events}
             datesSet={handleDatesSet}
