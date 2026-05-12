@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "../services/supabaseClient";
+import { getSupabaseErrorMessage } from "../utils/getSupabaseErrorMessage";
 
 export const usePatientStore = create((set, get) => ({
   patients: [],
@@ -62,8 +63,8 @@ export const usePatientStore = create((set, get) => ({
 
     set({ saving: false });
     if (error) {
-      set({ error: error.message });
-      return { error: error.message };
+      set({ error: getSupabaseErrorMessage(error)});
+      return { error: getSupabaseErrorMessage(error) };
     }
     return { data, error: null };
   },

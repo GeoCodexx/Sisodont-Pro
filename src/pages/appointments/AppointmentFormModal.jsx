@@ -15,10 +15,15 @@ import {
   useTheme,
   useMediaQuery,
   Box,
+  Typography,
+  Divider,
+  Paper,
   IconButton,
-  Stack,
+  Collapse,
 } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
+import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import { useAppointmentStore } from "../../stores/useAppointmentStore";
 import { useCatalogStore } from "../../stores/useCatalogStore";
 import { usePatientStore } from "../../stores/usePatientStore";
@@ -40,6 +45,115 @@ const EMPTY = {
   total: "",
 };
 
+// ── Mini formulario de paciente rápido ────────────────────────
+function QuickPatientForm({ onCreated, onCancel, saving }) {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+  const valid = firstName.trim().length > 0 && lastName.trim().length > 0;
+
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 2,
+        mt: 1,
+        mb: 0.5,
+        borderColor: "primary.main",
+        borderWidth: 1.5,
+        borderRadius: 2,
+        bgcolor: "background.default",
+      }}
+    >
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 1.5,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <PersonAddIcon fontSize="small" color="primary" />
+          <Typography variant="body2" fontWeight={500} color="primary.main">
+            Nuevo paciente rápido
+          </Typography>
+        </Box>
+        <IconButton size="small" onClick={onCancel}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </Box>
+
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ display: "block", mb: 1.5 }}
+      >
+        Solo nombre y apellido. Completa el resto del historial después desde el
+        módulo de Pacientes.
+      </Typography>
+
+      <Grid container spacing={1.5}>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <TextField
+            label="Nombre(s) *"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            size="small"
+            fullWidth
+            autoFocus
+            onKeyDown={(e) => e.key === "Enter" && valid && onCreated(fullName)}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <TextField
+            label="Apellido(s) *"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            size="small"
+            fullWidth
+            onKeyDown={(e) => e.key === "Enter" && valid && onCreated(fullName)}
+          />
+        </Grid>
+      </Grid>
+
+      {fullName && (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ display: "block", mt: 1 }}
+        >
+          Se creará como: <strong>{fullName}</strong>
+        </Typography>
+      )}
+
+      <Box
+        sx={{ display: "flex", gap: 1, mt: 1.5, justifyContent: "flex-end" }}
+      >
+        <Button size="small" onClick={onCancel} disabled={saving}>
+          Cancelar
+        </Button>
+        <Button
+          size="small"
+          variant="contained"
+          startIcon={
+            saving ? (
+              <CircularProgress size={14} color="inherit" />
+            ) : (
+              <AddIcon />
+            )
+          }
+          onClick={() => onCreated(fullName)}
+          disabled={!valid || saving}
+        >
+          {saving ? "Creando..." : "Crear y seleccionar"}
+        </Button>
+      </Box>
+    </Paper>
+  );
+}
+
+// ── Modal principal ───────────────────────────────────────────
 export default function AppointmentFormModal({ open, prefillDate, onClose }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -51,15 +165,10 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
 
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState("");
-
-  // Estados para creación rápida de paciente
-  const [showQuickPatientForm, setShowQuickPatientForm] = useState(false);
-  const [quickPatientName, setQuickPatientName] = useState({
-    firstName: "",
-    lastName: "",
-  });
-  const [creatingQuick, setCreatingQuick] = useState(false);
-  const [searchInput, setSearchInput] = useState("");
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [showQuickForm, setShowQuickForm] = useState(false);
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [quickError, setQuickError] = useState("");
 
   useEffect(() => {
     if (open) {
@@ -69,27 +178,48 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
         ...EMPTY,
         date: prefillDate ? toDatetimeLocal(prefillDate) : "",
       });
+      setSelectedPatient(null);
+      setShowQuickForm(false);
       setError("");
-      setShowQuickPatientForm(false);
-      setQuickPatientName({ firstName: "", lastName: "" });
+      setQuickError("");
     }
-  }, [open, prefillDate, fetchAll, fetchPatients]);
+  }, [open]);
 
+  // Auto-completar precio cuando se elige tratamiento
   useEffect(() => {
     if (form.treatment_id) {
       const t = treatments.find((t) => t.id === form.treatment_id);
       if (t) setForm((f) => ({ ...f, total: t.price }));
     }
-  }, [form.treatment_id, treatments]);
+  }, [form.treatment_id]);
 
-  const setField = (field) => (e) =>
+  const set = (field) => (e) =>
     setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  // Crear paciente rápido y seleccionarlo automáticamente
+  const handleQuickCreate = async (fullName) => {
+    if (!fullName.trim()) return;
+    setQuickSaving(true);
+    setQuickError("");
+    const { data, error } = await createQuickPatient(fullName);
+    setQuickSaving(false);
+    if (error) {
+      setQuickError(error);
+      return;
+    }
+
+    // Refrescar lista y seleccionar el nuevo paciente
+    await fetchPatients({ page: 1, pageSize: 200 });
+    setSelectedPatient(data);
+    setForm((f) => ({ ...f, patient_id: data.id }));
+    setShowQuickForm(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     if (!form.patient_id) {
-      setError("Selecciona un paciente.");
+      setError("Selecciona o crea un paciente.");
       return;
     }
     if (!form.doctor_id) {
@@ -124,39 +254,12 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     onClose(true);
   };
 
-  const handleCreateQuickPatient = async () => {
-    if (!quickPatientName.firstName.trim()) {
-      setError("El nombre es obligatorio para crear un paciente rápido.");
-      return;
-    }
-    setCreatingQuick(true);
-    const { data, error: err } = await createQuickPatient({
-      firstName: quickPatientName.firstName.trim(),
-      lastName: quickPatientName.lastName.trim(),
-    });
-    setCreatingQuick(false);
-    if (err) {
-      setError(`Error al crear paciente: ${err}`);
-      return;
-    }
-    if (data) {
-      // Seleccionar el paciente recién creado
-      setForm((f) => ({ ...f, patient_id: data.id }));
-      // Limpiar y ocultar formulario rápido
-      setQuickPatientName({ firstName: "", lastName: "" });
-      setShowQuickPatientForm(false);
-    }
-  };
-
   const filteredDoctors = form.treatment_id
     ? doctors.filter((d) => {
         const t = treatments.find((t) => t.id === form.treatment_id);
         return !t?.specialty_id || d.specialty_id === t.specialty_id;
       })
     : doctors;
-
-  const selectedPatient =
-    patients.find((p) => p.id === form.patient_id) || null;
 
   return (
     <Dialog
@@ -173,186 +276,101 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             {error}
           </Alert>
         )}
+
         <Grid container spacing={2}>
+          {/* ── Selector de paciente ── */}
           <Grid size={{ xs: 12 }}>
             <Autocomplete
               options={patients}
-              value={selectedPatient}
-              inputValue={searchInput}
-              onInputChange={(_, newInputValue) =>
-                setSearchInput(newInputValue)
-              }
               getOptionLabel={(p) =>
-                p && p.full_name
-                  ? `${p.full_name}${p.dni ? " — " + p.dni : ""}`
-                  : ""
+                `${p.full_name}${p.dni ? " — " + p.dni : ""}`
               }
-              isOptionEqualToValue={(option, value) => option.id === value?.id}
-              filterOptions={(options, state) => {
-                const inputValue = state.inputValue.trim().toLowerCase();
-                // Filtrar pacientes
-                let filtered = options.filter((option) => {
-                  if (!inputValue) return true;
-                  const fullNameMatch = option.full_name
-                    ?.toLowerCase()
-                    .includes(inputValue);
-                  const dniMatch = option.dni
-                    ?.toLowerCase()
-                    .includes(inputValue);
-                  return fullNameMatch || dniMatch;
-                });
-
-                // Agregar opción de creación rápida si hay texto y no hay coincidencia exacta
-                if (inputValue.length > 0) {
-                  const exactMatch = filtered.some(
-                    (p) => p.full_name?.toLowerCase() === inputValue,
-                  );
-                  if (!exactMatch) {
-                    filtered.push({
-                      id: "__quick_create__",
-                      full_name: `＋ Crear paciente rápido: "${state.inputValue}"`,
-                      isQuickCreate: true,
-                    });
-                  }
-                }
-                return filtered;
+              value={selectedPatient}
+              onChange={(_, val) => {
+                setSelectedPatient(val);
+                setForm((f) => ({ ...f, patient_id: val?.id ?? "" }));
+                if (val) setShowQuickForm(false);
               }}
-              onChange={(_, newValue) => {
-                if (newValue?.isQuickCreate) {
-                  setShowQuickPatientForm(true);
-                  // Prellenar el formulario rápido con lo que escribió el usuario
-                  if (searchInput) {
-                    const parts = searchInput.trim().split(" ");
-                    setQuickPatientName({
-                      firstName: parts[0] || "",
-                      lastName: parts.slice(1).join(" ") || "",
-                    });
-                  }
-                  return;
-                }
-                setForm((f) => ({ ...f, patient_id: newValue?.id ?? "" }));
-                // Limpiar el texto de búsqueda opcionalmente
-                // setSearchInput("");
-              }}
+              // Opción especial al no encontrar resultados
+              noOptionsText={
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    cursor: "pointer",
+                    py: 0.5,
+                  }}
+                  onClick={() => setShowQuickForm(true)}
+                >
+                  <PersonAddIcon fontSize="small" color="primary" />
+                  <Typography
+                    variant="body2"
+                    color="primary.main"
+                    fontWeight={500}
+                  >
+                    Crear paciente rápido
+                  </Typography>
+                </Box>
+              }
               renderInput={(params) => (
-                <TextField {...params} label="Paciente *" size="small" />
+                <TextField
+                  {...params}
+                  label="Paciente *"
+                  size="small"
+                  helperText={
+                    !selectedPatient && !showQuickForm
+                      ? "Escribe para buscar. Si no está en la lista, créalo rápido."
+                      : selectedPatient
+                        ? "✓ Paciente seleccionado — Si es nuevo, completa sus datos en el módulo Pacientes"
+                        : ""
+                  }
+                />
               )}
-              renderOption={(props, option) => {
-                if (option.isQuickCreate) {
-                  return (
-                    <li
-                      {...props}
-                      key="quick-create"
-                      style={{ backgroundColor: "#f5f5f5", fontWeight: "bold" }}
-                    >
-                      {option.full_name}
-                    </li>
-                  );
-                }
-                return (
-                  <li {...props} key={option.id}>
-                    {option.full_name}
-                    {option.dni ? ` — ${option.dni}` : ""}
-                  </li>
-                );
-              }}
             />
 
-            {/* Mini formulario de creación rápida inline */}
-            {showQuickPatientForm && (
-              <Box
-                sx={{
-                  mt: 2,
-                  p: 2,
-                  border: "1px solid #ddd",
-                  borderRadius: 1,
-                  bgcolor: "#fafafa",
-                }}
+            {/* Botón alternativo siempre visible para crear rápido */}
+            {!selectedPatient && !showQuickForm && (
+              <Button
+                size="small"
+                startIcon={<PersonAddIcon fontSize="small" />}
+                onClick={() => setShowQuickForm(true)}
+                sx={{ mt: 0.75, fontSize: 12 }}
               >
-                <Stack
-                  direction="row"
-                  sx={{
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    mb: 1,
-                  }}
-                >
-                  <strong>Crear paciente rápido</strong>
-                  <IconButton
-                    size="small"
-                    onClick={() => setShowQuickPatientForm(false)}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </Stack>
-                <Grid container spacing={1}>
-                  <Grid size={{ xs: 6 }}>
-                    <TextField
-                      label="Nombre *"
-                      size="small"
-                      fullWidth
-                      value={quickPatientName.firstName}
-                      onChange={(e) =>
-                        setQuickPatientName((prev) => ({
-                          ...prev,
-                          firstName: e.target.value,
-                        }))
-                      }
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 6 }}>
-                    <TextField
-                      label="Apellido"
-                      size="small"
-                      fullWidth
-                      value={quickPatientName.lastName}
-                      onChange={(e) =>
-                        setQuickPatientName((prev) => ({
-                          ...prev,
-                          lastName: e.target.value,
-                        }))
-                      }
-                    />
-                  </Grid>
-                </Grid>
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  sx={{
-                    justifyContent: "flex-end",
-                    mt: 1,
-                  }}
-                >
-                  <Button
-                    size="small"
-                    onClick={() => setShowQuickPatientForm(false)}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    onClick={handleCreateQuickPatient}
-                    disabled={creatingQuick}
-                  >
-                    {creatingQuick ? (
-                      <CircularProgress size={20} />
-                    ) : (
-                      "Crear y seleccionar"
-                    )}
-                  </Button>
-                </Stack>
-              </Box>
+                ¿Paciente nuevo? Créalo aquí
+              </Button>
             )}
+
+            {/* Mini formulario inline */}
+            <Collapse in={showQuickForm} unmountOnExit>
+              {quickError && (
+                <Alert
+                  severity="error"
+                  sx={{ mt: 1 }}
+                  onClose={() => setQuickError("")}
+                >
+                  {quickError}
+                </Alert>
+              )}
+              <QuickPatientForm
+                onCreated={handleQuickCreate}
+                onCancel={() => setShowQuickForm(false)}
+                saving={quickSaving}
+              />
+            </Collapse>
           </Grid>
 
-          {/* El resto de los campos del formulario (Tratamiento, Doctor, etc.) se mantienen igual */}
+          <Grid size={{ xs: 12 }}>
+            <Divider />
+          </Grid>
+
+          {/* ── Tratamiento ── */}
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               select
               label="Tratamiento"
               value={form.treatment_id}
-              onChange={setField("treatment_id")}
+              onChange={set("treatment_id")}
               size="small"
               fullWidth
             >
@@ -365,12 +383,13 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             </TextField>
           </Grid>
 
+          {/* ── Doctor ── */}
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               select
               label="Doctor *"
               value={form.doctor_id}
-              onChange={setField("doctor_id")}
+              onChange={set("doctor_id")}
               size="small"
               fullWidth
             >
@@ -385,26 +404,30 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             </TextField>
           </Grid>
 
+          {/* ── Fecha y hora ── */}
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               label="Fecha y hora *"
               type="datetime-local"
               value={form.date}
-              onChange={setField("date")}
+              onChange={set("date")}
               size="small"
               fullWidth
               slotProps={{
-                inputLabel: { shrink: true },
+                inputLabel: {
+                  shrink: true,
+                },
               }}
             />
           </Grid>
 
+          {/* ── Total ── */}
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               label="Total"
               type="number"
               value={form.total}
-              onChange={setField("total")}
+              onChange={set("total")}
               size="small"
               fullWidth
               slotProps={{
@@ -417,11 +440,12 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             />
           </Grid>
 
+          {/* ── Notas ── */}
           <Grid size={{ xs: 12 }}>
             <TextField
               label="Notas"
               value={form.notes}
-              onChange={setField("notes")}
+              onChange={set("notes")}
               size="small"
               fullWidth
               multiline
@@ -430,11 +454,16 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
           </Grid>
         </Grid>
       </DialogContent>
+
       <DialogActions sx={{ px: 3, py: 2 }}>
         <Button onClick={() => onClose(false)} disabled={saving}>
           Cancelar
         </Button>
-        <Button variant="contained" onClick={handleSubmit} disabled={saving}>
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={saving || quickSaving}
+        >
           {saving ? (
             <CircularProgress size={20} color="inherit" />
           ) : (
