@@ -36,6 +36,18 @@ const toDatetimeLocal = (d) => {
   return dt.toISOString().slice(0, 16);
 };
 
+// Limpia espacios duplicados
+const cleanSpaces = (value) => {
+  return value.trim().replace(/\s+/g, " ");
+};
+
+// Convierte cada palabra a Mayúscula Inicial
+const capitalizeWords = (value) => {
+  return cleanSpaces(value)
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 const EMPTY = {
   patient_id: "",
   doctor_id: "",
@@ -201,7 +213,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     if (!fullName.trim()) return;
     setQuickSaving(true);
     setQuickError("");
-    const { data, error } = await createQuickPatient(fullName);
+    const { data, error } = await createQuickPatient(capitalizeWords(fullName));
     setQuickSaving(false);
     if (error) {
       setQuickError(error);

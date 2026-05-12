@@ -69,28 +69,17 @@ export const usePatientStore = create((set, get) => ({
     return { data, error: null };
   },
 
-  // Crear rapidamente paciente en citas
-  createQuickPatient: async ({ firstName, lastName }) => {
-    set({ saving: true, error: null });
-    const fullName = `${firstName} ${lastName}`.trim();
-    if (!fullName) {
-      set({ saving: false, error: "El nombre es requerido" });
-      return { error: "El nombre es requerido" };
-    }
+ // Crea un paciente solo con el nombre — el resto se completa después
+  createQuickPatient: async (full_name) => {
+    set({ saving: true, error: null })
     const { data, error } = await supabase
-      .from("patients")
-      .insert({ full_name: fullName, active: true })
+      .from('patients')
+      .insert({ full_name: full_name.trim() })
       .select()
-      .single();
-
-    set({ saving: false });
-    if (error) {
-      set({ error: error.message });
-      return { error: error.message };
-    }
-    // Refrescar la lista de pacientes para que aparezca en el autocomplete
-    await get().fetchPatients({ page: 1, pageSize: 200 });
-    return { data, error: null };
+      .single()
+    set({ saving: false })
+    if (error) { set({ error: error.message }); return { data: null, error: error.message } }
+    return { data, error: null }
   },
 
   // ── Actualizar ────────────────────────────────────────────
