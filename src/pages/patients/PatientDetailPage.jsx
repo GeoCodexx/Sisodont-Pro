@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import PatientHistory from "./PatientHistory";
 import {
   Box,
   Typography,
@@ -15,16 +14,15 @@ import {
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { usePatientStore } from "../../stores/usePatientStore";
+import PatientHistory from "./PatientHistory";
+import TreatmentCasesPanel from "./TreatmentCasesPanel";
 
 const GENDER_LABEL = { M: "Masculino", F: "Femenino", otro: "Otro" };
 
 function InfoRow({ label, value }) {
   return (
     <Box sx={{ mb: 1.5 }}>
-      <Typography
-        variant="caption"
-        sx={{ color: "text.secondary", display: "block" }}
-      >
+      <Typography variant="caption" color="text.secondary" display="block">
         {label}
       </Typography>
       <Typography variant="body2">{value || "—"}</Typography>
@@ -55,8 +53,11 @@ export default function PatientDetailPage() {
 
   const calcAge = (birth) => {
     if (!birth) return "—";
-    const diff = Date.now() - new Date(birth).getTime();
-    return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25)) + " años";
+    return (
+      Math.floor(
+        (Date.now() - new Date(birth)) / (1000 * 60 * 60 * 24 * 365.25),
+      ) + " años"
+    );
   };
 
   if (loading)
@@ -65,7 +66,6 @@ export default function PatientDetailPage() {
         <CircularProgress />
       </Box>
     );
-
   if (error) return <Alert severity="error">{error}</Alert>;
   if (!selected) return null;
 
@@ -81,7 +81,7 @@ export default function PatientDetailPage() {
         >
           Volver
         </Button>
-        <Typography variant="h6" sx={{ fontWeight: 500 }}>
+        <Typography variant="h6" fontWeight={500}>
           {p.full_name}
         </Typography>
       </Box>
@@ -91,7 +91,7 @@ export default function PatientDetailPage() {
         <Grid size={{ xs: 12, md: 6 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 2 }}>
+              <Typography variant="subtitle2" fontWeight={500} sx={{ mb: 2 }}>
                 Datos personales
               </Typography>
               <Grid container>
@@ -132,7 +132,7 @@ export default function PatientDetailPage() {
         <Grid size={{ xs: 12, md: 6 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 2 }}>
+              <Typography variant="subtitle2" fontWeight={500} sx={{ mb: 2 }}>
                 Antecedentes clínicos
               </Typography>
               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
@@ -161,11 +161,23 @@ export default function PatientDetailPage() {
           </Card>
         </Grid>
 
-        {/* Historial — placeholder hasta Fase 4 */}
+        {/* Tratamientos multisesión */}
         <Grid size={{ xs: 12 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1 }}>
+              <Typography variant="subtitle2" fontWeight={500} sx={{ mb: 2 }}>
+                Tratamientos multisesión
+              </Typography>
+              <TreatmentCasesPanel patientId={p.id} />
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Historial de citas */}
+        <Grid size={{ xs: 12 }}>
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="subtitle2" fontWeight={500} sx={{ mb: 2 }}>
                 Historial de citas
               </Typography>
               <PatientHistory patientId={p.id} />

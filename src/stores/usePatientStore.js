@@ -1,75 +1,51 @@
-import { create } from "zustand";
-import { supabase } from "../services/supabaseClient";
-import { getSupabaseErrorMessage } from "../utils/getSupabaseErrorMessage";
+import { create } from 'zustand'
+import { supabase } from '../services/supabaseClient'
 
 export const usePatientStore = create((set, get) => ({
-  patients: [],
-  total: 0, // total real desde Supabase (para paginación)
-  selected: null,
-  loading: false,
-  saving: false,
-  error: null,
+  patients:  [],
+  total:     0,
+  selected:  null,
+  loading:   false,
+  saving:    false,
+  error:     null,
 
-  // ── Listado paginado server-side ──────────────────────────
-  fetchPatients: async ({ search = "", page = 1, pageSize = 20 } = {}) => {
-    set({ loading: true, error: null });
-
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
-
+  fetchPatients: async ({ search = '', page = 1, pageSize = 20 } = {}) => {
+    set({ loading: true, error: null })
+    const from = (page - 1) * pageSize
+    const to   = from + pageSize - 1
     let query = supabase
-      .from("patients")
-      .select("*", { count: "exact" })
-      .eq("active", true)
-      .order("full_name")
-      .range(from, to);
-
-    if (search.trim()) {
-      query = query.or(`full_name.ilike.%${search}%,dni.ilike.%${search}%`);
-    }
-
-    const { data, error, count } = await query;
-
-    if (error) set({ error: error.message });
-    else set({ patients: data ?? [], total: count ?? 0 });
-    set({ loading: false });
+      .from('patients')
+      .select('*', { count: 'exact' })
+      .eq('active', true)
+      .order('full_name')
+      .range(from, to)
+    if (search.trim()) query = query.or(`full_name.ilike.%${search}%,dni.ilike.%${search}%`)
+    const { data, error, count } = await query
+    if (error) set({ error: error.message })
+    else set({ patients: data ?? [], total: count ?? 0 })
+    set({ loading: false })
   },
 
-  // ── Detalle ───────────────────────────────────────────────
   fetchPatientById: async (id) => {
-    set({ loading: true, error: null });
-    const { data, error } = await supabase
-      .from("patients")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error) set({ error: error.message });
-    else set({ selected: data });
-    set({ loading: false });
-    return { data, error };
+    set({ loading: true, error: null })
+    const { data, error } = await supabase.from('patients').select('*').eq('id', id).single()
+    if (error) set({ error: error.message })
+    else set({ selected: data })
+    set({ loading: false })
+    return { data, error }
   },
 
   setSelected: (patient) => set({ selected: patient }),
 
-  // ── Crear ─────────────────────────────────────────────────
   createPatient: async (payload) => {
-    set({ saving: true, error: null });
-    const { data, error } = await supabase
-      .from("patients")
-      .insert(payload)
-      .select()
-      .single();
-
-    set({ saving: false });
-    if (error) {
-      set({ error: getSupabaseErrorMessage(error)});
-      return { error: getSupabaseErrorMessage(error) };
-    }
-    return { data, error: null };
+    set({ saving: true, error: null })
+    const { data, error } = await supabase.from('patients').insert(payload).select().single()
+    set({ saving: false })
+    if (error) { set({ error: error.message }); return { error: error.message } }
+    return { data, error: null }
   },
 
- // Crea un paciente solo con el nombre — el resto se completa después
+  // Crea un paciente solo con el nombre — el resto se completa después
   createQuickPatient: async (full_name) => {
     set({ saving: true, error: null })
     const { data, error } = await supabase
@@ -82,29 +58,17 @@ export const usePatientStore = create((set, get) => ({
     return { data, error: null }
   },
 
-  // ── Actualizar ────────────────────────────────────────────
   updatePatient: async (id, payload) => {
-    set({ saving: true, error: null });
-    const { data, error } = await supabase
-      .from("patients")
-      .update(payload)
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (!error) set({ selected: data });
-    set({ saving: false });
-    if (error) return { error: error.message };
-    return { data, error: null };
+    set({ saving: true, error: null })
+    const { data, error } = await supabase.from('patients').update(payload).eq('id', id).select().single()
+    if (!error) set({ selected: data })
+    set({ saving: false })
+    if (error) return { error: error.message }
+    return { data, error: null }
   },
 
-  // ── Borrado lógico ────────────────────────────────────────
   deletePatient: async (id) => {
-    const { error } = await supabase
-      .from("patients")
-      .update({ active: false })
-      .eq("id", id);
-
-    return { error: error?.message ?? null };
+    const { error } = await supabase.from('patients').update({ active: false }).eq('id', id)
+    return { error: error?.message ?? null }
   },
-}));
+}))

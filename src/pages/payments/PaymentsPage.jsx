@@ -23,20 +23,22 @@ import {
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import ReceiptIcon from "@mui/icons-material/Receipt";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import { usePaymentStore } from "../../stores/usePaymentStore";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import PaymentDetailModal from "./PaymentDetailModal";
 import FilterDrawer from "../../components/FilterDrawer";
 import FilterButton from "../../components/FilterButton";
 import PageHeader from "../../components/PageHeader";
-import ExportMenu from "../../components/ExportMenu";
-import { usePaymentsExport } from "../../hooks/usePaymentsExport";
 import TablePagination from "../../components/TablePagination";
 
 const STATUS_COLOR = {
   pendiente: "warning",
   atendido: "success",
   cancelado: "error",
+  en_curso: "primary",
+  completado: "success",
+  abandonado: "default",
 };
 const BALANCE_COLOR = (b) => (Number(b) > 0 ? "error.main" : "success.main");
 
@@ -47,6 +49,7 @@ function fmt(iso) {
 }
 
 function KpiCard({ label, value, color }) {
+  console.log(color);
   return (
     <Card variant="outlined">
       <CardContent sx={{ pb: "16px !important" }}>
@@ -55,7 +58,8 @@ function KpiCard({ label, value, color }) {
         </Typography>
         <Typography
           variant="h6"
-          sx={{ fontWeight: 500, color: color ?? "text.primary", mt: 0.5 }}
+          fontWeight={500}
+          sx={{ mt: 0.5, color: color ?? "text.primary" }}
         >
           {value}
         </Typography>
@@ -64,6 +68,29 @@ function KpiCard({ label, value, color }) {
   );
 }
 
+// Chip de tipo de pago
+function TypeChip({ type }) {
+  return type === "case" ? (
+    <Chip
+      icon={<FolderOpenIcon sx={{ fontSize: "14px !important" }} />}
+      label="Multisesión"
+      size="small"
+      color="primary"
+      variant="outlined"
+      sx={{ fontSize: 11 }}
+    />
+  ) : (
+    <Chip
+      icon={<ReceiptIcon sx={{ fontSize: "14px !important" }} />}
+      label="Cita única"
+      size="small"
+      variant="outlined"
+      sx={{ fontSize: 11 }}
+    />
+  );
+}
+
+// Tarjeta de pago para móvil
 function PaymentCard({ row, onDetail }) {
   const balance = Number(row.balance);
   return (
@@ -78,7 +105,7 @@ function PaymentCard({ row, onDetail }) {
           }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
+            <Typography variant="body2" fontWeight={500} noWrap>
               {row.patient_name}
             </Typography>
             {row.patient_dni && (
@@ -87,16 +114,19 @@ function PaymentCard({ row, onDetail }) {
               </Typography>
             )}
           </Box>
-          <Chip
-            label={row.status}
-            color={STATUS_COLOR[row.status] ?? "default"}
-            size="small"
-            sx={{ textTransform: "capitalize", ml: 1 }}
-          />
+          <Box sx={{ display: "flex", gap: 0.5, ml: 1, flexShrink: 0 }}>
+            <TypeChip type={row.payment_type} />
+            <Chip
+              label={row.status}
+              color={STATUS_COLOR[row.status] ?? "default"}
+              size="small"
+              sx={{ textTransform: "capitalize" }}
+            />
+          </Box>
         </Box>
         <Typography
           variant="caption"
-          sx={{ color: "text.secondary", display: "block", mb: 1 }}
+          sx={{ display: "block", mb: 1, color: "text.secondary" }}
         >
           {row.treatment_name ?? "—"} · {row.doctor_name ?? "—"} ·{" "}
           {fmt(row.date)}
@@ -114,9 +144,9 @@ function PaymentCard({ row, onDetail }) {
                 variant="caption"
                 sx={{ display: "block", color: "text.secondary" }}
               >
-                Total
+                {row.payment_type === "case" ? "Costo total" : "Total"}
               </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+              <Typography variant="body2" fontWeight={500}>
                 S/ {Number(row.total).toFixed(2)}
               </Typography>
             </Box>
@@ -140,15 +170,20 @@ function PaymentCard({ row, onDetail }) {
               </Typography>
               <Typography
                 variant="body2"
-                sx={{ fontWeight: 500, color: BALANCE_COLOR(balance) }}
+                fontWeight={500}
+                sx={{ color: BALANCE_COLOR(balance) }}
               >
                 S/ {balance.toFixed(2)}
               </Typography>
             </Box>
           </Box>
-          <Tooltip title="Ver pagos">
+          <Tooltip title="Ver detalle de pagos">
             <IconButton size="small" onClick={() => onDetail(row)}>
-              <ReceiptIcon fontSize="small" />
+              {row.payment_type === "case" ? (
+                <FolderOpenIcon fontSize="small" />
+              ) : (
+                <ReceiptIcon fontSize="small" />
+              )}
             </IconButton>
           </Tooltip>
         </Box>
@@ -162,8 +197,6 @@ export default function PaymentsPage() {
   const { rows, total, loading, error, filters, setFilter, fetchPayments } =
     usePaymentStore();
 
-  const { handleExcel, handlePdf } = usePaymentsExport(filters);
-
   const [selected, setSelected] = useState(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -171,7 +204,6 @@ export default function PaymentsPage() {
   const [localFilters, setLocalFilters] = useState({ ...filters });
   const setLocal = (k) => (v) => setLocalFilters((p) => ({ ...p, [k]: v }));
 
-  // Fetch central server-side
   const load = useCallback(() => {
     fetchPayments({ page, pageSize });
   }, [page, pageSize, filters]);
@@ -179,8 +211,6 @@ export default function PaymentsPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  // Reset página al cambiar filtros
   useEffect(() => {
     setPage(1);
   }, [filters]);
@@ -196,6 +226,7 @@ export default function PaymentsPage() {
       search: "",
       dateFrom: "",
       dateTo: "",
+      paymentType: "all",
     };
     setLocalFilters(empty);
     Object.entries(empty).forEach(([k, v]) => setFilter(k, v));
@@ -207,9 +238,9 @@ export default function PaymentsPage() {
     !!filters.search,
     !!filters.dateFrom,
     !!filters.dateTo,
+    filters.paymentType !== "all",
   ].filter(Boolean).length;
 
-  // KPIs calculados de la página visible (para KPIs globales usar una query separada si se requiere)
   const totalBruto = rows.reduce((s, r) => s + Number(r.total), 0);
   const totalCobrado = rows.reduce((s, r) => s + Number(r.paid), 0);
   const totalPendiente = rows.reduce((s, r) => s + Number(r.balance), 0);
@@ -235,6 +266,18 @@ export default function PaymentsPage() {
       />
       <TextField
         select
+        label="Tipo"
+        size="small"
+        fullWidth
+        value={f.paymentType}
+        onChange={(e) => set("paymentType")(e.target.value)}
+      >
+        <MenuItem value="all">Todos</MenuItem>
+        <MenuItem value="appointment">Cita única</MenuItem>
+        <MenuItem value="case">Multisesión</MenuItem>
+      </TextField>
+      <TextField
+        select
         label="Estado"
         size="small"
         fullWidth
@@ -245,6 +288,8 @@ export default function PaymentsPage() {
         <MenuItem value="pendiente">Pendiente</MenuItem>
         <MenuItem value="atendido">Atendido</MenuItem>
         <MenuItem value="cancelado">Cancelado</MenuItem>
+        <MenuItem value="en_curso">En curso</MenuItem>
+        <MenuItem value="completado">Completado</MenuItem>
       </TextField>
       <TextField
         select
@@ -263,7 +308,11 @@ export default function PaymentsPage() {
         type="date"
         size="small"
         fullWidth
-        slotProps={{ inputLabel: { shrink: true } }}
+        slotProps={{
+          inputLabel: {
+            shrink: true,
+          },
+        }}
         value={f.dateFrom}
         onChange={(e) => set("dateFrom")(e.target.value)}
       />
@@ -272,7 +321,11 @@ export default function PaymentsPage() {
         type="date"
         size="small"
         fullWidth
-        slotProps={{ inputLabel: { shrink: true } }}
+        slotProps={{
+          inputLabel: {
+            shrink: true,
+          },
+        }}
         value={f.dateTo}
         onChange={(e) => set("dateTo")(e.target.value)}
       />
@@ -284,16 +337,9 @@ export default function PaymentsPage() {
       <PageHeader
         title="Pagos"
         subtitle={total + " registro" + (total !== 1 ? "s" : "")}
-        actions={
-          <ExportMenu
-            onExcelExport={handleExcel}
-            onPdfExport={handlePdf}
-            totalRows={total}
-            disabled={loading}
-          />
-        }
       />
 
+      {/* KPIs */}
       <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
         <Grid size={{ xs: 6, sm: 3 }}>
           <KpiCard label="Facturado" value={"S/ " + totalBruto.toFixed(2)} />
@@ -326,7 +372,7 @@ export default function PaymentsPage() {
       {/* Filtros desktop */}
       {!isMobile && (
         <Grid container spacing={1.5} sx={{ mb: 2 }}>
-          <Grid size={{ xs: 12, sm: 4 }}>
+          <Grid size={{ xs: 12, sm: 3 }}>
             <TextField
               size="small"
               fullWidth
@@ -350,6 +396,23 @@ export default function PaymentsPage() {
           <Grid size={{ xs: 6, sm: 2 }}>
             <TextField
               select
+              label="Tipo"
+              size="small"
+              fullWidth
+              value={filters.paymentType}
+              onChange={(e) => {
+                setFilter("paymentType", e.target.value);
+                setPage(1);
+              }}
+            >
+              <MenuItem value="all">Todos</MenuItem>
+              <MenuItem value="appointment">Cita única</MenuItem>
+              <MenuItem value="case">Multisesión</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 2 }}>
+            <TextField
+              select
               label="Estado"
               size="small"
               fullWidth
@@ -362,10 +425,11 @@ export default function PaymentsPage() {
               <MenuItem value="all">Todos</MenuItem>
               <MenuItem value="pendiente">Pendiente</MenuItem>
               <MenuItem value="atendido">Atendido</MenuItem>
-              <MenuItem value="cancelado">Cancelado</MenuItem>
+              <MenuItem value="en_curso">En curso</MenuItem>
+              <MenuItem value="completado">Completado</MenuItem>
             </TextField>
           </Grid>
-          <Grid size={{ xs: 6, sm: 2 }}>
+          <Grid size={{ xs: 6, sm: 1.5 }}>
             <TextField
               select
               label="Saldo"
@@ -382,13 +446,17 @@ export default function PaymentsPage() {
               <MenuItem value="paid">Pagado</MenuItem>
             </TextField>
           </Grid>
-          <Grid size={{ xs: 6, sm: 2 }}>
+          <Grid size={{ xs: 6, sm: 1.75 }}>
             <TextField
               label="Desde"
               type="date"
               size="small"
               fullWidth
-              slotProps={{ inputLabel: { shrink: true } }}
+              slotProps={{
+                inputLabel: {
+                  shrink: true,
+                },
+              }}
               value={filters.dateFrom}
               onChange={(e) => {
                 setFilter("dateFrom", e.target.value);
@@ -396,13 +464,17 @@ export default function PaymentsPage() {
               }}
             />
           </Grid>
-          <Grid size={{ xs: 6, sm: 2 }}>
+          <Grid size={{ xs: 6, sm: 1.75 }}>
             <TextField
               label="Hasta"
               type="date"
               size="small"
               fullWidth
-              slotProps={{ inputLabel: { shrink: true } }}
+              slotProps={{
+                inputLabel: {
+                  shrink: true,
+                },
+              }}
               value={filters.dateTo}
               onChange={(e) => {
                 setFilter("dateTo", e.target.value);
@@ -435,18 +507,14 @@ export default function PaymentsPage() {
             <Box>
               {rows.length === 0 ? (
                 <Typography
-                  color="text.secondary"
-                  sx={{ textAlign: "center", mt: 4 }}
+                  textAlign="center"
+                  sx={{ mt: 4, color: "text.secondary" }}
                 >
                   No se encontraron registros
                 </Typography>
               ) : (
                 rows.map((r) => (
-                  <PaymentCard
-                    key={r.appointment_id}
-                    row={r}
-                    onDetail={setSelected}
-                  />
+                  <PaymentCard key={r.ref_id} row={r} onDetail={setSelected} />
                 ))
               )}
             </Box>
@@ -455,6 +523,7 @@ export default function PaymentsPage() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
+                    <TableCell>Tipo</TableCell>
                     <TableCell>Paciente</TableCell>
                     <TableCell>Tratamiento</TableCell>
                     <TableCell>Doctor</TableCell>
@@ -470,7 +539,7 @@ export default function PaymentsPage() {
                   {rows.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={9}
+                        colSpan={10}
                         align="center"
                         sx={{ py: 4, color: "text.secondary" }}
                       >
@@ -479,9 +548,21 @@ export default function PaymentsPage() {
                     </TableRow>
                   )}
                   {rows.map((r) => (
-                    <TableRow key={r.appointment_id} hover>
+                    <TableRow
+                      key={r.ref_id}
+                      hover
+                      sx={{
+                        bgcolor:
+                          r.payment_type === "case"
+                            ? "primary.main" + "08"
+                            : "inherit",
+                      }}
+                    >
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        <TypeChip type={r.payment_type} />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={500}>
                           {r.patient_name}
                         </Typography>
                         {r.patient_dni && (
@@ -522,7 +603,8 @@ export default function PaymentsPage() {
                       <TableCell>
                         <Typography
                           variant="body2"
-                          sx={{ fontWeight: 500, color: BALANCE_COLOR(r.balance) }}
+                          fontWeight={500}
+                          sx={{ color: BALANCE_COLOR(r.balance) }}
                         >
                           S/ {Number(r.balance).toFixed(2)}
                         </Typography>
@@ -536,12 +618,25 @@ export default function PaymentsPage() {
                         />
                       </TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Ver pagos">
+                        <Tooltip
+                          title={
+                            r.payment_type === "case"
+                              ? "Ver pagos del caso"
+                              : "Ver pagos de la cita"
+                          }
+                        >
                           <IconButton
                             size="small"
                             onClick={() => setSelected(r)}
                           >
-                            <ReceiptIcon fontSize="small" />
+                            {r.payment_type === "case" ? (
+                              <FolderOpenIcon
+                                fontSize="small"
+                                color="primary"
+                              />
+                            ) : (
+                              <ReceiptIcon fontSize="small" />
+                            )}
                           </IconButton>
                         </Tooltip>
                       </TableCell>
