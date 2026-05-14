@@ -21,7 +21,6 @@ import {
   Chip,
   IconButton,
   Tooltip,
-  Badge,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
@@ -35,43 +34,72 @@ import { supabase } from "../../services/supabaseClient";
 const METHODS = ["efectivo", "tarjeta", "transferencia", "yape", "plin"];
 const METHOD_COLORS = {
   efectivo: "default",
-  tarjeta: "primary",
+  tarjeta: "success",
   transferencia: "info",
-  yape: "secondary",
-  plin: "success",
+  yape: "primary",
+  plin: "secondary",
 };
 
-const EMPTY_PAY = { amount: "", method: "efectivo", notes: "" };
+const EMPTY = { amount: "", method: "efectivo", notes: "" };
 
-function fmtDate(iso) {
-  return iso
+const fmtDT = (iso) =>
+  iso
     ? new Date(iso).toLocaleString("es-PE", {
         dateStyle: "short",
         timeStyle: "short",
       })
     : "—";
-}
+const fmtD = (iso) =>
+  iso
+    ? new Date(iso).toLocaleDateString("es-PE", { dateStyle: "medium" })
+    : "—";
+const fmtS = (n) => "S/ " + Number(n ?? 0).toFixed(2);
 
-// ── Vista de pagos para CASO MULTISESIÓN ─────────────────────
-function CasePaymentView({ row, onClose, onRefresh }) {
-  const { payments, saving, fetchByCase, registerPayment, deletePayment } =
-    useCasePaymentStore();
+// ── Vista para CASO multisesión ───────────────────────────────
+function CasePaymentView({ row, onRefresh }) {
+  /*const { payments, saving, fetchByCase, registerPayment, deletePayment } =
+    useCasePaymentStore();*/
+  const {
+    paymentsByCase,
+    saving,
+    fetchByCase,
+    registerPayment,
+    deletePayment,
+  } = useCasePaymentStore();
+
+  const payments = paymentsByCase[row.ref_id] ?? [];
   const { profile } = useAuthStore();
   const { can } = useRole();
 
-  const [form, setForm] = useState(EMPTY_PAY);
+  const [form, setForm] = useState(EMPTY);
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
+  const [caseData, setCaseData] = useState(row); // se recarga desde la vista tras cada pago
   const [sessions, setSessions] = useState([]);
 
-  const balance = Number(row.balance ?? 0);
   const set = (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value }));
+
+  const totalBilled = Number(caseData.total ?? 0);
+  const totalPaid = Number(caseData.paid ?? 0);
+  const totalBalance = Number(caseData.balance ?? 0);
+
+  const reloadCase = async () => {
+    // Recargar desde payments_summary para tener saldos actualizados de la BD
+    const { data } = await supabase
+      .from("payments_summary")
+      .select("*")
+      .eq("payment_type", "case")
+      .eq("ref_id", row.ref_id)
+      .single();
+    if (data) setCaseData(data);
+    onRefresh();
+  };
 
   useEffect(() => {
     fetchByCase(row.ref_id);
-    // Cargar sesiones del caso
+    // Cargar sesiones
     supabase
       .from("appointments_full")
-      .select("id, date, status, notes, treatment_name")
+      .select("id, date, status, notes")
       .eq("case_id", row.ref_id)
       .order("date")
       .then(({ data }) => setSessions(data ?? []));
@@ -83,14 +111,13 @@ function CasePaymentView({ row, onClose, onRefresh }) {
       setFeedback({ msg: "Monto inválido.", type: "error" });
       return;
     }
-    if (amount > balance + 0.001) {
+    if (totalBilled > 0 && amount > totalBalance + 0.01) {
       setFeedback({
-        msg: `Supera el saldo (S/ ${balance.toFixed(2)}).`,
+        msg: `Supera el saldo (${fmtS(totalBalance)}).`,
         type: "error",
       });
       return;
     }
-
     const { error } = await registerPayment({
       caseId: row.ref_id,
       amount,
@@ -101,8 +128,8 @@ function CasePaymentView({ row, onClose, onRefresh }) {
     if (error) setFeedback({ msg: error, type: "error" });
     else {
       setFeedback({ msg: "Pago registrado.", type: "success" });
-      setForm(EMPTY_PAY);
-      onRefresh();
+      setForm(EMPTY);
+      reloadCase();
     }
   };
 
@@ -112,27 +139,29 @@ function CasePaymentView({ row, onClose, onRefresh }) {
     if (error) setFeedback({ msg: error, type: "error" });
     else {
       setFeedback({ msg: "Pago eliminado.", type: "success" });
-      onRefresh();
+      reloadCase();
     }
   };
 
   return (
     <>
-      {/* Header del caso */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
         <FolderOpenIcon color="primary" fontSize="small" />
-        <Typography variant="body2" color="primary.main" fontWeight={500}>
-          Caso multisesión en curso
+        <Typography
+          variant="body2"
+          sx={{ color: "primary.main", fontWeight: 500 }}
+        >
+          Caso multisesión
         </Typography>
         <Chip
-          label={row.case_status ?? "en_curso"}
+          label={caseData.case_status ?? "en_curso"}
           size="small"
-          color={row.case_status === "completado" ? "success" : "primary"}
+          color={caseData.case_status === "completado" ? "success" : "primary"}
           sx={{ textTransform: "capitalize" }}
         />
       </Box>
 
-      {/* Resumen financiero del caso */}
+      {/* Saldos desde la BD */}
       <Box
         sx={{
           display: "grid",
@@ -142,16 +171,12 @@ function CasePaymentView({ row, onClose, onRefresh }) {
         }}
       >
         {[
-          [
-            "Costo total pactado",
-            `S/ ${Number(row.total).toFixed(2)}`,
-            "text.primary",
-          ],
-          ["Total pagado", `S/ ${Number(row.paid).toFixed(2)}`, "success.main"],
+          ["Costo total pactado", fmtS(totalBilled), "text.primary"],
+          ["Total pagado", fmtS(totalPaid), "success.main"],
           [
             "Saldo pendiente",
-            `S/ ${balance.toFixed(2)}`,
-            balance > 0 ? "error.main" : "text.secondary",
+            fmtS(totalBalance),
+            totalBalance > 0 ? "error.main" : "text.secondary",
           ],
         ].map(([label, value, color]) => (
           <Box
@@ -165,26 +190,28 @@ function CasePaymentView({ row, onClose, onRefresh }) {
           >
             <Typography
               variant="caption"
-              color="text.secondary"
-              sx={{ display: "block" }}
+              sx={{ color: "text.secondary", display: "block" }}
             >
               {label}
             </Typography>
-            <Typography variant="body2" fontWeight={600} color={color}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: color }}>
               {value}
             </Typography>
           </Box>
         ))}
       </Box>
 
-      {/* Sesiones del caso */}
+      {/* Sesiones */}
       {sessions.length > 0 && (
         <>
           <Typography
             variant="caption"
-            color="text.secondary"
-            fontWeight={500}
-            sx={{ display: "block", mb: 0.75 }}
+            sx={{
+              color: "text.secondary",
+              fontWeight: 500,
+              display: "block",
+              mb: 0.75,
+            }}
           >
             SESIONES ({sessions.length})
           </Typography>
@@ -202,12 +229,9 @@ function CasePaymentView({ row, onClose, onRefresh }) {
                   borderColor: "divider",
                 }}
               >
-                <Box>
-                  <Typography variant="body2">Sesión {i + 1}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {fmtDate(s.date)}
-                  </Typography>
-                </Box>
+                <Typography variant="body2">
+                  Sesión {i + 1} · {fmtDT(s.date)}
+                </Typography>
                 <Chip
                   label={s.status}
                   size="small"
@@ -228,19 +252,32 @@ function CasePaymentView({ row, onClose, onRefresh }) {
 
       <Divider sx={{ mb: 2 }} />
 
-      {/* Historial de pagos del caso */}
+      {/* Historial de pagos */}
       <Typography
         variant="caption"
-        color="text.secondary"
-        fontWeight={500}
-        sx={{ display: "block", mb: 0.75 }}
+        sx={{
+          color: "text.secondary",
+          fontWeight: 500,
+          display: "block",
+          mb: 0.75,
+        }}
       >
         PAGOS REGISTRADOS
       </Typography>
 
+      {feedback.msg && (
+        <Alert
+          severity={feedback.type}
+          sx={{ mb: 1.5 }}
+          onClose={() => setFeedback({ msg: "", type: "success" })}
+        >
+          {feedback.msg}
+        </Alert>
+      )}
+
       {payments.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          No hay pagos registrados para este caso.
+        <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
+          Sin pagos registrados.
         </Typography>
       ) : (
         <Table size="small" sx={{ mb: 2 }}>
@@ -249,7 +286,7 @@ function CasePaymentView({ row, onClose, onRefresh }) {
               <TableCell>Fecha</TableCell>
               <TableCell>Monto</TableCell>
               <TableCell>Método</TableCell>
-              <TableCell>Registrado por</TableCell>
+              <TableCell>Por</TableCell>
               {can(["ADMIN"]) && <TableCell align="right" />}
             </TableRow>
           </TableHead>
@@ -257,9 +294,7 @@ function CasePaymentView({ row, onClose, onRefresh }) {
             {payments.map((p) => (
               <TableRow key={p.id}>
                 <TableCell>
-                  <Typography variant="body2">
-                    {fmtDate(p.created_at)}
-                  </Typography>
+                  <Typography variant="body2">{fmtDT(p.created_at)}</Typography>
                 </TableCell>
                 <TableCell>
                   <Typography
@@ -267,20 +302,20 @@ function CasePaymentView({ row, onClose, onRefresh }) {
                     fontWeight={500}
                     color="success.main"
                   >
-                    S/ {Number(p.amount).toFixed(2)}
+                    {fmtS(p.amount)}
                   </Typography>
                 </TableCell>
                 <TableCell>
                   <Chip
                     label={p.method}
                     size="small"
-                    color={METHOD_COLORS[p.method] ?? "default"}
                     variant="outlined"
+                    color={METHOD_COLORS[p.method] ?? "default"}
                     sx={{ textTransform: "capitalize" }}
                   />
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
                     {p.created_by_profile?.full_name ?? "—"}
                   </Typography>
                 </TableCell>
@@ -302,113 +337,126 @@ function CasePaymentView({ row, onClose, onRefresh }) {
         </Table>
       )}
 
-      {/* Registrar nuevo pago */}
-      {can(["ADMIN", "ASSISTANT"]) && balance > 0 && (
-        <>
-          {feedback.msg && (
-            <Alert
-              severity={feedback.type}
-              sx={{ mb: 1.5 }}
-              onClose={() => setFeedback({ msg: "", type: "success" })}
-            >
-              {feedback.msg}
-            </Alert>
-          )}
-          <Divider sx={{ mb: 1.5 }} />
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            fontWeight={500}
-            sx={{ display: "block", mb: 1 }}
-          >
-            REGISTRAR PAGO — Saldo: S/ {balance.toFixed(2)}
-          </Typography>
-          <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
-            <TextField
-              label="Monto"
-              type="number"
-              value={form.amount}
-              onChange={set("amount")}
-              size="small"
-              sx={{ width: 130 }}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">S/</InputAdornment>
-                  ),
-                },
+      {/* Registrar pago */}
+      {can(["ADMIN", "ASSISTANT"]) &&
+        (totalBalance > 0 || totalBilled === 0) && (
+          <>
+            <Divider sx={{ mb: 1.5 }} />
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+                fontWeight: 500,
+                display: "block",
+                mb: 1,
               }}
-            />
-            <TextField
-              select
-              label="Método"
-              value={form.method}
-              onChange={set("method")}
-              size="small"
-              sx={{ width: 150 }}
             >
-              {METHODS.map((m) => (
-                <MenuItem
-                  key={m}
-                  value={m}
-                  sx={{ textTransform: "capitalize" }}
-                >
-                  {m}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="Notas"
-              value={form.notes}
-              onChange={set("notes")}
-              size="small"
-              sx={{ flex: 1, minWidth: 120 }}
-            />
-            <Button
-              variant="contained"
-              onClick={handleRegister}
-              disabled={saving}
-              sx={{ alignSelf: "center" }}
-            >
-              {saving ? (
-                <CircularProgress size={18} color="inherit" />
-              ) : (
-                "Registrar"
-              )}
-            </Button>
-          </Box>
-        </>
-      )}
+              {totalBilled > 0
+                ? `REGISTRAR PAGO — Saldo: ${fmtS(totalBalance)}`
+                : "REGISTRAR PAGO"}
+            </Typography>
+            <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+              <TextField
+                label="Monto"
+                type="number"
+                value={form.amount}
+                onChange={set("amount")}
+                size="small"
+                sx={{ width: 130 }}
+                slotProps={{
+                  htmlInput: { min: 0.01, step: "0.01" },
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">S/</InputAdornment>
+                    ),
+                  },
+                }}
+              />
+              <TextField
+                select
+                label="Método"
+                value={form.method}
+                onChange={set("method")}
+                size="small"
+                sx={{ width: 150 }}
+              >
+                {METHODS.map((m) => (
+                  <MenuItem
+                    key={m}
+                    value={m}
+                    sx={{ textTransform: "capitalize" }}
+                  >
+                    {m}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="Notas"
+                value={form.notes}
+                onChange={set("notes")}
+                size="small"
+                sx={{ flex: 1, minWidth: 120 }}
+              />
+              <Button
+                variant="contained"
+                onClick={handleRegister}
+                disabled={saving || !form.amount}
+                sx={{ alignSelf: "center" }}
+              >
+                {saving ? (
+                  <CircularProgress size={18} color="inherit" />
+                ) : (
+                  "Registrar"
+                )}
+              </Button>
+            </Box>
+          </>
+        )}
 
-      {balance <= 0 && (
+      {totalBalance <= 0 && totalPaid > 0 && (
         <Alert severity="success" icon={false} sx={{ mt: 1 }}>
-          Este caso está completamente pagado.
+          Tratamiento completamente pagado.
         </Alert>
       )}
     </>
   );
 }
 
-// ── Vista de pagos para CITA INDIVIDUAL ──────────────────────
-function AppointmentPaymentView({ row, onClose, onRefresh }) {
+// ── Vista para CITA individual ────────────────────────────────
+function AppointmentPaymentView({ row, onRefresh }) {
   const { registerAppointmentPayment, saving } = usePaymentStore();
   const { profile } = useAuthStore();
   const { can } = useRole();
 
   const [apptPayments, setApptPayments] = useState([]);
-  const [form, setForm] = useState(EMPTY_PAY);
+  const [rowData, setRowData] = useState(row);
+  const [form, setForm] = useState(EMPTY);
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
 
-  const balance = Number(row.balance ?? 0);
   const set = (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value }));
 
-  useEffect(() => {
-    supabase
+  const balance = Number(rowData.balance ?? 0);
+
+  const reloadRow = async () => {
+    const { data } = await supabase
+      .from("payments_summary")
+      .select("*")
+      .eq("payment_type", "appointment")
+      .eq("ref_id", row.ref_id)
+      .single();
+    if (data) setRowData(data);
+
+    const { data: pays } = await supabase
       .from("payments")
       .select("*, created_by_profile:profiles(full_name)")
       .eq("appointment_id", row.ref_id)
-      .order("created_at")
-      .then(({ data }) => setApptPayments(data ?? []));
+      .order("created_at");
+    setApptPayments(pays ?? []);
+    onRefresh();
+  };
+
+  useEffect(() => {
+    reloadRow();
   }, [row.ref_id]);
 
   const handleRegister = async () => {
@@ -417,14 +465,13 @@ function AppointmentPaymentView({ row, onClose, onRefresh }) {
       setFeedback({ msg: "Monto inválido.", type: "error" });
       return;
     }
-    if (amount > balance + 0.001) {
+    if (amount > balance + 0.01) {
       setFeedback({
-        msg: `Supera el saldo (S/ ${balance.toFixed(2)}).`,
+        msg: `Supera el saldo (${fmtS(balance)}).`,
         type: "error",
       });
       return;
     }
-
     const { error } = await registerAppointmentPayment({
       appointmentId: row.ref_id,
       amount,
@@ -435,33 +482,28 @@ function AppointmentPaymentView({ row, onClose, onRefresh }) {
     if (error) setFeedback({ msg: error, type: "error" });
     else {
       setFeedback({ msg: "Pago registrado.", type: "success" });
-      setForm(EMPTY_PAY);
-      // Refrescar pagos locales
-      const { data } = await supabase
-        .from("payments")
-        .select("*, created_by_profile:profiles(full_name)")
-        .eq("appointment_id", row.ref_id)
-        .order("created_at");
-      setApptPayments(data ?? []);
-      onRefresh();
+      setForm(EMPTY);
+      reloadRow();
     }
   };
 
   return (
     <>
-      {/* Resumen financiero de la cita */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
         <ReceiptIcon fontSize="small" color="action" />
-        <Typography variant="body2" color="text.secondary" fontWeight={500}>
+        <Typography
+          variant="body2"
+          sx={{ color: "text.secondary", fontWeight: 500 }}
+        >
           Cita individual
         </Typography>
         <Chip
-          label={row.status}
+          label={rowData.status}
           size="small"
           color={
-            row.status === "atendido"
+            rowData.status === "atendido"
               ? "success"
-              : row.status === "cancelado"
+              : rowData.status === "cancelado"
                 ? "error"
                 : "warning"
           }
@@ -478,11 +520,11 @@ function AppointmentPaymentView({ row, onClose, onRefresh }) {
         }}
       >
         {[
-          ["Total", `S/ ${Number(row.total).toFixed(2)}`, "text.primary"],
-          ["Pagado", `S/ ${Number(row.paid).toFixed(2)}`, "success.main"],
+          ["Total", fmtS(rowData.total), "text.primary"],
+          ["Pagado", fmtS(rowData.paid), "success.main"],
           [
             "Saldo",
-            `S/ ${balance.toFixed(2)}`,
+            fmtS(balance),
             balance > 0 ? "error.main" : "text.secondary",
           ],
         ].map(([label, value, color]) => (
@@ -497,31 +539,42 @@ function AppointmentPaymentView({ row, onClose, onRefresh }) {
           >
             <Typography
               variant="caption"
-              color="text.secondary"
-              sx={{ display: "block" }}
+              sx={{ color: "text.secondary", display: "block" }}
             >
               {label}
             </Typography>
-            <Typography variant="body2" fontWeight={600} color={color}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: color }}>
               {value}
             </Typography>
           </Box>
         ))}
       </Box>
 
-      <Divider sx={{ mb: 1.5 }} />
+      {feedback.msg && (
+        <Alert
+          severity={feedback.type}
+          sx={{ mb: 1.5 }}
+          onClose={() => setFeedback({ msg: "", type: "success" })}
+        >
+          {feedback.msg}
+        </Alert>
+      )}
 
-      {/* Historial */}
+      <Divider sx={{ mb: 1.5 }} />
       <Typography
         variant="caption"
-        color="text.secondary"
-        fontWeight={500}
-        sx={{ display: "block", mb: 0.75 }}
+        sx={{
+          color: "text.secondary",
+          fontWeight: 500,
+          display: "block",
+          mb: 0.75,
+        }}
       >
         PAGOS REGISTRADOS
       </Typography>
+
       {apptPayments.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
           Sin pagos registrados.
         </Typography>
       ) : (
@@ -538,17 +591,15 @@ function AppointmentPaymentView({ row, onClose, onRefresh }) {
             {apptPayments.map((p) => (
               <TableRow key={p.id}>
                 <TableCell>
-                  <Typography variant="body2">
-                    {fmtDate(p.created_at)}
-                  </Typography>
+                  <Typography variant="body2">{fmtDT(p.created_at)}</Typography>
                 </TableCell>
                 <TableCell>
                   <Typography
                     variant="body2"
                     fontWeight={500}
-                    color="success.main"
+                    sx={{ color: "success.main" }}
                   >
-                    S/ {Number(p.amount).toFixed(2)}
+                    {fmtS(p.amount)}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -560,7 +611,7 @@ function AppointmentPaymentView({ row, onClose, onRefresh }) {
                   />
                 </TableCell>
                 <TableCell>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
                     {p.created_by_profile?.full_name ?? "—"}
                   </Typography>
                 </TableCell>
@@ -570,26 +621,19 @@ function AppointmentPaymentView({ row, onClose, onRefresh }) {
         </Table>
       )}
 
-      {/* Nuevo pago */}
       {can(["ADMIN", "ASSISTANT"]) && balance > 0 && (
         <>
-          {feedback.msg && (
-            <Alert
-              severity={feedback.type}
-              sx={{ mb: 1.5 }}
-              onClose={() => setFeedback({ msg: "", type: "success" })}
-            >
-              {feedback.msg}
-            </Alert>
-          )}
           <Divider sx={{ mb: 1.5 }} />
           <Typography
             variant="caption"
-            color="text.secondary"
-            fontWeight={500}
-            sx={{ display: "block", mb: 1 }}
+            sx={{
+              color: "text.secondary",
+              fontWeight: 500,
+              display: "block",
+              mb: 1,
+            }}
           >
-            REGISTRAR PAGO — Saldo: S/ {balance.toFixed(2)}
+            REGISTRAR PAGO — Saldo: {fmtS(balance)}
           </Typography>
           <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
             <TextField
@@ -600,6 +644,7 @@ function AppointmentPaymentView({ row, onClose, onRefresh }) {
               size="small"
               sx={{ width: 130 }}
               slotProps={{
+                htmlInput: { min: 0.01, step: "0.01" },
                 input: {
                   startAdornment: (
                     <InputAdornment position="start">S/</InputAdornment>
@@ -635,7 +680,7 @@ function AppointmentPaymentView({ row, onClose, onRefresh }) {
             <Button
               variant="contained"
               onClick={handleRegister}
-              disabled={saving}
+              disabled={saving || !form.amount}
               sx={{ alignSelf: "center" }}
             >
               {saving ? (
@@ -656,46 +701,29 @@ function AppointmentPaymentView({ row, onClose, onRefresh }) {
   );
 }
 
-// ── Modal principal unificado ─────────────────────────────────
+// ── Modal principal ───────────────────────────────────────────
 export default function PaymentDetailModal({ open, row, onClose }) {
   const { fetchPayments } = usePaymentStore();
-
   if (!row) return null;
-
   const isCase = row.payment_type === "case";
-
-  const fmtDate2 = (iso) =>
-    iso
-      ? new Date(iso).toLocaleDateString("es-PE", { dateStyle: "medium" })
-      : "—";
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ pb: 1 }}>
-        <Typography variant="h6" component="span" fontWeight={500}>
+        <Typography variant="h6" component="span" sx={{ fontWeight: 500 }}>
           {row.patient_name}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {row.treatment_name ?? "—"} · {fmtDate2(row.date)}
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          {row.treatment_name ?? "—"} · {fmtD(row.date)}
         </Typography>
       </DialogTitle>
-
       <DialogContent dividers>
         {isCase ? (
-          <CasePaymentView
-            row={row}
-            onClose={onClose}
-            onRefresh={fetchPayments}
-          />
+          <CasePaymentView row={row} onRefresh={fetchPayments} />
         ) : (
-          <AppointmentPaymentView
-            row={row}
-            onClose={onClose}
-            onRefresh={fetchPayments}
-          />
+          <AppointmentPaymentView row={row} onRefresh={fetchPayments} />
         )}
       </DialogContent>
-
       <DialogActions sx={{ px: 3, py: 2 }}>
         <Button onClick={onClose}>Cerrar</Button>
       </DialogActions>

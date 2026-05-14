@@ -51,24 +51,30 @@ const STATUS_META = {
 
 const METHODS = ["efectivo", "tarjeta", "transferencia", "yape", "plin"];
 
-function fmt(iso) {
-  return iso
-    ? new Date(iso).toLocaleDateString("es-PE", { dateStyle: "short" })
-    : "—";
-}
-function fmtDT(iso) {
-  return iso
+const fmtDate = (iso) =>
+  iso ? new Date(iso).toLocaleDateString("es-PE", { dateStyle: "short" }) : "—";
+const fmtDT = (iso) =>
+  iso
     ? new Date(iso).toLocaleString("es-PE", {
         dateStyle: "short",
         timeStyle: "short",
       })
     : "—";
-}
+const fmtS = (n) => "S/ " + Number(n ?? 0).toFixed(2);
 
-// ── Panel de pagos de un caso ─────────────────────────────────
-function CasePaymentsSection({ caseId, totalCost, onRefresh }) {
-  const { payments, saving, fetchByCase, registerPayment, deletePayment } =
-    useCasePaymentStore();
+// ── Sección de pagos de un caso ───────────────────────────────
+function CasePaymentsSection({ caseData, onRefresh }) {
+  /*const { payments, saving, fetchByCase, registerPayment, deletePayment } =
+    useCasePaymentStore();*/
+  const {
+    paymentsByCase,
+    saving,
+    fetchByCase,
+    registerPayment,
+    deletePayment,
+  } = useCasePaymentStore();
+
+  const payments = paymentsByCase[caseData.id] ?? [];
   const { profile } = useAuthStore();
   const { can } = useRole();
 
@@ -79,29 +85,32 @@ function CasePaymentsSection({ caseId, totalCost, onRefresh }) {
   });
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
 
-  const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
-  const balance = Math.max(0, Number(totalCost ?? 0) - totalPaid);
+  // Saldo viene directamente de la vista (calculado en BD)
+  const totalBilled = Number(caseData.total_billed ?? 0);
+  const totalPaid = Number(caseData.total_paid ?? 0);
+  const totalBalance = Number(caseData.total_balance ?? 0);
+
   const set = (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value }));
 
   useEffect(() => {
-    fetchByCase(caseId);
-  }, [caseId]);
+    fetchByCase(caseData.id);
+  }, [caseData.id]);
 
   const handleRegister = async () => {
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) {
-      setFeedback({ msg: "Monto inválido.", type: "error" });
+      setFeedback({ msg: "Ingresa un monto válido.", type: "error" });
       return;
     }
-    if (amount > balance + 0.001) {
+    if (totalBilled > 0 && amount > totalBalance + 0.01) {
       setFeedback({
-        msg: `Supera el saldo (S/ ${balance.toFixed(2)}).`,
+        msg: `El monto supera el saldo (${fmtS(totalBalance)}).`,
         type: "error",
       });
       return;
     }
     const { error } = await registerPayment({
-      caseId,
+      caseId: caseData.id,
       amount,
       method: form.method,
       notes: form.notes,
@@ -109,15 +118,16 @@ function CasePaymentsSection({ caseId, totalCost, onRefresh }) {
     });
     if (error) setFeedback({ msg: error, type: "error" });
     else {
-      setFeedback({ msg: "Pago registrado.", type: "success" });
+      setFeedback({ msg: "Pago registrado correctamente.", type: "success" });
       setForm({ amount: "", method: "efectivo", notes: "" });
+      // Refrescar el caso desde la BD para obtener saldos actualizados
       onRefresh();
     }
   };
 
   const handleDelete = async (payId) => {
     if (!window.confirm("¿Eliminar este pago?")) return;
-    const { error } = await deletePayment(payId, caseId);
+    const { error } = await deletePayment(payId, caseData.id);
     if (error) setFeedback({ msg: error, type: "error" });
     else {
       setFeedback({ msg: "Pago eliminado.", type: "success" });
@@ -127,7 +137,7 @@ function CasePaymentsSection({ caseId, totalCost, onRefresh }) {
 
   return (
     <Box>
-      {/* Resumen financiero */}
+      {/* Resumen financiero — datos de la vista, no calculados en frontend */}
       <Box
         sx={{
           display: "grid",
@@ -137,16 +147,12 @@ function CasePaymentsSection({ caseId, totalCost, onRefresh }) {
         }}
       >
         {[
-          [
-            "Costo total",
-            `S/ ${Number(totalCost ?? 0).toFixed(2)}`,
-            "text.primary",
-          ],
-          ["Total pagado", `S/ ${totalPaid.toFixed(2)}`, "success.main"],
+          ["Costo total pactado", fmtS(totalBilled), "text.primary"],
+          ["Total pagado", fmtS(totalPaid), "success.main"],
           [
             "Saldo pendiente",
-            `S/ ${balance.toFixed(2)}`,
-            balance > 0 ? "error.main" : "text.secondary",
+            fmtS(totalBalance),
+            totalBalance > 0 ? "error.main" : "text.secondary",
           ],
         ].map(([label, value, color]) => (
           <Box
@@ -154,18 +160,17 @@ function CasePaymentsSection({ caseId, totalCost, onRefresh }) {
             sx={{
               bgcolor: "action.hover",
               borderRadius: 1.5,
-              p: 1,
+              p: 1.25,
               textAlign: "center",
             }}
           >
             <Typography
               variant="caption"
-              color="text.secondary"
-              display="block"
+              sx={{ color: "text.secondary", display: "block" }}
             >
               {label}
             </Typography>
-            <Typography variant="body2" fontWeight={600} color={color}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: color }}>
               {value}
             </Typography>
           </Box>
@@ -173,9 +178,31 @@ function CasePaymentsSection({ caseId, totalCost, onRefresh }) {
       </Box>
 
       {/* Historial de pagos */}
+      {feedback.msg && (
+        <Alert
+          severity={feedback.type}
+          sx={{ mb: 1.5 }}
+          onClose={() => setFeedback({ msg: "", type: "success" })}
+        >
+          {feedback.msg}
+        </Alert>
+      )}
+
+      <Typography
+        variant="caption"
+        sx={{
+          color: "text.secondary",
+          fontWeight: 500,
+          display: "block",
+          mb: 0.75,
+        }}
+      >
+        PAGOS REGISTRADOS
+      </Typography>
+
       {payments.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" mb={1.5}>
-          Sin pagos registrados.
+        <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
+          Sin pagos registrados aún.
         </Typography>
       ) : (
         <Table size="small" sx={{ mb: 2 }}>
@@ -184,7 +211,7 @@ function CasePaymentsSection({ caseId, totalCost, onRefresh }) {
               <TableCell>Fecha</TableCell>
               <TableCell>Monto</TableCell>
               <TableCell>Método</TableCell>
-              <TableCell>Registrado por</TableCell>
+              <TableCell>Por</TableCell>
               {can(["ADMIN"]) && <TableCell align="right" />}
             </TableRow>
           </TableHead>
@@ -197,10 +224,9 @@ function CasePaymentsSection({ caseId, totalCost, onRefresh }) {
                 <TableCell>
                   <Typography
                     variant="body2"
-                    fontWeight={500}
-                    color="success.main"
+                    sx={{ fontWeight: 500, color: "success.main" }}
                   >
-                    S/ {Number(p.amount).toFixed(2)}
+                    {fmtS(p.amount)}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -212,7 +238,7 @@ function CasePaymentsSection({ caseId, totalCost, onRefresh }) {
                   />
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
                     {p.created_by_profile?.full_name ?? "—"}
                   </Typography>
                 </TableCell>
@@ -235,81 +261,78 @@ function CasePaymentsSection({ caseId, totalCost, onRefresh }) {
       )}
 
       {/* Registrar nuevo pago */}
-      {can(["ADMIN", "ASSISTANT"]) && balance > 0 && (
-        <>
-          {feedback.msg && (
-            <Alert
-              severity={feedback.type}
-              sx={{ mb: 1.5 }}
-              onClose={() => setFeedback({ msg: "", type: "success" })}
-            >
-              {feedback.msg}
-            </Alert>
-          )}
-          <Divider sx={{ mb: 1.5 }} />
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            fontWeight={500}
-            display="block"
-            mb={1}
-          >
-            REGISTRAR PAGO — Saldo: S/ {balance.toFixed(2)}
-          </Typography>
-          <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
-            <TextField
-              label="Monto"
-              type="number"
-              value={form.amount}
-              onChange={set("amount")}
-              size="small"
-              sx={{ width: 130 }}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">S/</InputAdornment>
-                  ),
-                },
+      {can(["ADMIN", "ASSISTANT"]) &&
+        (totalBalance > 0 || totalBilled === 0) && (
+          <>
+            <Divider sx={{ mb: 1.5 }} />
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+                fontWeight: 500,
+                display: "block",
+                mb: 1,
               }}
-            />
-            <TextField
-              select
-              label="Método"
-              value={form.method}
-              onChange={set("method")}
-              size="small"
-              sx={{ width: 150 }}
             >
-              {METHODS.map((m) => (
-                <MenuItem
-                  key={m}
-                  value={m}
-                  sx={{ textTransform: "capitalize" }}
-                >
-                  {m}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="Notas"
-              value={form.notes}
-              onChange={set("notes")}
-              size="small"
-              sx={{ flex: 1, minWidth: 120 }}
-            />
-            <Button
-              variant="contained"
-              onClick={handleRegister}
-              disabled={saving}
-              sx={{ alignSelf: "center" }}
-            >
-              {saving ? "Registrando..." : "Registrar"}
-            </Button>
-          </Box>
-        </>
-      )}
+              {totalBilled > 0
+                ? `REGISTRAR PAGO — Saldo: ${fmtS(totalBalance)}`
+                : "REGISTRAR PAGO"}
+            </Typography>
+            <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+              <TextField
+                label="Monto"
+                type="number"
+                value={form.amount}
+                onChange={set("amount")}
+                size="small"
+                sx={{ width: 130 }}
+                slotProps={{
+                  htmlInput: { min: 0.01, step: "0.01" },
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">S/</InputAdornment>
+                    ),
+                  },
+                }}
+              />
+              <TextField
+                select
+                label="Método"
+                value={form.method}
+                onChange={set("method")}
+                size="small"
+                sx={{ width: 150 }}
+              >
+                {METHODS.map((m) => (
+                  <MenuItem
+                    key={m}
+                    value={m}
+                    sx={{ textTransform: "capitalize" }}
+                  >
+                    {m}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="Notas"
+                value={form.notes}
+                onChange={set("notes")}
+                size="small"
+                sx={{ flex: 1, minWidth: 120 }}
+              />
+              <Button
+                variant="contained"
+                onClick={handleRegister}
+                disabled={saving || !form.amount}
+                sx={{ alignSelf: "center" }}
+              >
+                {saving ? "Registrando..." : "Registrar"}
+              </Button>
+            </Box>
+          </>
+        )}
 
-      {balance <= 0 && totalPaid > 0 && (
+      {totalBalance <= 0 && totalPaid > 0 && (
         <Alert severity="success" icon={false} sx={{ mt: 1 }}>
           Tratamiento completamente pagado.
         </Alert>
@@ -338,11 +361,16 @@ export default function TreatmentCasesPanel({ patientId }) {
     }
   };
 
-  if (loading) return <CircularProgress size={20} />;
+  if (loading)
+    return (
+      <Box sx={{ py: 2 }}>
+        <CircularProgress size={20} />
+      </Box>
+    );
 
   if (cases.length === 0) {
     return (
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="body2" sx={{ color: "text.secondary" }}>
         Este paciente no tiene tratamientos multisesión registrados.
       </Typography>
     );
@@ -362,6 +390,10 @@ export default function TreatmentCasesPanel({ patientId }) {
 
       {cases.map((c) => {
         const meta = STATUS_META[c.status] ?? STATUS_META.en_curso;
+        const balance = Number(c.total_balance ?? 0);
+        const paid = Number(c.total_paid ?? 0);
+        const billed = Number(c.total_billed ?? 0);
+
         return (
           <Accordion
             key={c.id}
@@ -381,12 +413,15 @@ export default function TreatmentCasesPanel({ patientId }) {
               >
                 {meta.icon}
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="body2" fontWeight={500} noWrap>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
                     {c.treatment_name ?? "—"}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Dr. {c.doctor_name ?? "—"} · Inicio: {fmt(c.started_at)}
-                    {c.sessions_attended > 0 &&
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary" }}
+                  >
+                    Dr. {c.doctor_name ?? "—"} · Inicio: {fmtDate(c.started_at)}
+                    {Number(c.sessions_attended) > 0 &&
                       ` · ${c.sessions_attended} sesión(es)`}
                   </Typography>
                 </Box>
@@ -394,21 +429,20 @@ export default function TreatmentCasesPanel({ patientId }) {
                   sx={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 1,
+                    gap: 0.75,
                     flexShrink: 0,
                   }}
                 >
-                  {/* Indicador de saldo */}
-                  {Number(c.total_balance) > 0 && (
+                  {billed > 0 && balance > 0 && (
                     <Chip
-                      label={`Debe S/ ${Number(c.total_balance).toFixed(2)}`}
+                      label={`Debe ${fmtS(balance)}`}
                       size="small"
                       color="error"
                       variant="outlined"
                       sx={{ fontSize: 10 }}
                     />
                   )}
-                  {Number(c.total_balance) <= 0 && Number(c.total_paid) > 0 && (
+                  {billed > 0 && balance <= 0 && paid > 0 && (
                     <Chip
                       label="Pagado"
                       size="small"
@@ -422,9 +456,11 @@ export default function TreatmentCasesPanel({ patientId }) {
               </Box>
             </AccordionSummary>
 
-            <AccordionDetails>
-              {/* Sesiones */}
-              <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>
+            <AccordionDetails sx={{ pt: 0 }}>
+              {/* Info del caso */}
+              <Box
+                sx={{ display: "flex", gap: 3, mb: 2, flexWrap: "wrap", pt: 1 }}
+              >
                 {[
                   ["Sesiones realizadas", c.sessions_attended ?? 0],
                   ["Sesiones planificadas", c.total_sessions ?? "—"],
@@ -433,12 +469,11 @@ export default function TreatmentCasesPanel({ patientId }) {
                   <Box key={label}>
                     <Typography
                       variant="caption"
-                      color="text.secondary"
-                      display="block"
+                      sx={{ color: "text.secondary", display: "block" }}
                     >
                       {label}
                     </Typography>
-                    <Typography variant="body2" fontWeight={500}>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
                       {value}
                     </Typography>
                   </Box>
@@ -447,8 +482,7 @@ export default function TreatmentCasesPanel({ patientId }) {
                   <Box sx={{ width: "100%" }}>
                     <Typography
                       variant="caption"
-                      color="text.secondary"
-                      display="block"
+                      sx={{ color: "text.secondary", display: "block" }}
                     >
                       Notas
                     </Typography>
@@ -459,25 +493,26 @@ export default function TreatmentCasesPanel({ patientId }) {
 
               <Divider sx={{ mb: 2 }} />
 
-              {/* Pagos del caso */}
+              {/* Pagos — saldo de la BD, no calculado en frontend */}
               <Typography
                 variant="caption"
-                color="text.secondary"
-                fontWeight={500}
-                display="block"
-                mb={1}
+                sx={{
+                  color: "text.secondary",
+                  fontWeight: 500,
+                  display: "block",
+                  mb: 1.5,
+                }}
               >
                 PAGOS DEL TRATAMIENTO
               </Typography>
               <CasePaymentsSection
-                caseId={c.id}
-                totalCost={c.total_cost ?? c.total_billed}
+                caseData={c}
                 onRefresh={() => fetchByPatient(patientId)}
               />
 
               <Divider sx={{ my: 2 }} />
 
-              {/* Cambio de estado */}
+              {/* Estado del caso */}
               {can(["ADMIN", "DOCTOR", "ASSISTANT"]) && (
                 <Box
                   sx={{
@@ -487,8 +522,11 @@ export default function TreatmentCasesPanel({ patientId }) {
                     flexWrap: "wrap",
                   }}
                 >
-                  <Typography variant="caption" color="text.secondary">
-                    Estado del caso:
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary" }}
+                  >
+                    Estado:
                   </Typography>
                   {["en_curso", "completado", "abandonado"].map((s) => (
                     <Button
