@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "../../services/supabaseClient";
 import {
   Drawer,
   Box,
@@ -15,13 +16,21 @@ import {
   Tooltip,
   useTheme,
   useMediaQuery,
+  MenuItem,
+  Grid,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import PendingIcon from "@mui/icons-material/Pending";
+import PaymentsIcon from "@mui/icons-material/Payments";
+import MedicalServicesIcon from "@mui/icons-material/MedicalServices";
+import LaunchIcon from "@mui/icons-material/Launch";
 import { useAppointmentStore } from "../../stores/useAppointmentStore";
 import { useRole } from "../../hooks/useRole";
+import { useNavigate } from "react-router-dom";
+import { usePaymentStore } from "../../stores/usePaymentStore";
+import { useAuthStore } from "../../stores/useAuthStore";
 
 const STATUS_META = {
   pendiente: {
@@ -41,6 +50,8 @@ const STATUS_META = {
   },
 };
 
+const METHODS = ["efectivo", "yape", "plin", "transferencia", "tarjeta"];
+
 function Row({ label, value }) {
   return (
     <Box sx={{ mb: 1.5 }}>
@@ -55,6 +66,9 @@ function Row({ label, value }) {
 export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const navigate = useNavigate();
+  const { registerAppointmentPayment } = usePaymentStore();
+  const { profile } = useAuthStore();
 
   const {
     selected,
@@ -62,16 +76,90 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
     changeStatus,
     updateAppointment,
     deleteAppointment,
+    setSelected,
   } = useAppointmentStore();
   const { can } = useRole();
 
-  const [payment, setPayment] = useState("");
+  //const [payment, setPayment] = useState("");
+
+  const [form, setForm] = useState({
+    amount: "",
+    method: "efectivo",
+    notes: "",
+  });
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
+  const [caseSummary, setCaseSummary] = useState(null); //Agregado para ver saldos reales de tratamiento multisesion
+  const [caseFinancials, setCaseFinancials] = useState(null);
+  const [loadingCase, setLoadingCase] = useState(false);
+
+  useEffect(() => {
+    if (selected) {
+      loadCaseFinancials();
+    }
+  }, [selected]);
+
+  const reloadSelected = async () => {
+    const { data } = await supabase
+      .from("appointments_full")
+      .select("*")
+      .eq("id", selected.id)
+      .single();
+
+    if (data) {
+      setSelected(data);
+    }
+  };
+
+  const loadCaseFinancials = async () => {
+    if (!selected?.case_id || !selected?.is_multisession) {
+      setCaseFinancials(null);
+      return;
+    }
+
+    setLoadingCase(true);
+
+    const { data, error } = await supabase
+      .from("payments_summary")
+      .select("*")
+      .eq("payment_type", "case")
+      .eq("ref_id", selected.case_id)
+      .single();
+
+    if (!error && data) {
+      setCaseFinancials({
+        total: Number(data.total ?? 0),
+        paid: Number(data.paid ?? 0),
+        balance: Number(data.balance ?? 0),
+      });
+    }
+
+    setLoadingCase(false);
+  };
 
   if (!selected) return null;
 
-  const balance = (selected.total ?? 0) - (selected.paid ?? 0);
+  const isCaseAppointment = selected?.is_multisession && selected?.case_id;
+  const paymentInfo = isCaseAppointment
+    ? (caseFinancials ?? {
+        total: 0,
+        paid: 0,
+        balance: 0,
+      })
+    : {
+        total: Number(selected?.total ?? 0),
+        paid: Number(selected?.paid ?? 0),
+        balance: Number(selected?.total ?? 0) - Number(selected?.paid ?? 0),
+      };
+
+  const balance = paymentInfo.balance;
   const meta = STATUS_META[selected.status] ?? STATUS_META.pendiente;
+
+  const setField = (field) => (e) => {
+    setForm((prev) => ({
+      ...prev,
+      [field]: e.target.value,
+    }));
+  };
 
   const handleStatus = async (status) => {
     const { error } = await changeStatus(selected.id, status);
@@ -82,7 +170,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
     }
   };
 
-  const handlePayment = async () => {
+  /*const handlePayment = async () => {
     const amount = parseFloat(payment);
     if (!amount || amount <= 0) {
       setFeedback({ msg: "Ingresa un monto válido.", type: "error" });
@@ -101,6 +189,106 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
       setPayment("");
       onUpdate();
     }
+  };*/
+  /*const handlePayment = async () => {
+    const amount = parseFloat(payment);
+
+    if (!amount || amount <= 0) {
+      setFeedback({
+        msg: "Ingresa un monto válido.",
+        type: "error",
+      });
+      return;
+    }
+
+    if (amount > balance + 0.001) {
+      setFeedback({
+        msg: "El pago supera el saldo.",
+        type: "error",
+      });
+      return;
+    }
+
+    const { error } = await registerAppointmentPayment({
+      appointmentId: selected.id,
+      amount,
+      method: "efectivo",
+      notes: null,
+      createdBy: profile?.id,
+    });
+
+    if (error) {
+      setFeedback({
+        msg: error,
+        type: "error",
+      });
+    } else {
+      setFeedback({
+        msg: "Pago registrado.",
+        type: "success",
+      });
+
+      setPayment("");
+      await reloadSelected();
+      onUpdate();
+    }
+  };*/
+  const handlePayment = async () => {
+    const amount = parseFloat(form.amount);
+
+    if (!amount || amount <= 0) {
+      setFeedback({
+        msg: "Ingresa un monto válido.",
+        type: "error",
+      });
+
+      return;
+    }
+
+    if (amount > balance + 0.001) {
+      setFeedback({
+        msg: "El pago supera el saldo.",
+        type: "error",
+      });
+
+      return;
+    }
+
+    const { error } = await registerAppointmentPayment({
+      appointmentId: selected.id,
+      amount,
+      method: form.method,
+      notes: form.notes || null,
+      createdBy: profile?.id,
+    });
+
+    if (error) {
+      setFeedback({
+        msg: error,
+        type: "error",
+      });
+
+      return;
+    }
+
+    setFeedback({
+      msg: "Pago registrado.",
+      type: "success",
+    });
+
+    setForm({
+      amount: "",
+      method: "efectivo",
+      notes: "",
+    });
+
+    await reloadSelected();
+
+    if (isCaseAppointment) {
+      await loadCaseFinancials();
+    }
+
+    onUpdate();
   };
 
   const handleDelete = async () => {
@@ -161,7 +349,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
         >
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 500 }}>
-              Detalle de cita
+              {isCaseAppointment ? "Sesión de tratamiento" : "Detalle de cita"}
             </Typography>
             <Chip
               icon={meta.icon}
@@ -200,6 +388,14 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
           <Row label="Paciente" value={selected.patient_name} />
           <Row label="Doctor" value={selected.doctor_name} />
           <Row label="Tratamiento" value={selected.treatment_name} />
+          {isCaseAppointment && (
+            <Chip
+              label="Tratamiento multisesión"
+              //color="primary"
+              size="small"
+              sx={{ mt: 1 }}
+            />
+          )}
           <Row label="Especialidad" value={selected.specialty_name} />
         </Box>
         <Row label="Fecha inicio" value={fmt(selected.date)} />
@@ -210,7 +406,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
 
         {/* Pagos */}
         <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1.5 }}>
-          Pagos
+          {isCaseAppointment ? "Resumen financiero del tratamiento" : "Pagos"}
         </Typography>
         <Box
           sx={{
@@ -235,7 +431,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
               Total
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              S/ {Number(selected.total).toFixed(2)}
+              S/ {paymentInfo.total.toFixed(2)}
             </Typography>
           </Box>
           <Box
@@ -256,7 +452,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
               variant="body2"
               sx={{ color: "success.main", fontWeight: 500 }}
             >
-              S/ {Number(selected.paid).toFixed(2)}
+              S/ {paymentInfo.paid.toFixed(2)}
             </Typography>
           </Box>
           <Box
@@ -273,44 +469,146 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
             >
               Saldo
             </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                color: balance > 0 ? "error.main" : "text.secondary",
-                fontWeight: 500,
-              }}
-            >
-              S/ {balance.toFixed(2)}
-            </Typography>
+            {loadingCase ? (
+              <CircularProgress size={20} />
+            ) : (
+              <Typography
+                variant="body2"
+                sx={{
+                  color: balance > 0 ? "error.main" : "text.secondary",
+                  fontWeight: 500,
+                }}
+              >
+                S/ {paymentInfo.balance.toFixed(2)}
+              </Typography>
+            )}
           </Box>
         </Box>
 
-        {can(["ADMIN", "ASSISTANT"]) && balance > 0 && (
-          <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
-            <TextField
-              label="Registrar pago"
-              type="number"
-              value={payment}
-              onChange={(e) => setPayment(e.target.value)}
-              size="small"
-              sx={{ flex: 1 }}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">S/</InputAdornment>
-                  ),
-                },
-              }}
-            />
+        {/* ───────── PAGOS ───────── */}
+
+        {isCaseAppointment ? (
+          <>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Esta cita pertenece a un tratamiento multisesión. Los pagos se
+              gestionan desde el tratamiento.
+            </Alert>
+
             <Button
-              variant="outlined"
-              onClick={handlePayment}
-              disabled={saving}
-              sx={{ whiteSpace: "nowrap" }}
+              fullWidth
+              variant="contained"
+              sx={{ mb: 2 }}
+              onClick={() => {
+                const patientId = selected.patient_id;
+                const caseId = selected.case_id;
+                onClose();
+                setTimeout(
+                  () => navigate(`/patients/${patientId}?case=${caseId}`),
+                  150,
+                );
+              }}
             >
-              {saving ? <CircularProgress size={18} /> : "Agregar"}
+              Ver tratamiento y pagos
             </Button>
-          </Box>
+          </>
+        ) : (
+          <>
+            {can(["ADMIN", "ASSISTANT"]) && balance > 0 && (
+              <>
+                <Divider sx={{ mb: 1.5 }} />
+
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                    fontWeight: 500,
+                    display: "block",
+                    mb: 1.5,
+                  }}
+                >
+                  REGISTRAR PAGO — Saldo: S/ {balance.toFixed(2)}
+                </Typography>
+
+                <Grid container spacing={1.5} sx={{ mb: 2 }}>
+                  {/* Monto */}
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField
+                      fullWidth
+                      label="Monto"
+                      type="number"
+                      value={form.amount}
+                      onChange={setField("amount")}
+                      size="small"
+                      slotProps={{
+                        htmlInput: {
+                          min: 0.01,
+                          step: "0.01",
+                        },
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">S/</InputAdornment>
+                          ),
+                        },
+                      }}
+                    />
+                  </Grid>
+
+                  {/* Método */}
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField
+                      fullWidth
+                      select
+                      label="Método"
+                      value={form.method}
+                      onChange={setField("method")}
+                      size="small"
+                    >
+                      {METHODS.map((m) => (
+                        <MenuItem
+                          key={m}
+                          value={m}
+                          sx={{
+                            textTransform: "capitalize",
+                          }}
+                        >
+                          {m}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+
+                  {/* Notas */}
+                  <Grid size={{ xs: 12 }}>
+                    <TextField
+                      fullWidth
+                      label="Notas"
+                      value={form.notes}
+                      onChange={setField("notes")}
+                      size="small"
+                      multiline
+                      minRows={2}
+                    />
+                  </Grid>
+
+                  {/* Botón */}
+                  <Grid size={{ xs: 12 }}>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      onClick={handlePayment}
+                      disabled={saving || !form.amount}
+                    >
+                      {saving ? (
+                        <CircularProgress size={20} color="inherit" />
+                      ) : (
+                        "Registrar pago"
+                      )}
+                    </Button>
+                  </Grid>
+                </Grid>
+              </>
+            )}
+          </>
         )}
 
         <Divider sx={{ my: 2 }} />

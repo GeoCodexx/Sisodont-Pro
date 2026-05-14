@@ -251,9 +251,11 @@ export default function PatientFormModal({ open, patient, onClose }) {
               onChange={setNumberField("dni", 8)}
               size="small"
               fullWidth
-              inputProps={{
-                maxLength: 8,
-                inputMode: "numeric",
+              slotProps={{
+                htmlInput: {
+                  maxLength: 8,
+                  inputMode: "numeric",
+                },
               }}
             />
           </Grid>

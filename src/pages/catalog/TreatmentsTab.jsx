@@ -24,6 +24,10 @@ import {
   InputAdornment,
   Card,
   CardContent,
+  FormControlLabel,
+  Switch,
+  Collapse,
+  Alert,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -37,7 +41,40 @@ const EMPTY = {
   price: "",
   duration_min: 30,
   description: "",
+  is_multisession: false,
+  unit_price: "",
 };
+
+function TreatmentTypeChip({ isMultisession, unitPrice }) {
+  if (isMultisession)
+    return (
+      <Chip
+        label="Multisesión"
+        size="small"
+        color="primary"
+        variant="outlined"
+        sx={{ fontSize: 10, height: 20 }}
+      />
+    );
+  if (unitPrice)
+    return (
+      <Chip
+        label="Por unidad"
+        size="small"
+        color="warning"
+        variant="outlined"
+        sx={{ fontSize: 10, height: 20 }}
+      />
+    );
+  return (
+    <Chip
+      label="Sesión única"
+      size="small"
+      variant="outlined"
+      sx={{ fontSize: 10, height: 20 }}
+    />
+  );
+}
 
 function TreatmentCard({ t, onEdit, onDelete }) {
   return (
@@ -52,7 +89,7 @@ function TreatmentCard({ t, onEdit, onDelete }) {
           }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
+            <Typography variant="body2" fontWeight={500} noWrap>
               {t.name}
             </Typography>
             {t.description && (
@@ -70,7 +107,7 @@ function TreatmentCard({ t, onEdit, onDelete }) {
               </Typography>
             )}
           </Box>
-          <Box sx={{ display: "flex", gap: 0.5, ml: 1 }}>
+          <Box sx={{ display: "flex", gap: 0.5, ml: 1, flexShrink: 0 }}>
             <IconButton size="small" onClick={() => onEdit(t)}>
               <EditIcon fontSize="small" />
             </IconButton>
@@ -100,11 +137,26 @@ function TreatmentCard({ t, onEdit, onDelete }) {
               variant="outlined"
             />
           )}
+          <TreatmentTypeChip
+            isMultisession={t.is_multisession}
+            unitPrice={t.unit_price}
+          />
           <Typography
             variant="body2"
-            sx={{ fontWeight: 500, color: "success.main" }}
+            fontWeight={500}
+            sx={{
+              color: t.is_multisession
+                ? "text.secondary"
+                : t.unit_price
+                  ? "warning.dark"
+                  : "success.main",
+            }}
           >
-            S/ {Number(t.price).toFixed(2)}
+            {t.unit_price
+              ? `S/ ${Number(t.unit_price).toFixed(2)}/unidad`
+              : t.is_multisession
+                ? "Pactado por caso"
+                : `S/ ${Number(t.price).toFixed(2)}`}
           </Typography>
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
             {t.duration_min} min
@@ -131,7 +183,11 @@ export default function TreatmentsTab({ onNotify }) {
   const [editId, setEditId] = useState(null);
   const [search, setSearch] = useState("");
 
-  const set = (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value }));
+  const set = (f) => (e) => {
+    const val =
+      e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setForm((p) => ({ ...p, [f]: val }));
+  };
 
   const openCreate = () => {
     setForm(EMPTY);
@@ -142,9 +198,11 @@ export default function TreatmentsTab({ onNotify }) {
     setForm({
       name: t.name,
       specialty_id: t.specialty_id ?? "",
-      price: t.price,
-      duration_min: t.duration_min,
+      price: t.price ?? "",
+      duration_min: t.duration_min ?? 30,
       description: t.description ?? "",
+      is_multisession: t.is_multisession ?? false,
+      unit_price: t.unit_price ?? "",
     });
     setEditId(t.id);
     setOpen(true);
@@ -155,15 +213,28 @@ export default function TreatmentsTab({ onNotify }) {
       onNotify("El nombre es obligatorio.", "error");
       return;
     }
+    if (
+      !form.is_multisession &&
+      !form.unit_price &&
+      (form.price === "" || Number(form.price) < 0)
+    ) {
+      onNotify("Ingresa un precio válido.", "error");
+      return;
+    }
+
     const payload = {
-      ...form,
-      price: parseFloat(form.price) || 0,
+      name: form.name.trim(),
       specialty_id: form.specialty_id || null,
+      duration_min: parseInt(form.duration_min) || 30,
+      description: form.description || null,
+      is_multisession: form.is_multisession,
+      price: form.unit_price ? 0 : parseFloat(form.price) || 0,
+      unit_price: form.unit_price ? parseFloat(form.unit_price) : null,
     };
-    const fn = editId
+
+    const { error } = await (editId
       ? updateTreatment(editId, payload)
-      : createTreatment(payload);
-    const { error } = await fn;
+      : createTreatment(payload));
     if (error) {
       onNotify(error, "error");
       return;
@@ -211,14 +282,13 @@ export default function TreatmentsTab({ onNotify }) {
         </Button>
       </Box>
 
-      {/* Vista móvil */}
       {isMobile ? (
         <Box>
           {visible.length === 0 ? (
             <Typography
-              sx={{ color: "text.secondary", textAlign: "center", mt: 4 }}
+              size={{ color: "text.secondary", textAlign: "center", mt: 4 }}
             >
-              No se encontraron tratamientos
+              Sin tratamientos
             </Typography>
           ) : (
             visible.map((t) => (
@@ -232,12 +302,12 @@ export default function TreatmentsTab({ onNotify }) {
           )}
         </Box>
       ) : (
-        /* Vista desktop */
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
             <TableHead>
               <TableRow>
                 <TableCell>Tratamiento</TableCell>
+                <TableCell>Tipo</TableCell>
                 <TableCell>Especialidad</TableCell>
                 <TableCell>Precio</TableCell>
                 <TableCell>Duración</TableCell>
@@ -248,7 +318,7 @@ export default function TreatmentsTab({ onNotify }) {
               {visible.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={6}
                     align="center"
                     sx={{ py: 4, color: "text.secondary" }}
                   >
@@ -259,16 +329,25 @@ export default function TreatmentsTab({ onNotify }) {
               {visible.map((t) => (
                 <TableRow key={t.id} hover>
                   <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    <Typography variant="body2" fontWeight={500}>
                       {t.name}
                     </Typography>
                     {t.description && (
-                      <Typography variant="caption" color="text.secondary">
-                        {t.description.length > 60
-                          ? t.description.slice(0, 60) + "…"
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.secondary" }}
+                      >
+                        {t.description.length > 55
+                          ? t.description.slice(0, 55) + "…"
                           : t.description}
                       </Typography>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <TreatmentTypeChip
+                      isMultisession={t.is_multisession}
+                      unitPrice={t.unit_price}
+                    />
                   </TableCell>
                   <TableCell>
                     {t.specialty ? (
@@ -287,8 +366,22 @@ export default function TreatmentsTab({ onNotify }) {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      S/ {Number(t.price).toFixed(2)}
+                    <Typography
+                      variant="body2"
+                      fontWeight={500}
+                      sx={{
+                        color: t.is_multisession
+                          ? "text.secondary"
+                          : t.unit_price
+                            ? "warning.dark"
+                            : "success.main",
+                      }}
+                    >
+                      {t.unit_price
+                        ? `S/ ${Number(t.unit_price).toFixed(2)}/unidad`
+                        : t.is_multisession
+                          ? "Pactado por caso"
+                          : `S/ ${Number(t.price).toFixed(2)}`}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -318,6 +411,7 @@ export default function TreatmentsTab({ onNotify }) {
         </TableContainer>
       )}
 
+      {/* Modal */}
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
@@ -332,13 +426,14 @@ export default function TreatmentsTab({ onNotify }) {
           <Grid container spacing={2}>
             <Grid size={{ xs: 12 }}>
               <TextField
-                label="Nombre *"
+                label="Nombre del tratamiento *"
                 value={form.name}
                 onChange={set("name")}
                 size="small"
                 fullWidth
               />
             </Grid>
+
             <Grid size={{ xs: 12 }}>
               <TextField
                 select
@@ -356,26 +451,153 @@ export default function TreatmentsTab({ onNotify }) {
                 ))}
               </TextField>
             </Grid>
-            <Grid size={{ xs: 6 }}>
-              <TextField
-                label="Precio"
-                type="number"
-                value={form.price}
-                onChange={set("price")}
-                size="small"
-                fullWidth
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">S/</InputAdornment>
-                    ),
-                  },
+
+            {/* Tipo de tratamiento */}
+            <Grid size={{ xs: 12 }}>
+              <Box
+                sx={{
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 2,
+                  p: 2,
                 }}
-              />
+              >
+                <Typography variant="body2" sx={{ fontWeight: 500, mb: 1.5 }}>
+                  Tipo de tratamiento
+                </Typography>
+
+                <FormControlLabel
+                  sx={{ mb: 1, alignItems: "flex-start" }}
+                  control={
+                    <Switch
+                      checked={form.is_multisession}
+                      color="primary"
+                      onChange={(e) =>
+                        setForm((p) => ({
+                          ...p,
+                          is_multisession: e.target.checked,
+                          unit_price: e.target.checked ? "" : p.unit_price,
+                        }))
+                      }
+                    />
+                  }
+                  label={
+                    <Box sx={{ pt: 0.5 }}>
+                      <Typography variant="body2" fontWeight={500}>
+                        Tratamiento multisesión
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.secondary" }}
+                      >
+                        Se cita al paciente varias veces. El costo total se
+                        pacta al crear el caso.
+                      </Typography>
+                    </Box>
+                  }
+                />
+
+                {!form.is_multisession && (
+                  <FormControlLabel
+                    sx={{ alignItems: "flex-start" }}
+                    control={
+                      <Switch
+                        checked={!!form.unit_price}
+                        color="warning"
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            unit_price: e.target.checked ? "50" : "",
+                            price: e.target.checked ? "0" : p.price,
+                          }))
+                        }
+                      />
+                    }
+                    label={
+                      <Box sx={{ pt: 0.5 }}>
+                        <Typography variant="body2" fontWeight={500}>
+                          Precio por unidad
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          El total se calcula por cantidad (ej: por diente
+                          tratado).
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                )}
+
+                {form.is_multisession && (
+                  <Alert severity="info" sx={{ mt: 1.5 }} icon={false}>
+                    <Typography variant="caption">
+                      El precio se acuerda con el paciente al abrir el caso de
+                      tratamiento. Las sesiones adicionales tienen costo S/ 0
+                      por defecto.
+                    </Typography>
+                  </Alert>
+                )}
+
+                {!form.is_multisession && form.unit_price && (
+                  <Alert severity="warning" sx={{ mt: 1.5 }} icon={false}>
+                    <Typography variant="caption">
+                      Al crear una cita se pedirá la cantidad de unidades y el
+                      total se calculará automáticamente.
+                    </Typography>
+                  </Alert>
+                )}
+              </Box>
             </Grid>
+
+            {/* Precio por sesión — solo si no es multisesión ni por unidad */}
+            {!form.is_multisession && !form.unit_price && (
+              <Grid size={{ xs: 6 }}>
+                <TextField
+                  label="Precio por sesión *"
+                  type="number"
+                  value={form.price}
+                  onChange={set("price")}
+                  size="small"
+                  fullWidth
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">S/</InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+              </Grid>
+            )}
+
+            {/* Precio por unidad */}
+            {!form.is_multisession && !!form.unit_price && (
+              <Grid size={{ xs: 6 }}>
+                <TextField
+                  label="Precio por unidad *"
+                  type="number"
+                  value={form.unit_price}
+                  onChange={set("unit_price")}
+                  size="small"
+                  fullWidth
+                  helperText="Por diente / pieza"
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">S/</InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+              </Grid>
+            )}
+
+            {/* Duración */}
             <Grid size={{ xs: 6 }}>
               <TextField
-                label="Duración"
+                label="Duración por sesión"
                 type="number"
                 value={form.duration_min}
                 onChange={set("duration_min")}
@@ -390,6 +612,8 @@ export default function TreatmentsTab({ onNotify }) {
                 }}
               />
             </Grid>
+
+            {/* Descripción */}
             <Grid size={{ xs: 12 }}>
               <TextField
                 label="Descripción"
@@ -399,6 +623,7 @@ export default function TreatmentsTab({ onNotify }) {
                 fullWidth
                 multiline
                 rows={3}
+                placeholder="Descripción del tratamiento, indicaciones..."
               />
             </Grid>
           </Grid>
@@ -408,8 +633,10 @@ export default function TreatmentsTab({ onNotify }) {
           <Button variant="contained" onClick={handleSave} disabled={saving}>
             {saving ? (
               <CircularProgress size={20} color="inherit" />
+            ) : editId ? (
+              "Guardar cambios"
             ) : (
-              "Guardar"
+              "Crear tratamiento"
             )}
           </Button>
         </DialogActions>

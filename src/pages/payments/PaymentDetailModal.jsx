@@ -607,6 +607,7 @@ function AppointmentPaymentView({ row, onRefresh }) {
                     label={p.method}
                     size="small"
                     variant="outlined"
+                    color={METHOD_COLORS[p.method] ?? "default"}
                     sx={{ textTransform: "capitalize" }}
                   />
                 </TableCell>

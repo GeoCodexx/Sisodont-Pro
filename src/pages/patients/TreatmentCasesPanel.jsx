@@ -50,6 +50,13 @@ const STATUS_META = {
 };
 
 const METHODS = ["efectivo", "tarjeta", "transferencia", "yape", "plin"];
+const METHOD_COLORS = {
+  efectivo: "default",
+  tarjeta: "success",
+  transferencia: "info",
+  yape: "primary",
+  plin: "secondary",
+};
 
 const fmtDate = (iso) =>
   iso ? new Date(iso).toLocaleDateString("es-PE", { dateStyle: "short" }) : "—";
@@ -234,6 +241,7 @@ function CasePaymentsSection({ caseData, onRefresh }) {
                     label={p.method}
                     size="small"
                     variant="outlined"
+                    color={METHOD_COLORS[p.method] ?? "default"}
                     sx={{ textTransform: "capitalize" }}
                   />
                 </TableCell>
