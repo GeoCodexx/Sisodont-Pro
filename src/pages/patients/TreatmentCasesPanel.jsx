@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Typography,
@@ -87,7 +87,11 @@ const fmtDT = (iso) =>
 const fmtS = (n) => "S/ " + Number(n ?? 0).toFixed(2);
 
 // ── Lista de pagos en móvil (cards) ──────────────────────────
-function PaymentCard({ p, onDelete, canDelete }) {
+const PaymentCard = React.memo(function PaymentCard({
+  p,
+  onDelete,
+  canDelete,
+}) {
   return (
     <Card variant="outlined" sx={{ mb: 1 }}>
       <CardContent sx={{ pb: "10px !important", pt: 1.5, px: 2 }}>
@@ -151,10 +155,14 @@ function PaymentCard({ p, onDelete, canDelete }) {
       </CardContent>
     </Card>
   );
-}
+});
 
 // ── Tabla de pagos en desktop ─────────────────────────────────
-function PaymentTable({ payments, onDelete, canDelete }) {
+const PaymentTable = React.memo(function PaymentTable({
+  payments,
+  onDelete,
+  canDelete,
+}) {
   return (
     <Table size="small" sx={{ mb: 1.5 }}>
       <TableHead>
@@ -223,7 +231,7 @@ function PaymentTable({ payments, onDelete, canDelete }) {
       </TableBody>
     </Table>
   );
-}
+});
 
 // ── Formulario de registro de pago ────────────────────────────
 function PaymentForm({ onRegister, saving, maxAmount, showLimit }) {
@@ -305,7 +313,7 @@ function PaymentForm({ onRegister, saving, maxAmount, showLimit }) {
 }
 
 // ── Sección pagos de CASO multisesión ─────────────────────────
-function CasePaymentsSection({ caseData, onRefresh }) {
+function CasePaymentsSection({ caseData }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const {
@@ -322,12 +330,20 @@ function CasePaymentsSection({ caseData, onRefresh }) {
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
 
   const totalBilled = Number(caseData.total_billed ?? 0);
-  const totalPaid = Number(caseData.total_paid ?? 0);
-  const totalBalance = Number(caseData.total_balance ?? 0);
+  /*const totalPaid = Number(caseData.total_paid ?? 0);
+  const totalBalance = Number(caseData.total_balance ?? 0);*/
+  const paymentsTotal = payments.reduce(
+    (acc, p) => acc + Number(p.amount || 0),
+    0,
+  );
+
+  const totalPaid = paymentsTotal;
+
+  const totalBalance = Number(caseData.total_billed ?? 0) - paymentsTotal;
 
   useEffect(() => {
     fetchByCase(caseData.id);
-  }, [caseData.id]);
+  }, [caseData.id, fetchByCase]);
 
   const handleRegister = async (form) => {
     const amount = parseFloat(form.amount);
@@ -352,7 +368,7 @@ function CasePaymentsSection({ caseData, onRefresh }) {
     if (error) setFeedback({ msg: error, type: "error" });
     else {
       setFeedback({ msg: "Pago registrado.", type: "success" });
-      onRefresh();
+      //onRefresh();
     }
   };
 
@@ -362,7 +378,7 @@ function CasePaymentsSection({ caseData, onRefresh }) {
     if (error) setFeedback({ msg: error, type: "error" });
     else {
       setFeedback({ msg: "Pago eliminado.", type: "success" });
-      onRefresh();
+      //onRefresh();
     }
   };
 
@@ -492,27 +508,46 @@ function CasePaymentsSection({ caseData, onRefresh }) {
 function AppointmentPaymentsSection({ appt, onRefresh }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const { registerAppointmentPayment, saving } = usePaymentStore();
+  //const { registerAppointmentPayment, saving } = usePaymentStore();
+  const {
+    registerAppointmentPayment,
+    deleteAppointmentPayment,
+    fetchPaymentsByAppointment,
+    paymentsByAppointment,
+    saving,
+  } = usePaymentStore();
   const { profile } = useAuthStore();
   const { can } = useRole();
 
-  const [payments, setPayments] = useState([]);
+  //const [payments, setPayments] = useState([]);
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
 
-  const balance = Number(appt.total ?? 0) - Number(appt.paid ?? 0);
+  //const balance = Number(appt.total ?? 0) - Number(appt.paid ?? 0);
 
-  const loadPayments = async () => {
+  const payments = paymentsByAppointment[appt.id] ?? [];
+
+  const paymentsTotal = payments.reduce(
+    (acc, p) => acc + Number(p.amount || 0),
+    0,
+  );
+
+  const totalPaid = paymentsTotal;
+
+  const balance = Number(appt.total ?? 0) - totalPaid;
+
+  /*const loadPayments = async () => {
     const { data } = await supabase
       .from("payments")
       .select("*, created_by_profile:profiles(full_name)")
       .eq("appointment_id", appt.id)
       .order("created_at");
     setPayments(data ?? []);
-  };
+  };*/
 
   useEffect(() => {
-    loadPayments();
-  }, [appt.id]);
+    //loadPayments();
+    fetchPaymentsByAppointment(appt.id);
+  }, [appt.id, fetchPaymentsByAppointment]);
 
   const handleRegister = async (form) => {
     const amount = parseFloat(form.amount);
@@ -537,12 +572,12 @@ function AppointmentPaymentsSection({ appt, onRefresh }) {
     if (error) setFeedback({ msg: error, type: "error" });
     else {
       setFeedback({ msg: "Pago registrado.", type: "success" });
-      loadPayments();
-      onRefresh();
+      //loadPayments();
+      //onRefresh();
     }
   };
 
-  const handleDeletePayment = async (payId) => {
+  /*const handleDeletePayment = async (payId) => {
     if (!window.confirm("¿Eliminar este pago?")) return;
     const { error } = await supabase.from("payments").delete().eq("id", payId);
     if (error) {
@@ -563,6 +598,29 @@ function AppointmentPaymentsSection({ appt, onRefresh }) {
     setFeedback({ msg: "Pago eliminado.", type: "success" });
     loadPayments();
     onRefresh();
+  };*/
+  const handleDeletePayment = async (payId) => {
+    if (!window.confirm("¿Eliminar este pago?")) return;
+
+    const pay = payments.find((p) => p.id === payId);
+
+    const { error } = await deleteAppointmentPayment({
+      paymentId: payId,
+      appointmentId: appt.id,
+      amount: pay?.amount ?? 0,
+    });
+
+    if (error) {
+      setFeedback({
+        msg: error,
+        type: "error",
+      });
+    } else {
+      setFeedback({
+        msg: "Pago eliminado.",
+        type: "success",
+      });
+    }
   };
 
   return (
@@ -578,7 +636,7 @@ function AppointmentPaymentsSection({ appt, onRefresh }) {
       >
         {[
           ["Total", fmtS(appt.total), "text.primary"],
-          ["Pagado", fmtS(appt.paid), "success.main"],
+          ["Pagado", fmtS(totalPaid), "success.main"],
           [
             "Saldo",
             fmtS(balance),
@@ -675,7 +733,7 @@ function AppointmentPaymentsSection({ appt, onRefresh }) {
         </>
       )}
 
-      {balance <= 0 && Number(appt.paid) > 0 && (
+      {balance <= 0 && totalPaid > 0 && (
         <Alert severity="success" icon={false} sx={{ mt: 1.5 }}>
           Cita completamente pagada.
         </Alert>
@@ -685,7 +743,7 @@ function AppointmentPaymentsSection({ appt, onRefresh }) {
 }
 
 // ── Sección de tratamientos individuales ─────────────────────
-function IndividualTreatmentsSection({ patientId, onRefresh }) {
+function IndividualTreatmentsSection({ patientId }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [appts, setAppts] = useState([]);
@@ -849,7 +907,8 @@ function IndividualTreatmentsSection({ patientId, onRefresh }) {
             >
               PAGOS DE ESTA CITA
             </Typography>
-            <AppointmentPaymentsSection appt={a} onRefresh={loadAppointments} />
+            {/* <AppointmentPaymentsSection appt={a} onRefresh={loadAppointments} /> */}
+            <AppointmentPaymentsSection appt={a} />
           </AccordionDetails>
         </Accordion>
       ))}
@@ -864,6 +923,7 @@ export default function TreatmentCasesPanel({ patientId }) {
     useTreatmentCaseStore();
   const [tab, setTab] = useState(0);
   const [feedback, setFeedback] = useState("");
+  const [expandedCase, setExpandedCase] = useState(null);
 
   useEffect(() => {
     fetchByPatient(patientId);
@@ -922,6 +982,10 @@ export default function TreatmentCasesPanel({ patientId }) {
               return (
                 <Accordion
                   key={c.id}
+                  expanded={expandedCase === c.id}
+                  onChange={(_, isExpanded) =>
+                    setExpandedCase(isExpanded ? c.id : null)
+                  }
                   variant="outlined"
                   sx={{ mb: 1, "&:before": { display: "none" } }}
                 >
@@ -1044,10 +1108,7 @@ export default function TreatmentCasesPanel({ patientId }) {
                     >
                       PAGOS DEL TRATAMIENTO
                     </Typography>
-                    <CasePaymentsSection
-                      caseData={c}
-                      onRefresh={() => fetchByPatient(patientId)}
-                    />
+                    <CasePaymentsSection caseData={c} />
 
                     <Divider sx={{ my: 2 }} />
 
@@ -1094,7 +1155,7 @@ export default function TreatmentCasesPanel({ patientId }) {
       {tab === 1 && (
         <IndividualTreatmentsSection
           patientId={patientId}
-          onRefresh={() => {}}
+          //onRefresh={() => {}}
         />
       )}
     </Box>

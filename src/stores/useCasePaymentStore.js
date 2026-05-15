@@ -45,7 +45,7 @@ export const useCasePaymentStore = create((set, get) => ({
   }) => {
     set({ saving: true, error: null });
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("case_payments")
       .insert({
         case_id: caseId,
@@ -53,18 +53,30 @@ export const useCasePaymentStore = create((set, get) => ({
         method,
         notes: notes || null,
         created_by: createdBy,
-      });
+      })
+      .select("*, created_by_profile:profiles(full_name)")
+      .single();
 
     set({ saving: false });
 
     if (error) {
       set({ error: error.message });
+
       return { error: error.message };
     }
 
-    await get().fetchByCase(caseId);
+    // ✅ Actualización LOCAL sin refetch
+    set((state) => ({
+      paymentsByCase: {
+        ...state.paymentsByCase,
+        [caseId]: [
+          ...(state.paymentsByCase[caseId] || []),
+          data,
+        ],
+      },
+    }));
 
-    return { error: null };
+    return { error: null, data };
   },
 
   deletePayment: async (paymentId, caseId) => {
@@ -77,7 +89,15 @@ export const useCasePaymentStore = create((set, get) => ({
       return { error: error.message };
     }
 
-    await get().fetchByCase(caseId);
+    // ✅ Eliminar LOCALMENTE
+    set((state) => ({
+      paymentsByCase: {
+        ...state.paymentsByCase,
+        [caseId]: (
+          state.paymentsByCase[caseId] || []
+        ).filter((p) => p.id !== paymentId),
+      },
+    }));
 
     return { error: null };
   },
@@ -85,6 +105,7 @@ export const useCasePaymentStore = create((set, get) => ({
   clearPayments: (caseId) =>
     set((state) => {
       const updated = { ...state.paymentsByCase };
+
       delete updated[caseId];
 
       return { paymentsByCase: updated };
