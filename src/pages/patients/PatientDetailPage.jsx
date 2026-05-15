@@ -81,9 +81,7 @@ export default function PatientDetailPage() {
         >
           Volver
         </Button>
-        <Typography variant="h6" fontWeight={500}>
-          {p.full_name}
-        </Typography>
+        <Typography variant="h6">{p.full_name}</Typography>
       </Box>
 
       <Grid container spacing={2}>
@@ -91,7 +89,7 @@ export default function PatientDetailPage() {
         <Grid size={{ xs: 12, md: 6 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle2" fontWeight={500} sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
                 Datos personales
               </Typography>
               <Grid container>
@@ -132,7 +130,7 @@ export default function PatientDetailPage() {
         <Grid size={{ xs: 12, md: 6 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle2" fontWeight={500} sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
                 Antecedentes clínicos
               </Typography>
               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
@@ -165,8 +163,8 @@ export default function PatientDetailPage() {
         <Grid size={{ xs: 12 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle2" fontWeight={500} sx={{ mb: 2 }}>
-                Tratamientos multisesión
+              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                Tratamientos realizados
               </Typography>
               <TreatmentCasesPanel patientId={p.id} />
             </CardContent>
@@ -177,7 +175,7 @@ export default function PatientDetailPage() {
         <Grid size={{ xs: 12 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="subtitle2" fontWeight={500} sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
                 Historial de citas
               </Typography>
               <PatientHistory patientId={p.id} />
