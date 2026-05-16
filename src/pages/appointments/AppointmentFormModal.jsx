@@ -59,6 +59,7 @@ function QuickPatientForm({ onCreated, onCancel, saving }) {
   const [last, setLast] = useState("");
   const full = `${first.trim()} ${last.trim()}`.trim();
   const valid = first.trim().length > 0 && last.trim().length > 0;
+
   return (
     <Paper
       variant="outlined"
@@ -81,7 +82,10 @@ function QuickPatientForm({ onCreated, onCancel, saving }) {
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <PersonAddIcon fontSize="small" color="primary" />
-          <Typography variant="body2" fontWeight={500} color="primary.main">
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 500, color: "primary.main" }}
+          >
             Nuevo paciente rápido
           </Typography>
         </Box>
@@ -91,9 +95,7 @@ function QuickPatientForm({ onCreated, onCancel, saving }) {
       </Box>
       <Typography
         variant="caption"
-        color="text.secondary"
-        display="block"
-        mb={1.5}
+        sx={{ color: "text.secondary", display: "block", mb: 1.5 }}
       >
         Solo nombre y apellido. Completa el historial después en el módulo
         Pacientes.
@@ -124,9 +126,7 @@ function QuickPatientForm({ onCreated, onCancel, saving }) {
       {full && (
         <Typography
           variant="caption"
-          color="text.secondary"
-          display="block"
-          mt={1}
+          sx={{ color: "text.secondary", display: "block", mt: 1 }}
         >
           Se creará como: <strong>{full}</strong>
         </Typography>
@@ -182,7 +182,10 @@ function MultisessionSection({
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
         <FolderOpenIcon fontSize="small" color="primary" />
-        <Typography variant="body2" fontWeight={500} color="primary.main">
+        <Typography
+          variant="body2"
+          sx={{ fontWeight: 500, color: "primary.main" }}
+        >
           Tratamiento multisesión
         </Typography>
       </Box>
@@ -239,6 +242,7 @@ function MultisessionSection({
         </Alert>
       )}
 
+      {/* Campos solo para caso nuevo */}
       {(!openCase || caseOption === "new") && (
         <Grid container spacing={1.5}>
           <Grid size={{ xs: 6 }}>
@@ -268,11 +272,7 @@ function MultisessionSection({
               size="small"
               fullWidth
               helperText="Opcional"
-              slotProps={{
-                htmlInput: {
-                  min: 1,
-                },
-              }}
+              slotProps={{ htmlInput: { min: 1 } }}
             />
           </Grid>
           <Grid size={{ xs: 12 }}>
@@ -289,6 +289,16 @@ function MultisessionSection({
           </Grid>
         </Grid>
       )}
+
+      {/* Para caso en curso: info del costo (no editable) */}
+      {/* {openCase && caseOption === "existing" && (
+        <Alert severity="success" icon={false} sx={{ mt: 0.5, py: 0.5 }}>
+          <Typography variant="caption">
+            Esta sesión se registrará con costo S/ 0.00. Si tiene cobro, edítalo
+            en el campo de fecha.
+          </Typography>
+        </Alert>
+      )} */}
     </Box>
   );
 }
@@ -317,34 +327,27 @@ function ObturacionSection({
     >
       <Typography
         variant="body2"
-        fontWeight={500}
-        color="warning.dark"
-        mb={1.5}
+        sx={{ fontWeight: 500, color: "warning.dark", mb: 1.5 }}
       >
         🦷 Obturación dental — cálculo por diente
       </Typography>
       <Grid container spacing={1.5} sx={{ alignItems: "center" }}>
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
-            label="N.° de dientes a curar *"
+            label="Cantidad *"
             type="number"
             value={teethCount}
             onChange={(e) => setTeethCount(e.target.value)}
             size="small"
             fullWidth
-            slotProps={{
-              htmlInput: {
-                min: 1,
-                max: 32,
-              },
-            }}
-            //helperText="Máximo 32"
             autoFocus
+            slotProps={{ htmlInput: { min: 1, max: 32 } }}
+            //helperText="Máximo 32"
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
-            label="Precio por diente"
+            label="Precio por diente *"
             type="number"
             value={unitPrice}
             onChange={(e) => setUnitPrice(e.target.value)}
@@ -368,14 +371,14 @@ function ObturacionSection({
               textAlign: "center",
             }}
           >
-            <Typography variant="caption" color="warning.dark" display="block">
+            <Typography variant="caption" sx={{ display: "block" }}>
               Total calculado
             </Typography>
-            <Typography variant="h6" fontWeight={600} color="warning.dark">
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
               S/ {total.toFixed(2)}
             </Typography>
             {parseInt(teethCount) > 0 && (
-              <Typography variant="caption" color="warning.dark">
+              <Typography variant="caption">
                 {teethCount} × S/ {parseFloat(unitPrice || 0).toFixed(2)}
               </Typography>
             )}
@@ -424,6 +427,12 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     ?.toUpperCase()
     .includes("OBTURACIÓN");
 
+  // Determina si mostrar el campo "Total de esta sesión":
+  // - Siempre en tratamientos de sesión única
+  // - NUNCA en multisesión (pagos se gestionan desde ficha paciente / módulo pagos)
+  // - NUNCA en obturación (se calcula en ObturacionSection)
+  const showTotalField = !isObturacion && !isMultisession;
+
   // Reset al abrir
   useEffect(() => {
     if (!open) return;
@@ -441,21 +450,17 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     setTotalSessions("");
     setTotalCost("");
     setTeethCount("");
-    setUnitPrice(
-      selectedTreatment?.unit_price
-        ? String(selectedTreatment.unit_price)
-        : "50",
-    );
+    setUnitPrice("50");
     setCalcTotal("");
     setError("");
     setQuickError("");
   }, [open]);
 
-  // Auto-precio + verificacion de caso — un solo efecto para mantener coherencia
+  // Auto-precio + verificación de caso — efecto unificado
   useEffect(() => {
     if (!selectedTreatment) return;
 
-    // Obturacion: reset campos de calculo
+    // Obturación: reset
     if (isObturacion) {
       setTeethCount("");
       setCalcTotal("");
@@ -465,21 +470,23 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       return;
     }
 
-    // Tratamiento normal (no multisesion): precio del catalogo directamente
+    // Tratamiento normal (no multisesión)
     if (!isMultisession) {
       setForm((f) => ({ ...f, total: String(selectedTreatment.price ?? "") }));
       setOpenCase(null);
       return;
     }
 
-    // Tratamiento multisesion sin paciente aun
+    // Multisesión sin paciente aún
     if (!form.patient_id) {
-      setForm((f) => ({ ...f, total: String(selectedTreatment.price ?? "") }));
       setOpenCase(null);
+      // Autocompletar totalCost con precio del catálogo
+      setTotalCost(String(selectedTreatment.price ?? ""));
+      setForm((f) => ({ ...f, total: "0" }));
       return;
     }
 
-    // Tratamiento multisesion CON paciente: verificar caso abierto
+    // Multisesión CON paciente: verificar caso abierto
     setCheckingCase(true);
     findOpenCase(form.patient_id, form.treatment_id).then((found) => {
       setOpenCase(found);
@@ -487,14 +494,12 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       setCheckingCase(false);
 
       if (found) {
-        // Sesion adicional de un caso en curso: S/ 0 por defecto (editable)
+        // Sesión adicional: S/ 0 por defecto
         setForm((f) => ({ ...f, total: "0" }));
       } else {
-        // Nuevo caso: precio del catalogo como punto de partida
-        setForm((f) => ({
-          ...f,
-          total: String(selectedTreatment.price ?? ""),
-        }));
+        // Nuevo caso: autocompletar totalCost con precio del catálogo
+        setTotalCost(String(selectedTreatment.price ?? ""));
+        setForm((f) => ({ ...f, total: "0" }));
       }
     });
   }, [form.patient_id, form.treatment_id]);
@@ -539,6 +544,10 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     }
     if (isObturacion && (!teethCount || parseInt(teethCount) < 1)) {
       setError("Ingresa la cantidad de dientes a curar.");
+      return;
+    }
+    if (isMultisession && (!openCase || caseOption === "new") && !totalCost) {
+      setError("Ingresa el costo total pactado del tratamiento.");
       return;
     }
 
@@ -638,8 +647,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                   <PersonAddIcon fontSize="small" color="primary" />
                   <Typography
                     variant="body2"
-                    color="primary.main"
-                    fontWeight={500}
+                    sx={{ color: "primary.main", fontWeight: 500 }}
                   >
                     Crear paciente rápido
                   </Typography>
@@ -652,7 +660,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                   size="small"
                   helperText={
                     selectedPatient
-                      ? "✓ Seleccionado — completa sus datos en Pacientes"
+                      ?  ""//"✓ Seleccionado — completa sus datos en Pacientes"
                       : "Escribe para buscar o crea uno nuevo"
                   }
                 />
@@ -728,8 +736,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                     {!t.is_multisession && !t.unit_price && (
                       <Typography
                         variant="caption"
-                        color="text.secondary"
-                        sx={{ flexShrink: 0 }}
+                        sx={{ flexShrink: 0, color: "text.secondary" }}
                       >
                         S/ {Number(t.price).toFixed(2)}
                       </Typography>
@@ -737,8 +744,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                     {t.unit_price && (
                       <Typography
                         variant="caption"
-                        color="warning.dark"
-                        sx={{ flexShrink: 0 }}
+                        sx={{ flexShrink: 0, color: "warning.dark" }}
                       >
                         S/ {Number(t.unit_price).toFixed(2)}/d
                       </Typography>
@@ -792,7 +798,10 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
               {checkingCase ? (
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <CircularProgress size={16} />
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary" }}
+                  >
                     Verificando casos en curso...
                   </Typography>
                 </Box>
@@ -805,10 +814,9 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                     if (val === "existing") {
                       setForm((f) => ({ ...f, total: "0" }));
                     } else {
-                      setForm((f) => ({
-                        ...f,
-                        total: String(selectedTreatment?.price ?? ""),
-                      }));
+                      // Nuevo caso: restaurar totalCost con precio del catálogo
+                      setTotalCost(String(selectedTreatment?.price ?? ""));
+                      setForm((f) => ({ ...f, total: "0" }));
                     }
                   }}
                   caseNotes={caseNotes}
@@ -823,7 +831,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
           )}
 
           {/* Fecha */}
-          <Grid size={{ xs: 12, sm: 6 }}>
+          <Grid size={{ xs: 12, sm: showTotalField ? 6 : 12 }}>
             <TextField
               label="Fecha y hora *"
               type="datetime-local"
@@ -831,19 +839,15 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
               onChange={set("date")}
               size="small"
               fullWidth
-              slotProps={{
-                inputLabel: {
-                  shrink: true,
-                },
-              }}
+              slotProps={{ inputLabel: { shrink: true } }}
             />
           </Grid>
 
-          {/* Total — oculto en Obturación (calculado) */}
-          {!isObturacion && (
+          {/* Total de la sesión — solo visible cuando aplica */}
+          {showTotalField && (
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                label="Total de esta sesión"
+                label={isMultisession ? "Cobro de esta sesión" : "Total"}
                 type="number"
                 value={form.total}
                 onChange={set("total")}
@@ -855,21 +859,18 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                       <InputAdornment position="start">S/</InputAdornment>
                     ),
                   },
-                  htmlInput: {
-                    min: 0,
-                    step: "0.01",
-                  },
+                  htmlInput: { min: 0, step: "0.01" },
                 }}
                 helperText={
                   isMultisession && openCase && caseOption === "existing"
-                    ? "S/ 0 = sesión sin costo adicional. Edita si esta sesión tiene cobro."
-                    : isMultisession && (!openCase || caseOption === "new")
-                      ? "Monto del primer pago o cuota inicial del tratamiento."
-                      : ""
+                    ? "S/ 0 = sin cobro en esta sesión."
+                    : ""
                 }
               />
             </Grid>
           )}
+
+          {/* Total calculado para obturación — solo lectura */}
           {isObturacion && form.total && (
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
@@ -883,7 +884,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             </Grid>
           )}
 
-          {/* Notas */}
+          {/* Notas de la sesión */}
           <Grid size={{ xs: 12 }}>
             <TextField
               label="Notas de esta sesión"
