@@ -1,101 +1,96 @@
-import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { useAuthStore } from "../stores/useAuthStore";
 import { Box, CircularProgress } from "@mui/material";
-import { supabase } from "../services/supabaseClient";
+import { useAuthStore } from "../stores/useAuthStore";
 
-/*export function ProtectedRoute({ children }) {
-  const { session, loading } = useAuthStore();
-  if (loading) return null;
-  if (!session) return <Navigate to="/login" replace />;
-  return children;
-}*/
+// ─────────────────────────────────────────────────────────────
+// REGLA DE ORO
+// Ningún guard hace fetch propio.
+// Todo se lee desde useAuthStore.
+// El store ya validó `active` al cargar el perfil.
+// ─────────────────────────────────────────────────────────────
 
-export const ProtectedRoute = ({ children }) => {
-  const [loading, setLoading] = useState(true);
-  const [isAllowed, setIsAllowed] = useState(false);
-  const { signOut } = useAuthStore();
+// ── Spinner reutilizable ─────────────────────────────────────
+function FullScreenSpinner() {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100vh",
+      }}
+    >
+      <CircularProgress />
+    </Box>
+  );
+}
 
-  useEffect(() => {
-    const checkAccess = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+// ── ProtectedRoute ───────────────────────────────────────────
+// Verifica únicamente que haya una sesión activa.
+// La validación de `active` ya ocurrió en fetchProfile.
+// No hace ningún fetch propio.
+export function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuthStore();
 
-      // ❌ No logueado
-      if (!user) {
-        setIsAllowed(false);
-        setLoading(false);
-        return;
-      }
+  if (loading) return <FullScreenSpinner />;
 
-      // 🔍 Obtener perfil
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("active")
-        .eq("id", user.id)
-        .single();
-
-      if (error || !profile) {
-        signOut();
-        setIsAllowed(false);
-        setLoading(false);
-        return;
-      }
-
-      // 🚨 Usuario inactivo
-      if (!profile.active) {
-        signOut();
-        setIsAllowed(false);
-        setLoading(false);
-        return;
-      }
-
-      // ✅ Todo OK
-      setIsAllowed(true);
-      setLoading(false);
-    };
-
-    checkAccess();
-  }, []);
-
-  if (loading) {
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-        }}
-      >
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (!isAllowed) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   return children;
-};
+}
 
+// ── RoleRoute ────────────────────────────────────────────────
+// Verifica que el rol del usuario esté en la lista `allowed`.
+// Si el rol no está permitido, redirige a su home según rol.
 export function RoleRoute({ children, allowed = [] }) {
-  const { profile, loading } = useAuthStore();
-  if (loading) {
-    return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        height="100vh"
-      >
-        <CircularProgress />
-      </Box>
-    );
+  const { role, isSuperAdmin, loading } = useAuthStore();
+
+  if (loading) return <FullScreenSpinner />;
+
+  // SUPER_ADMIN tiene bypass global a rutas de staff.
+  // Sus rutas exclusivas usan SuperAdminRoute.
+  if (isSuperAdmin) return children;
+
+  if (!allowed.includes(role)) {
+    return <Navigate to={getRoleHome(role)} replace />;
   }
-  //console.log("Profile role: ", profile?.role);
-  if (!allowed.includes(profile?.role)) {
-    return <Navigate to="/dashboard" replace />;
-  }
+
   return children;
+}
+
+// ── SuperAdminRoute ──────────────────────────────────────────
+// Solo permite acceso a usuarios con rol SUPER_ADMIN.
+// Usado exclusivamente para rutas /super-admin/*
+export function SuperAdminRoute({ children }) {
+  const { isSuperAdmin, isAuthenticated, loading } = useAuthStore();
+
+  if (loading) return <FullScreenSpinner />;
+
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  if (!isSuperAdmin) return <Navigate to="/dashboard" replace />;
+
+  return children;
+}
+
+// ─────────────────────────────────────────────────────────────
+// getRoleHome
+// Devuelve la ruta principal según el rol del usuario.
+// Usado para redirects inteligentes post-login y en RoleRoute.
+// ─────────────────────────────────────────────────────────────
+export function getRoleHome(role) {
+  switch (role) {
+    case "SUPER_ADMIN":
+      return "/super-admin";
+    case "ADMIN":
+      return "/dashboard";
+    case "DOCTOR":
+      return "/dashboard";
+    case "ASSISTANT":
+      return "/dashboard";
+    case "PATIENT":
+      return "/my-appointments";
+    default:
+      return "/dashboard";
+  }
 }
