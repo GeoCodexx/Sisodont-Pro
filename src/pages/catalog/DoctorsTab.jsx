@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import {
   Box,
   Button,
+  Avatar,
+  Typography,
+  Chip,
   Table,
   TableBody,
   TableCell,
@@ -18,9 +21,6 @@ import {
   TextField,
   MenuItem,
   CircularProgress,
-  Avatar,
-  Typography,
-  Chip,
   Card,
   CardContent,
 } from "@mui/material";
@@ -42,6 +42,7 @@ function initials(name = "") {
     .toUpperCase();
 }
 
+// ── DoctorCard — vista móvil ──────────────────────────────────
 function DoctorCard({ d, onEdit, onDelete }) {
   return (
     <Card variant="outlined" sx={{ mb: 1.5 }}>
@@ -58,7 +59,7 @@ function DoctorCard({ d, onEdit, onDelete }) {
             {initials(d.profile?.full_name)}
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
+            <Typography variant="body2" fontWeight={500} noWrap>
               {d.profile?.full_name ?? "—"}
             </Typography>
             <Typography
@@ -91,20 +92,20 @@ function DoctorCard({ d, onEdit, onDelete }) {
             <Chip
               label={d.specialty.name}
               size="small"
+              variant="outlined"
               sx={{
                 bgcolor: d.specialty.color + "22",
                 color: d.specialty.color,
                 borderColor: d.specialty.color,
               }}
-              variant="outlined"
             />
           ) : (
-            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            <Typography variant="caption" color="textSecondary">
               Sin especialidad
             </Typography>
           )}
           {d.license && (
-            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            <Typography variant="caption" color="textSecondary">
               N.° {d.license}
             </Typography>
           )}
@@ -114,6 +115,14 @@ function DoctorCard({ d, onEdit, onDelete }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// DoctorsTab
+//
+// Doctores es gestionado por el ADMIN del tenant.
+// SUPER_ADMIN también puede gestionar doctores de cualquier
+// tenant (el RLS le da bypass), por eso aquí no restringimos —
+// ambos roles tienen acceso completo a esta pestaña.
+// ─────────────────────────────────────────────────────────────
 export default function DoctorsTab({ onNotify }) {
   const { isMobile } = useBreakpoint();
   const {
@@ -130,6 +139,8 @@ export default function DoctorsTab({ onNotify }) {
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null);
 
+  // Perfiles con rol DOCTOR que aún no tienen registro doctor
+  // (excepto el que se está editando)
   const doctorProfiles = users.filter(
     (u) =>
       u.role === "DOCTOR" &&
@@ -140,7 +151,8 @@ export default function DoctorsTab({ onNotify }) {
     fetchUsers();
   }, []);
 
-  const set = (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value }));
+  const setField = (f) => (e) =>
+    setForm((p) => ({ ...p, [f]: e.target.value }));
 
   const openCreate = () => {
     setForm(EMPTY);
@@ -167,7 +179,11 @@ export default function DoctorsTab({ onNotify }) {
           specialty_id: form.specialty_id || null,
           license: form.license,
         })
-      : createDoctor(form);
+      : createDoctor({
+          profile_id: form.profile_id,
+          specialty_id: form.specialty_id || null,
+          license: form.license,
+        });
     const { error } = await fn;
     if (error) {
       onNotify(error, "error");
@@ -261,10 +277,7 @@ export default function DoctorsTab({ onNotify }) {
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
                           {d.profile?.full_name ?? "—"}
                         </Typography>
-                        <Typography
-                          variant="caption"
-                          sx={{ color: "text.secondary" }}
-                        >
+                        <Typography variant="caption" color="textSecondary">
                           {d.profile?.email}
                         </Typography>
                       </Box>
@@ -275,12 +288,12 @@ export default function DoctorsTab({ onNotify }) {
                       <Chip
                         label={d.specialty.name}
                         size="small"
+                        variant="outlined"
                         sx={{
                           bgcolor: d.specialty.color + "22",
                           color: d.specialty.color,
                           borderColor: d.specialty.color,
                         }}
-                        variant="outlined"
                       />
                     ) : (
                       "—"
@@ -311,6 +324,7 @@ export default function DoctorsTab({ onNotify }) {
         </TableContainer>
       )}
 
+      {/* Modal */}
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
@@ -334,7 +348,7 @@ export default function DoctorsTab({ onNotify }) {
               select
               label="Perfil (rol DOCTOR)"
               value={form.profile_id}
-              onChange={set("profile_id")}
+              onChange={setField("profile_id")}
               size="small"
               fullWidth
             >
@@ -352,7 +366,7 @@ export default function DoctorsTab({ onNotify }) {
             select
             label="Especialidad"
             value={form.specialty_id}
-            onChange={set("specialty_id")}
+            onChange={setField("specialty_id")}
             size="small"
             fullWidth
           >
@@ -366,7 +380,7 @@ export default function DoctorsTab({ onNotify }) {
           <TextField
             label="N.° de colegiatura"
             value={form.license}
-            onChange={set("license")}
+            onChange={setField("license")}
             size="small"
             fullWidth
           />
