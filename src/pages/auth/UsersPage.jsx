@@ -29,17 +29,18 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import BlockIcon from "@mui/icons-material/Block";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+
 import { useUsersStore } from "../../stores/useUsersStore";
+import { useAuthStore } from "../../stores/useAuthStore";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import PageHeader from "../../components/PageHeader";
 
-const ROLES = ["ADMIN", "DOCTOR", "ASSISTANT", "PATIENT"];
-const ROLE_COLORS = {
-  ADMIN: "error",
-  DOCTOR: "primary",
-  ASSISTANT: "warning",
-  PATIENT: "default",
-};
+// ─────────────────────────────────────────────────────────────
+// Roles que un ADMIN puede asignar.
+// SUPER_ADMIN nunca aparece aquí — se gestiona aparte.
+// ─────────────────────────────────────────────────────────────
+const ROLES = ["ADMIN", "DOCTOR", "ASSISTANT"];
+
 const ROLE_LABELS = {
   ADMIN: "Administrador",
   DOCTOR: "Doctor",
@@ -47,6 +48,23 @@ const ROLE_LABELS = {
   PATIENT: "Paciente",
 };
 
+const ROLE_COLORS = {
+  ADMIN: "error",
+  DOCTOR: "primary",
+  ASSISTANT: "warning",
+  PATIENT: "default",
+};
+
+const INVITE_EMPTY = {
+  email: "",
+  full_name: "",
+  role: "DOCTOR",
+  password: "",
+};
+
+// ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
 function initials(name = "") {
   return name
     .split(" ")
@@ -56,8 +74,10 @@ function initials(name = "") {
     .toUpperCase();
 }
 
-// Tarjeta de usuario para móvil
-function UserCard({ user, onEdit, onToggle }) {
+// ─────────────────────────────────────────────────────────────
+// UserCard — vista móvil
+// ─────────────────────────────────────────────────────────────
+function UserCard({ user, isSelf, onEdit, onToggle }) {
   return (
     <Card variant="outlined" sx={{ mb: 1.5 }}>
       <CardContent sx={{ pb: "12px !important" }}>
@@ -73,9 +93,19 @@ function UserCard({ user, onEdit, onToggle }) {
             {initials(user.full_name)}
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
-              {user.full_name}
-            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+              <Typography variant="body2" fontWeight={500} noWrap>
+                {user.full_name}
+              </Typography>
+              {isSelf && (
+                <Chip
+                  label="Tú"
+                  size="small"
+                  color="primary"
+                  sx={{ height: 16, fontSize: 10 }}
+                />
+              )}
+            </Box>
             <Typography
               variant="caption"
               sx={{ color: "text.secondary" }}
@@ -112,20 +142,50 @@ function UserCard({ user, onEdit, onToggle }) {
               {new Date(user.created_at).toLocaleDateString("es-PE")}
             </Typography>
           </Box>
+
+          {/* Acciones deshabilitadas para el propio usuario */}
           <Box>
-            <Tooltip title="Editar rol">
-              <IconButton size="small" onClick={() => onEdit(user)}>
-                <EditIcon fontSize="small" />
-              </IconButton>
+            <Tooltip
+              title={isSelf ? "No puedes editar tu propio rol" : "Editar rol"}
+            >
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={() => onEdit(user)}
+                  disabled={isSelf}
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </span>
             </Tooltip>
-            <Tooltip title={user.active ? "Desactivar" : "Activar"}>
-              <IconButton size="small" onClick={() => onToggle(user)}>
-                {user.active ? (
-                  <BlockIcon fontSize="small" color="error" />
-                ) : (
-                  <CheckCircleIcon fontSize="small" color="success" />
-                )}
-              </IconButton>
+            <Tooltip
+              title={
+                isSelf
+                  ? "No puedes desactivarte a ti mismo"
+                  : user.active
+                    ? "Desactivar"
+                    : "Activar"
+              }
+            >
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={() => onToggle(user)}
+                  disabled={isSelf}
+                >
+                  {user.active ? (
+                    <BlockIcon
+                      fontSize="small"
+                      color={isSelf ? "disabled" : "error"}
+                    />
+                  ) : (
+                    <CheckCircleIcon
+                      fontSize="small"
+                      color={isSelf ? "disabled" : "success"}
+                    />
+                  )}
+                </IconButton>
+              </span>
             </Tooltip>
           </Box>
         </Box>
@@ -134,29 +194,37 @@ function UserCard({ user, onEdit, onToggle }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// UsersPage
+// ─────────────────────────────────────────────────────────────
 export default function UsersPage() {
   const { isMobile } = useBreakpoint();
-  const { users, loading, fetchUsers, updateRole, toggleActive, inviteUser } =
-    useUsersStore();
+  const {
+    users,
+    loading,
+    saving,
+    fetchUsers,
+    inviteUser,
+    updateRole,
+    toggleActive,
+  } = useUsersStore();
+  const currentUserId = useAuthStore((s) => s.user?.id);
 
   const [openInvite, setOpenInvite] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [selected, setSelected] = useState(null);
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
-  const [invite, setInvite] = useState({
-    email: "",
-    full_name: "",
-    role: "PATIENT",
-    password: "",
-  });
+  const [invite, setInviteState] = useState(INVITE_EMPTY);
+
   const setInviteField = (f) => (e) =>
-    setInvite((p) => ({ ...p, [f]: e.target.value }));
+    setInviteState((p) => ({ ...p, [f]: e.target.value }));
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
+  // ── Crear usuario ─────────────────────────────────────────
   const handleInvite = async () => {
     setActionError("");
     const { error } = await inviteUser(invite);
@@ -166,9 +234,10 @@ export default function UsersPage() {
     }
     setActionSuccess("Usuario creado correctamente.");
     setOpenInvite(false);
-    setInvite({ email: "", full_name: "", role: "PATIENT", password: "" });
+    setInviteState(INVITE_EMPTY);
   };
 
+  // ── Cambiar rol ───────────────────────────────────────────
   const handleRoleChange = async (userId, role) => {
     const { error } = await updateRole(userId, role);
     if (error) setActionError(error);
@@ -176,9 +245,10 @@ export default function UsersPage() {
     setOpenEdit(false);
   };
 
+  // ── Activar / desactivar ──────────────────────────────────
   const handleToggle = async (user) => {
+    setActionError("");
     const { error } = await toggleActive(user.id, user.active);
-    console.log("toggle: ", user.id, !user.active);
     if (error) setActionError(error);
     else
       setActionSuccess(
@@ -190,7 +260,7 @@ export default function UsersPage() {
     <Box>
       <PageHeader
         title="Gestión de usuarios"
-        subtitle={users.length + " usuario" + (users.length !== 1 ? "s" : "")}
+        subtitle={`${users.length} usuario${users.length !== 1 ? "s" : ""}`}
         actions={
           <Button
             variant="contained"
@@ -245,6 +315,7 @@ export default function UsersPage() {
                   <UserCard
                     key={u.id}
                     user={u}
+                    isSelf={u.id === currentUserId}
                     onEdit={(u) => {
                       setSelected(u);
                       setOpenEdit(true);
@@ -269,92 +340,122 @@ export default function UsersPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {users.map((u) => (
-                    <TableRow key={u.id} hover>
-                      <TableCell>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 1.5,
-                          }}
-                        >
-                          <Avatar
+                  {users.map((u) => {
+                    const isSelf = u.id === currentUserId;
+                    return (
+                      <TableRow key={u.id} hover>
+                        <TableCell>
+                          <Box
                             sx={{
-                              width: 32,
-                              height: 32,
-                              fontSize: 12,
-                              bgcolor: "primary.main",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1.5,
                             }}
                           >
-                            {initials(u.full_name)}
-                          </Avatar>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                            {u.full_name}
+                            <Avatar
+                              sx={{
+                                width: 32,
+                                height: 32,
+                                fontSize: 12,
+                                bgcolor: "primary.main",
+                              }}
+                            >
+                              {initials(u.full_name)}
+                            </Avatar>
+                            <Box>
+                              <Typography variant="body2" fontWeight={500}>
+                                {u.full_name}
+                              </Typography>
+                              {isSelf && (
+                                <Chip
+                                  label="Tú"
+                                  size="small"
+                                  color="primary"
+                                  sx={{ height: 14, fontSize: 10 }}
+                                />
+                              )}
+                            </Box>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
+                            {u.email}
                           </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body2"
-                          sx={{ color: "text.secondary" }}
-                        >
-                          {u.email}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={ROLE_LABELS[u.role] ?? u.role}
-                          color={ROLE_COLORS[u.role] ?? "default"}
-                          size="small"
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={u.active ? "Activo" : "Inactivo"}
-                          color={u.active ? "success" : "default"}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body2"
-                          sx={{ color: "text.secondary" }}
-                        >
-                          {new Date(u.created_at).toLocaleDateString("es-PE")}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Tooltip title="Editar rol">
-                          <IconButton
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={ROLE_LABELS[u.role] ?? u.role}
+                            color={ROLE_COLORS[u.role] ?? "default"}
                             size="small"
-                            onClick={() => {
-                              setSelected(u);
-                              setOpenEdit(true);
-                            }}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title={u.active ? "Desactivar" : "Activar"}>
-                          <IconButton
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={u.active ? "Activo" : "Inactivo"}
+                            color={u.active ? "success" : "default"}
                             size="small"
-                            onClick={() => handleToggle(u)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
+                            {new Date(u.created_at).toLocaleDateString("es-PE")}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Tooltip
+                            title={
+                              isSelf
+                                ? "No puedes editar tu propio rol"
+                                : "Editar rol"
+                            }
                           >
-                            {u.active ? (
-                              <BlockIcon fontSize="small" color="error" />
-                            ) : (
-                              <CheckCircleIcon
-                                fontSize="small"
-                                color="success"
-                              />
-                            )}
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            <span>
+                              <IconButton
+                                size="small"
+                                disabled={isSelf}
+                                onClick={() => {
+                                  setSelected(u);
+                                  setOpenEdit(true);
+                                }}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                          <Tooltip
+                            title={
+                              isSelf
+                                ? "No puedes desactivarte a ti mismo"
+                                : u.active
+                                  ? "Desactivar"
+                                  : "Activar"
+                            }
+                          >
+                            <span>
+                              <IconButton
+                                size="small"
+                                disabled={isSelf}
+                                onClick={() => handleToggle(u)}
+                              >
+                                {u.active ? (
+                                  <BlockIcon
+                                    fontSize="small"
+                                    color={isSelf ? "disabled" : "error"}
+                                  />
+                                ) : (
+                                  <CheckCircleIcon
+                                    fontSize="small"
+                                    color={isSelf ? "disabled" : "success"}
+                                  />
+                                )}
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -380,6 +481,7 @@ export default function UsersPage() {
           }}
         >
           {actionError && <Alert severity="error">{actionError}</Alert>}
+
           <TextField
             label="Nombre completo"
             value={invite.full_name}
@@ -420,8 +522,12 @@ export default function UsersPage() {
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setOpenInvite(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleInvite}>
-            Crear usuario
+          <Button variant="contained" onClick={handleInvite} disabled={saving}>
+            {saving ? (
+              <CircularProgress size={18} color="inherit" />
+            ) : (
+              "Crear usuario"
+            )}
           </Button>
         </DialogActions>
       </Dialog>
@@ -438,7 +544,7 @@ export default function UsersPage() {
           <TextField
             select
             label="Rol"
-            defaultValue={selected?.role ?? "PATIENT"}
+            defaultValue={selected?.role ?? "DOCTOR"}
             size="small"
             fullWidth
             onChange={(e) => handleRoleChange(selected.id, e.target.value)}
