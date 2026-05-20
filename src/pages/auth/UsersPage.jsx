@@ -378,7 +378,7 @@ export default function UsersPage() {
                           </Box>
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" color="textSecondary">
                             {u.email}
                           </Typography>
                         </TableCell>
@@ -398,7 +398,7 @@ export default function UsersPage() {
                           />
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" color="textSecondary">
                             {new Date(u.created_at).toLocaleDateString("es-PE")}
                           </Typography>
                         </TableCell>

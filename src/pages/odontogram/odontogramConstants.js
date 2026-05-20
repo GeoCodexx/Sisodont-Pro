@@ -1,72 +1,88 @@
 // ============================================================
-// Numeración dental — Sistema FDI (Fédération Dentaire Internationale)
-// Cuadrante 1: superior derecho (11–18)
-// Cuadrante 2: superior izquierdo (21–28)
-// Cuadrante 3: inferior izquierdo (31–38)
-// Cuadrante 4: inferior derecho (41–48)
+// Sistema FDI — Dentición permanente (adulto)
 // ============================================================
+export const ADULT_UPPER_RIGHT = [18, 17, 16, 15, 14, 13, 12, 11]
+export const ADULT_UPPER_LEFT  = [21, 22, 23, 24, 25, 26, 27, 28]
+export const ADULT_LOWER_LEFT  = [31, 32, 33, 34, 35, 36, 37, 38]
+export const ADULT_LOWER_RIGHT = [48, 47, 46, 45, 44, 43, 42, 41]
+export const ADULT_TEETH = [
+  ...ADULT_UPPER_RIGHT, ...ADULT_UPPER_LEFT,
+  ...ADULT_LOWER_LEFT,  ...ADULT_LOWER_RIGHT,
+]
 
-export const UPPER_RIGHT = [18, 17, 16, 15, 14, 13, 12, 11]
-export const UPPER_LEFT  = [21, 22, 23, 24, 25, 26, 27, 28]
-export const LOWER_LEFT  = [31, 32, 33, 34, 35, 36, 37, 38]
-export const LOWER_RIGHT = [48, 47, 46, 45, 44, 43, 42, 41]
+// ============================================================
+// Sistema FDI — Dentición temporal (niño)
+// ============================================================
+export const CHILD_UPPER_RIGHT = [55, 54, 53, 52, 51]
+export const CHILD_UPPER_LEFT  = [61, 62, 63, 64, 65]
+export const CHILD_LOWER_LEFT  = [71, 72, 73, 74, 75]
+export const CHILD_LOWER_RIGHT = [85, 84, 83, 82, 81]
+export const CHILD_TEETH = [
+  ...CHILD_UPPER_RIGHT, ...CHILD_UPPER_LEFT,
+  ...CHILD_LOWER_LEFT,  ...CHILD_LOWER_RIGHT,
+]
 
-export const ALL_TEETH = [...UPPER_RIGHT, ...UPPER_LEFT, ...LOWER_LEFT, ...LOWER_RIGHT]
+// Aliases para compatibilidad
+export const UPPER_RIGHT = ADULT_UPPER_RIGHT
+export const UPPER_LEFT  = ADULT_UPPER_LEFT
+export const LOWER_LEFT  = ADULT_LOWER_LEFT
+export const LOWER_RIGHT = ADULT_LOWER_RIGHT
+export const ALL_TEETH   = ADULT_TEETH
 
-// Caras de cada diente
-// top=oclusal/incisal, left=mesial, right=distal, bottom=lingual/palatino, center=vestibular
+// Caras
 export const FACES = ['top', 'right', 'bottom', 'left', 'center']
+export const FACE_LABELS = {
+  top:    'Oclusal / Incisal',
+  bottom: 'Lingual / Palatino',
+  left:   'Mesial',
+  right:  'Distal',
+  center: 'Vestibular',
+}
 
-// Estructura vacía de un diente
 export const emptyTooth = (number) => ({
-  number,
-  faces: {},        // { top: { action: 'Caries', color: '#FF4444' }, ... }
-  notes: '',
-  absent: false,    // true si fue extraído o no erupcionó
+  number, faces: {}, notes: '', absent: false,
 })
 
-// Generar estado inicial con todos los dientes vacíos
-export const initialOdontogramData = () => ({
-  teeth: ALL_TEETH.map(emptyTooth),
+export const initialOdontogramData = (type = 'adult') => ({
+  teeth: (type === 'child' ? CHILD_TEETH : ADULT_TEETH).map(emptyTooth),
 })
 
-// ============================================================
-// Layout SVG — coordenadas (cx, cy) de cada diente
-// Diente ocupa 36x36px, separación 4px → paso = 40px
-// ============================================================
-const TOOTH_SIZE  = 68   // tamaño del cuadrado de cada diente
-const GAP         = 4    // separación entre dientes
-const STEP        = TOOTH_SIZE + GAP
-const START_X     = 20
-const UPPER_Y     = 50 //20
-const LOWER_Y     = UPPER_Y + TOOTH_SIZE + 48  // 48px de separación vertical
+// Layout SVG
+const TOOTH_SIZE = 44
+const GAP        = 5
+const STEP       = TOOTH_SIZE + GAP
+const START_X    = 20
+const UPPER_Y    = 22
+const LOWER_Y    = UPPER_Y + TOOTH_SIZE + 52
 
 export const TOOTH_SIZE_PX = TOOTH_SIZE
 
-export function getToothPosition(number) {
-  const upperRow = [...UPPER_RIGHT, ...UPPER_LEFT]
-  const lowerRow = [...LOWER_RIGHT].reverse().concat([...LOWER_LEFT].reverse())
+export function getToothPosition(number, type = 'adult') {
+  const rows = type === 'adult'
+    ? {
+        upper: [...ADULT_UPPER_RIGHT, ...ADULT_UPPER_LEFT],
+        lower: [...ADULT_LOWER_RIGHT, ...ADULT_LOWER_LEFT],
+      }
+    : {
+        upper: [...CHILD_UPPER_RIGHT, ...CHILD_UPPER_LEFT],
+        lower: [...CHILD_LOWER_RIGHT, ...CHILD_LOWER_LEFT],
+      }
 
-  // Para fila superior: UPPER_RIGHT va de derecha a izquierda, UPPER_LEFT de izq a der
-  const upperIdx = upperRow.indexOf(number)
-  if (upperIdx !== -1) {
-    return { x: START_X + upperIdx * STEP, y: UPPER_Y }
-  }
-
-  // Para fila inferior: espejada respecto a la superior
-  const lowerOrder = [...LOWER_RIGHT, ...LOWER_LEFT]  // 48,47...41,31,32...38
-  const lowerIdx = lowerOrder.indexOf(number)
-  if (lowerIdx !== -1) {
-    return { x: START_X + lowerIdx * STEP, y: LOWER_Y }
-  }
-
+  const ui = rows.upper.indexOf(number)
+  if (ui !== -1) return { x: START_X + ui * STEP, y: UPPER_Y }
+  const li = rows.lower.indexOf(number)
+  if (li !== -1) return { x: START_X + li * STEP, y: LOWER_Y }
   return { x: 0, y: 0 }
 }
 
-export const SVG_WIDTH  = START_X * 2 + 16 * STEP - GAP
-export const SVG_HEIGHT = LOWER_Y + TOOTH_SIZE + START_X
+export function getSVGDimensions(type = 'adult') {
+  const count = type === 'adult' ? 16 : 10
+  return {
+    width:  START_X * 2 + count * STEP - GAP,
+    height: LOWER_Y + TOOTH_SIZE + START_X + 12,
+  }
+}
 
-// Colores por defecto de acciones (fallback si no carga de BD)
 export const DEFAULT_ACTIONS = [
   { name: 'Caries',     color: '#FF4444' },
   { name: 'Obturación', color: '#4444FF' },

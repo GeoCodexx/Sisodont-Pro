@@ -1,3 +1,4 @@
+import { supabase } from "../../services/supabaseClient";
 import React, { useEffect, useState } from "react";
 import {
   Box,
@@ -32,13 +33,10 @@ import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import FolderIcon from "@mui/icons-material/Folder";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import DeleteIcon from "@mui/icons-material/Delete";
-import ReceiptIcon from "@mui/icons-material/Receipt";
 import { useTreatmentCaseStore } from "../../stores/useTreatmentCaseStore";
 import { useCasePaymentStore } from "../../stores/useCasePaymentStore";
-import { useAuthStore } from "../../stores/useAuthStore";
-import { useRole } from "../../hooks/useRole";
 import { usePaymentStore } from "../../stores/usePaymentStore";
-import { supabase } from "../../services/supabaseClient";
+import { useAuthStore } from "../../stores/useAuthStore";
 
 // ── Constantes ────────────────────────────────────────────────
 const STATUS_META = {
@@ -86,7 +84,7 @@ const fmtDT = (iso) =>
     : "—";
 const fmtS = (n) => "S/ " + Number(n ?? 0).toFixed(2);
 
-// ── Lista de pagos en móvil (cards) ──────────────────────────
+// ── PaymentCard — vista móvil ─────────────────────────────────
 const PaymentCard = React.memo(function PaymentCard({
   p,
   onDelete,
@@ -157,7 +155,7 @@ const PaymentCard = React.memo(function PaymentCard({
   );
 });
 
-// ── Tabla de pagos en desktop ─────────────────────────────────
+// ── PaymentTable — vista desktop ──────────────────────────────
 const PaymentTable = React.memo(function PaymentTable({
   payments,
   onDelete,
@@ -201,8 +199,8 @@ const PaymentTable = React.memo(function PaymentTable({
             <TableCell>
               <Typography
                 variant="body2"
+                color="textSecondary"
                 sx={{
-                  color: "text.secondary",
                   maxWidth: 180,
                   whiteSpace: "nowrap",
                   overflow: "hidden",
@@ -213,7 +211,7 @@ const PaymentTable = React.memo(function PaymentTable({
               </Typography>
             </TableCell>
             <TableCell>
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              <Typography variant="body2" color="textSecondary">
                 {p.created_by_profile?.full_name ?? "—"}
               </Typography>
             </TableCell>
@@ -233,7 +231,7 @@ const PaymentTable = React.memo(function PaymentTable({
   );
 });
 
-// ── Formulario de registro de pago ────────────────────────────
+// ── PaymentForm — formulario de nuevo pago ────────────────────
 function PaymentForm({ onRegister, saving, maxAmount, showLimit }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -312,10 +310,13 @@ function PaymentForm({ onRegister, saving, maxAmount, showLimit }) {
   );
 }
 
-// ── Sección pagos de CASO multisesión ─────────────────────────
+// ── CasePaymentsSection ───────────────────────────────────────
+// createdBy se lee internamente desde el store.
+// El componente no necesita recibirlo como prop.
 function CasePaymentsSection({ caseData }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
   const {
     paymentsByCase,
     saving,
@@ -323,23 +324,24 @@ function CasePaymentsSection({ caseData }) {
     registerPayment,
     deletePayment,
   } = useCasePaymentStore();
-  const payments = paymentsByCase[caseData.id] ?? [];
-  const { profile } = useAuthStore();
-  const { can } = useRole();
 
+  // createdBy viene del store, no del componente padre
+  const userId = useAuthStore((s) => s.user?.id);
+  const role = useAuthStore((s) => s.role);
+
+  const payments = paymentsByCase[caseData.id] ?? [];
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
 
   const totalBilled = Number(caseData.total_billed ?? 0);
-  /*const totalPaid = Number(caseData.total_paid ?? 0);
-  const totalBalance = Number(caseData.total_balance ?? 0);*/
   const paymentsTotal = payments.reduce(
     (acc, p) => acc + Number(p.amount || 0),
     0,
   );
-
   const totalPaid = paymentsTotal;
+  const totalBalance = totalBilled - paymentsTotal;
 
-  const totalBalance = Number(caseData.total_billed ?? 0) - paymentsTotal;
+  const canDelete = role === "ADMIN";
+  const canPay = role === "ADMIN" || role === "ASSISTANT";
 
   useEffect(() => {
     fetchByCase(caseData.id);
@@ -358,28 +360,23 @@ function CasePaymentsSection({ caseData }) {
       });
       return;
     }
+    // createdBy se resuelve en el store, no aquí
     const { error } = await registerPayment({
       caseId: caseData.id,
       amount,
       method: form.method,
       notes: form.notes,
-      createdBy: profile?.id,
+      createdBy: userId,
     });
     if (error) setFeedback({ msg: error, type: "error" });
-    else {
-      setFeedback({ msg: "Pago registrado.", type: "success" });
-      //onRefresh();
-    }
+    else setFeedback({ msg: "Pago registrado.", type: "success" });
   };
 
   const handleDelete = async (payId) => {
     if (!window.confirm("¿Eliminar este pago?")) return;
     const { error } = await deletePayment(payId, caseData.id);
     if (error) setFeedback({ msg: error, type: "error" });
-    else {
-      setFeedback({ msg: "Pago eliminado.", type: "success" });
-      //onRefresh();
-    }
+    else setFeedback({ msg: "Pago eliminado.", type: "success" });
   };
 
   return (
@@ -417,7 +414,7 @@ function CasePaymentsSection({ caseData }) {
             >
               {label}
             </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600, color: color }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color }}>
               {value}
             </Typography>
           </Box>
@@ -436,18 +433,16 @@ function CasePaymentsSection({ caseData }) {
 
       <Typography
         variant="caption"
-        sx={{
-          color: "text.secondary",
-          fontWeight: 500,
-          display: "block",
-          mb: 0.75,
-        }}
+        color="text.secondary"
+        fontWeight={500}
+        display="block"
+        sx={{ mb: 0.75 }}
       >
         PAGOS REGISTRADOS
       </Typography>
 
       {payments.length === 0 ? (
-        <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Sin pagos registrados aún.
         </Typography>
       ) : isMobile ? (
@@ -457,7 +452,7 @@ function CasePaymentsSection({ caseData }) {
               key={p.id}
               p={p}
               onDelete={handleDelete}
-              canDelete={can(["ADMIN"])}
+              canDelete={canDelete}
             />
           ))}
         </Box>
@@ -465,35 +460,32 @@ function CasePaymentsSection({ caseData }) {
         <PaymentTable
           payments={payments}
           onDelete={handleDelete}
-          canDelete={can(["ADMIN"])}
+          canDelete={canDelete}
         />
       )}
 
-      {can(["ADMIN", "ASSISTANT"]) &&
-        (totalBalance > 0 || totalBilled === 0) && (
-          <>
-            <Divider sx={{ mb: 1.5 }} />
-            <Typography
-              variant="caption"
-              sx={{
-                color: "text.secondary",
-                fontWeight: 500,
-                display: "block",
-                mb: 1,
-              }}
-            >
-              {totalBilled > 0
-                ? `NUEVO PAGO — Saldo: ${fmtS(totalBalance)}`
-                : "REGISTRAR PAGO"}
-            </Typography>
-            <PaymentForm
-              onRegister={handleRegister}
-              saving={saving}
-              maxAmount={totalBalance}
-              showLimit={totalBilled > 0}
-            />
-          </>
-        )}
+      {canPay && (totalBalance > 0 || totalBilled === 0) && (
+        <>
+          <Divider sx={{ mb: 1.5 }} />
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            fontWeight={500}
+            display="block"
+            sx={{ mb: 1 }}
+          >
+            {totalBilled > 0
+              ? `NUEVO PAGO — Saldo: ${fmtS(totalBalance)}`
+              : "REGISTRAR PAGO"}
+          </Typography>
+          <PaymentForm
+            onRegister={handleRegister}
+            saving={saving}
+            maxAmount={totalBalance}
+            showLimit={totalBilled > 0}
+          />
+        </>
+      )}
 
       {totalBalance <= 0 && totalPaid > 0 && (
         <Alert severity="success" icon={false} sx={{ mt: 1.5 }}>
@@ -504,11 +496,11 @@ function CasePaymentsSection({ caseData }) {
   );
 }
 
-// ── Sección pagos de CITA individual ─────────────────────────
-function AppointmentPaymentsSection({ appt, onRefresh }) {
+// ── AppointmentPaymentsSection ────────────────────────────────
+function AppointmentPaymentsSection({ appt }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  //const { registerAppointmentPayment, saving } = usePaymentStore();
+
   const {
     registerAppointmentPayment,
     deleteAppointmentPayment,
@@ -516,36 +508,24 @@ function AppointmentPaymentsSection({ appt, onRefresh }) {
     paymentsByAppointment,
     saving,
   } = usePaymentStore();
-  const { profile } = useAuthStore();
-  const { can } = useRole();
 
-  //const [payments, setPayments] = useState([]);
-  const [feedback, setFeedback] = useState({ msg: "", type: "success" });
-
-  //const balance = Number(appt.total ?? 0) - Number(appt.paid ?? 0);
+  const userId = useAuthStore((s) => s.user?.id);
+  const role = useAuthStore((s) => s.role);
 
   const payments = paymentsByAppointment[appt.id] ?? [];
-
   const paymentsTotal = payments.reduce(
     (acc, p) => acc + Number(p.amount || 0),
     0,
   );
-
   const totalPaid = paymentsTotal;
-
   const balance = Number(appt.total ?? 0) - totalPaid;
 
-  /*const loadPayments = async () => {
-    const { data } = await supabase
-      .from("payments")
-      .select("*, created_by_profile:profiles(full_name)")
-      .eq("appointment_id", appt.id)
-      .order("created_at");
-    setPayments(data ?? []);
-  };*/
+  const canDelete = role === "ADMIN";
+  const canPay = role === "ADMIN" || role === "ASSISTANT";
+
+  const [feedback, setFeedback] = useState({ msg: "", type: "success" });
 
   useEffect(() => {
-    //loadPayments();
     fetchPaymentsByAppointment(appt.id);
   }, [appt.id, fetchPaymentsByAppointment]);
 
@@ -567,65 +547,26 @@ function AppointmentPaymentsSection({ appt, onRefresh }) {
       amount,
       method: form.method,
       notes: form.notes,
-      createdBy: profile?.id,
+      createdBy: userId,
     });
     if (error) setFeedback({ msg: error, type: "error" });
-    else {
-      setFeedback({ msg: "Pago registrado.", type: "success" });
-      //loadPayments();
-      //onRefresh();
-    }
+    else setFeedback({ msg: "Pago registrado.", type: "success" });
   };
 
-  /*const handleDeletePayment = async (payId) => {
-    if (!window.confirm("¿Eliminar este pago?")) return;
-    const { error } = await supabase.from("payments").delete().eq("id", payId);
-    if (error) {
-      setFeedback({ msg: error.message, type: "error" });
-      return;
-    }
-    // Restar del paid en appointment
-    const { data: a } = await supabase
-      .from("appointments")
-      .select("paid")
-      .eq("id", appt.id)
-      .single();
-    const pay = payments.find((p) => p.id === payId);
-    await supabase
-      .from("appointments")
-      .update({ paid: Math.max(0, (a?.paid ?? 0) - Number(pay?.amount ?? 0)) })
-      .eq("id", appt.id);
-    setFeedback({ msg: "Pago eliminado.", type: "success" });
-    loadPayments();
-    onRefresh();
-  };*/
   const handleDeletePayment = async (payId) => {
     if (!window.confirm("¿Eliminar este pago?")) return;
-
     const pay = payments.find((p) => p.id === payId);
-
     const { error } = await deleteAppointmentPayment({
       paymentId: payId,
       appointmentId: appt.id,
       amount: pay?.amount ?? 0,
     });
-
-    if (error) {
-      setFeedback({
-        msg: error,
-        type: "error",
-      });
-    } else {
-      setFeedback({
-        msg: "Pago eliminado.",
-        type: "success",
-      });
-    }
+    if (error) setFeedback({ msg: error, type: "error" });
+    else setFeedback({ msg: "Pago eliminado.", type: "success" });
   };
 
   return (
     <Box>
-      {/* Resumen */}
       <Box
         sx={{
           display: "grid",
@@ -635,7 +576,7 @@ function AppointmentPaymentsSection({ appt, onRefresh }) {
         }}
       >
         {[
-          ["Total", fmtS(appt.total), "text.primary"],
+          ["Total", fmtS(appt.total ?? 0), "text.primary"],
           ["Pagado", fmtS(totalPaid), "success.main"],
           [
             "Saldo",
@@ -658,7 +599,7 @@ function AppointmentPaymentsSection({ appt, onRefresh }) {
             >
               {label}
             </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600, color: color }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color }}>
               {value}
             </Typography>
           </Box>
@@ -675,20 +616,8 @@ function AppointmentPaymentsSection({ appt, onRefresh }) {
         </Alert>
       )}
 
-      <Typography
-        variant="caption"
-        sx={{
-          color: "text.secondary",
-          fontWeight: 500,
-          display: "block",
-          mb: 0.75,
-        }}
-      >
-        PAGOS REGISTRADOS
-      </Typography>
-
       {payments.length === 0 ? (
-        <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Sin pagos registrados.
         </Typography>
       ) : isMobile ? (
@@ -698,7 +627,7 @@ function AppointmentPaymentsSection({ appt, onRefresh }) {
               key={p.id}
               p={p}
               onDelete={handleDeletePayment}
-              canDelete={can(["ADMIN"])}
+              canDelete={canDelete}
             />
           ))}
         </Box>
@@ -706,23 +635,21 @@ function AppointmentPaymentsSection({ appt, onRefresh }) {
         <PaymentTable
           payments={payments}
           onDelete={handleDeletePayment}
-          canDelete={can(["ADMIN"])}
+          canDelete={canDelete}
         />
       )}
 
-      {can(["ADMIN", "ASSISTANT"]) && balance > 0 && (
+      {canPay && balance > 0 && (
         <>
           <Divider sx={{ mb: 1.5 }} />
           <Typography
             variant="caption"
-            sx={{
-              color: "text.secondary",
-              fontWeight: 500,
-              display: "block",
-              mb: 1,
-            }}
+            color="text.secondary"
+            fontWeight={500}
+            display="block"
+            sx={{ mb: 1 }}
           >
-            NUEVO PAGO — Saldo: {fmtS(balance)}
+            {`NUEVO PAGO — Saldo: ${fmtS(balance)}`}
           </Typography>
           <PaymentForm
             onRegister={handleRegister}
@@ -742,188 +669,115 @@ function AppointmentPaymentsSection({ appt, onRefresh }) {
   );
 }
 
-// ── Sección de tratamientos individuales ─────────────────────
+// ── IndividualTreatmentsSection ───────────────────────────────
+// Citas individuales = appointments_full donde case_id IS NULL.
+// Se consultan directamente aquí — no viven en useTreatmentCaseStore
+// que solo gestiona casos multisesión.
 function IndividualTreatmentsSection({ patientId }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const role = useAuthStore((s) => s.role);
+
+  const [expandedAppt, setExpandedAppt] = useState(null);
   const [appts, setAppts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const loadAppointments = async () => {
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    const { data } = await supabase
+    supabase
       .from("appointments_full")
       .select("*")
       .eq("patient_id", patientId)
-      .is("case_id", null) // solo citas sin caso (sesión única)
-      .order("date", { ascending: false });
-    setAppts(data ?? []);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    loadAppointments();
+      .is("case_id", null)
+      .order("date", { ascending: false })
+      .then(({ data }) => {
+        if (!cancelled) {
+          setAppts(data ?? []);
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [patientId]);
 
   if (loading)
     return (
       <Box sx={{ py: 2 }}>
-        <CircularProgress size={18} />
+        <CircularProgress size={20} />
       </Box>
     );
 
-  if (appts.length === 0) {
+  if (!appts.length)
     return (
-      <Typography variant="body2" sx={{ color: "text.secondary" }}>
-        No hay tratamientos individuales registrados.
+      <Typography variant="body2" color="text.secondary">
+        Sin citas individuales registradas.
       </Typography>
     );
-  }
 
   return (
     <Box>
-      {appts.map((a) => (
-        <Accordion
-          key={a.id}
-          variant="outlined"
-          sx={{ mb: 1, "&:before": { display: "none" } }}
-        >
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-                flex: 1,
-                minWidth: 0,
-                mr: 1,
-              }}
-            >
-              <ReceiptIcon fontSize="small" color="action" />
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
-                  {a.treatment_name ?? "Sin tratamiento"}
-                </Typography>
-                <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                  Dr. {a.doctor_name ?? "—"} · {fmtDT(a.date)}
-                </Typography>
-              </Box>
+      {appts.map((a) => {
+        const statusColor = APPT_STATUS_COLOR[a.status] ?? "default";
+        return (
+          <Accordion
+            key={a.id}
+            expanded={expandedAppt === a.id}
+            onChange={(_, open) => setExpandedAppt(open ? a.id : null)}
+            variant="outlined"
+            sx={{ mb: 1, "&:before": { display: "none" } }}
+          >
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Box
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 0.75,
-                  flexShrink: 0,
+                  gap: 1.5,
+                  flex: 1,
+                  minWidth: 0,
+                  mr: 1,
                 }}
               >
-                {/* Saldo */}
-                {Number(a.balance) > 0 && (
-                  <Chip
-                    label={`Debe ${fmtS(a.balance)}`}
-                    size="small"
-                    color="error"
-                    variant="outlined"
-                    sx={{ fontSize: 10 }}
-                  />
-                )}
-                {Number(a.balance) <= 0 && Number(a.paid) > 0 && (
-                  <Chip
-                    label="Pagado"
-                    size="small"
-                    color="success"
-                    variant="outlined"
-                    sx={{ fontSize: 10 }}
-                  />
-                )}
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body2" fontWeight={500} noWrap>
+                    {a.treatment_name ?? "—"}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {fmtDT(a.date)} · Dr. {a.doctor_name ?? "—"}
+                  </Typography>
+                </Box>
                 <Chip
                   label={a.status}
+                  color={statusColor}
                   size="small"
-                  color={APPT_STATUS_COLOR[a.status] ?? "default"}
-                  sx={{ textTransform: "capitalize" }}
+                  sx={{ textTransform: "capitalize", flexShrink: 0 }}
                 />
               </Box>
-            </Box>
-          </AccordionSummary>
-
-          <AccordionDetails sx={{ pt: 0 }}>
-            {/* Info de la cita */}
-            <Box
-              sx={{ display: "flex", gap: 2, mb: 2, pt: 1, flexWrap: "wrap" }}
-            >
-              {[
-                ["Especialidad", a.specialty_name ?? "—"],
-                ["Inicio", fmtDT(a.date)],
-                ["Fin", fmtDT(a.end_date)],
-              ].map(([label, value]) => (
-                <Box key={label}>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: "text.secondary", display: "block" }}
-                  >
-                    {label}
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    {value}
-                  </Typography>
-                </Box>
-              ))}
-              {a.teeth_count && (
-                <Box>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    display="block"
-                  >
-                    Dientes tratados
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    {a.teeth_count}
-                  </Typography>
-                </Box>
-              )}
-              {a.notes && (
-                <Box sx={{ width: "100%" }}>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: "text.secondary", display: "block" }}
-                  >
-                    Notas
-                  </Typography>
-                  <Typography variant="body2">{a.notes}</Typography>
-                </Box>
-              )}
-            </Box>
-
-            <Divider sx={{ mb: 2 }} />
-
-            <Typography
-              variant="caption"
-              sx={{
-                color: "text.secondary",
-                fontWeight: 500,
-                display: "block",
-                mb: 1.5,
-              }}
-            >
-              PAGOS DE ESTA CITA
-            </Typography>
-            {/* <AppointmentPaymentsSection appt={a} onRefresh={loadAppointments} /> */}
-            <AppointmentPaymentsSection appt={a} />
-          </AccordionDetails>
-        </Accordion>
-      ))}
+            </AccordionSummary>
+            <AccordionDetails sx={{ pt: 0 }}>
+              <AppointmentPaymentsSection appt={a} />
+            </AccordionDetails>
+          </Accordion>
+        );
+      })}
     </Box>
   );
 }
 
-// ── Panel principal ───────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// TreatmentCasesPanel — componente principal
+// ─────────────────────────────────────────────────────────────
 export default function TreatmentCasesPanel({ patientId }) {
-  const { can } = useRole();
   const { cases, loading, fetchByPatient, updateCaseStatus } =
     useTreatmentCaseStore();
+  const role = useAuthStore((s) => s.role);
+
   const [tab, setTab] = useState(0);
-  const [feedback, setFeedback] = useState("");
   const [expandedCase, setExpandedCase] = useState(null);
+  const [feedback, setFeedback] = useState("");
+
+  const canManage = ["ADMIN", "DOCTOR", "ASSISTANT"].includes(role);
 
   useEffect(() => {
     fetchByPatient(patientId);
@@ -940,7 +794,6 @@ export default function TreatmentCasesPanel({ patientId }) {
 
   return (
     <Box>
-      {/* Tabs: Multisesión / Individuales */}
       <Tabs
         value={tab}
         onChange={(_, v) => setTab(v)}
@@ -961,7 +814,7 @@ export default function TreatmentCasesPanel({ patientId }) {
         </Alert>
       )}
 
-      {/* ── TAB 0: Tratamientos multisesión ── */}
+      {/* Tab 0: Multisesión */}
       {tab === 0 && (
         <>
           {loading ? (
@@ -983,9 +836,7 @@ export default function TreatmentCasesPanel({ patientId }) {
                 <Accordion
                   key={c.id}
                   expanded={expandedCase === c.id}
-                  onChange={(_, isExpanded) =>
-                    setExpandedCase(isExpanded ? c.id : null)
-                  }
+                  onChange={(_, open) => setExpandedCase(open ? c.id : null)}
                   variant="outlined"
                   sx={{ mb: 1, "&:before": { display: "none" } }}
                 >
@@ -1002,17 +853,10 @@ export default function TreatmentCasesPanel({ patientId }) {
                     >
                       {meta.icon}
                       <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography
-                          variant="body2"
-                          sx={{ fontWeight: 500 }}
-                          noWrap
-                        >
+                        <Typography variant="body2" fontWeight={500} noWrap>
                           {c.treatment_name ?? "—"}
                         </Typography>
-                        <Typography
-                          variant="caption"
-                          sx={{ color: "text.secondary" }}
-                        >
+                        <Typography variant="caption" color="text.secondary">
                           Dr. {c.doctor_name ?? "—"} · Inicio:{" "}
                           {fmtDate(c.started_at)}
                           {Number(c.sessions_attended) > 0 &&
@@ -1077,7 +921,7 @@ export default function TreatmentCasesPanel({ patientId }) {
                           >
                             {label}
                           </Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          <Typography variant="body2" fontWeight={500}>
                             {value}
                           </Typography>
                         </Box>
@@ -1096,24 +940,20 @@ export default function TreatmentCasesPanel({ patientId }) {
                     </Box>
 
                     <Divider sx={{ mb: 2 }} />
-
                     <Typography
                       variant="caption"
-                      sx={{
-                        color: "text.secondary",
-                        fontWeight: 500,
-                        display: "block",
-                        mb: 1.5,
-                      }}
+                      color="text.secondary"
+                      fontWeight={500}
+                      display="block"
+                      sx={{ mb: 1.5 }}
                     >
                       PAGOS DEL TRATAMIENTO
                     </Typography>
                     <CasePaymentsSection caseData={c} />
-
                     <Divider sx={{ my: 2 }} />
 
-                    {/* Estado del caso */}
-                    {can(["ADMIN", "DOCTOR", "ASSISTANT"]) && (
+                    {/* Cambio de estado */}
+                    {canManage && (
                       <Box
                         sx={{
                           display: "flex",
@@ -1122,10 +962,7 @@ export default function TreatmentCasesPanel({ patientId }) {
                           flexWrap: "wrap",
                         }}
                       >
-                        <Typography
-                          variant="caption"
-                          sx={{ color: "text.secondary" }}
-                        >
+                        <Typography variant="caption" color="text.secondary">
                           Estado:
                         </Typography>
                         {["en_curso", "completado", "abandonado"].map((s) => (
@@ -1151,13 +988,8 @@ export default function TreatmentCasesPanel({ patientId }) {
         </>
       )}
 
-      {/* ── TAB 1: Tratamientos individuales ── */}
-      {tab === 1 && (
-        <IndividualTreatmentsSection
-          patientId={patientId}
-          //onRefresh={() => {}}
-        />
-      )}
+      {/* Tab 1: Individuales */}
+      {tab === 1 && <IndividualTreatmentsSection patientId={patientId} />}
     </Box>
   );
 }

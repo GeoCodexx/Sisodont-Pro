@@ -1,55 +1,57 @@
 import { useEffect, useState } from "react";
 import {
-  Box,
-  Grid,
-  Typography,
-  Button,
-  Alert,
-  CircularProgress,
-  Autocomplete,
-  TextField,
-  Chip,
-  Paper,
-  Drawer,
-  IconButton,
-  Fab,
-  useTheme,
-  useMediaQuery,
-  Divider,
+  Box, Typography, Button, Alert, CircularProgress,
+  Autocomplete, TextField, Chip, Paper,
+  ToggleButton, ToggleButtonGroup, Tooltip,
+  useTheme, useMediaQuery, Divider,
 } from "@mui/material";
-import SaveIcon from "@mui/icons-material/Save";
-import WarningIcon from "@mui/icons-material/Warning";
-import TuneIcon from "@mui/icons-material/Tune";
-import CloseIcon from "@mui/icons-material/Close";
+import SaveIcon      from "@mui/icons-material/Save";
+import WarningIcon   from "@mui/icons-material/Warning";
+import ChildCareIcon from "@mui/icons-material/ChildCare";
+import PersonIcon    from "@mui/icons-material/Person";
+
 import { useOdontogramStore } from "../../stores/useOdontogramStore";
-import { usePatientStore } from "../../stores/usePatientStore";
-import { useAuthStore } from "../../stores/useAuthStore";
-import { useRole } from "../../hooks/useRole";
-import OdontogramCanvas from "./OdontogramCanvas";
-import OdontogramPanel from "./OdontogramPanel";
+import { usePatientStore }    from "../../stores/usePatientStore";
+import { useRole }            from "../../hooks/useRole";
+import OdontogramCanvas       from "./OdontogramCanvas";
+import ToothDetailModal       from "./ToothDetailModal";
+
+// ─────────────────────────────────────────────────────────────
+// Nota: useAuthStore ya NO se importa aquí.
+// updated_by lo resuelve saveOdontogram internamente.
+// ─────────────────────────────────────────────────────────────
+
+function ActionsLegend({ actions }) {
+  return (
+    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+      {actions.map((a) => (
+        <Box key={a.name} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: a.color, flexShrink: 0 }} />
+          <Typography variant="caption" color="text.secondary">{a.name}</Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+}
 
 export default function OdontogramPage() {
-  const theme = useTheme();
+  const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
-  const { can } = useRole();
-  const { profile } = useAuthStore();
-  const { patients, fetchPatients } = usePatientStore();
+  const { can }                            = useRole();
+  const { patients, fetchPatients }        = usePatientStore();
   const {
-    data,
-    loading,
-    saving,
-    dirty,
-    error,
-    fetchOdontogram,
-    fetchActions,
-    saveOdontogram,
-    reset,
+    data, actions, loading, saving, dirty, error,
+    odontogramType,
+    fetchOdontogram, fetchActions,
+    setOdontogramType, saveOdontogram,
+    selectTooth, selectedTooth, reset,
   } = useOdontogramStore();
 
-  const [patient, setPatient] = useState(null);
-  const [feedback, setFeedback] = useState({ msg: "", type: "success" });
-  const [panelOpen, setPanelOpen] = useState(false);
+  const [patient,    setPatient]    = useState(null);
+  const [feedback,   setFeedback]   = useState({ msg: "", type: "success" });
+  const [modalOpen,  setModalOpen]  = useState(false);
+  const [activeTooth, setActiveTooth] = useState(null);
 
   const readOnly = !can(["ADMIN", "DOCTOR"]);
 
@@ -62,54 +64,41 @@ export default function OdontogramPage() {
   const handlePatientChange = (_, value) => {
     setPatient(value);
     setFeedback({ msg: "", type: "success" });
+    setModalOpen(false);
     if (value) fetchOdontogram(value.id);
     else reset();
   };
 
+  const handleToothClick = (toothNumber) => {
+    selectTooth(toothNumber);
+    setActiveTooth(toothNumber);
+    setModalOpen(true);
+  };
+
+  const handleModalClose = () => setModalOpen(false);
+
+  // updated_by ya no se pasa — el store lo resuelve
   const handleSave = async () => {
     if (!patient) return;
-    const { error } = await saveOdontogram(patient.id, profile?.id);
+    const { error } = await saveOdontogram(patient.id);
     if (error) setFeedback({ msg: error, type: "error" });
-    else setFeedback({ msg: "Odontograma guardado.", type: "success" });
+    else       setFeedback({ msg: "Odontograma guardado correctamente.", type: "success" });
   };
 
   return (
     <Box>
       {/* Header */}
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 2.5,
-          flexWrap: "wrap",
-          gap: 1.5,
-        }}
-      >
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5, flexWrap: "wrap", gap: 1.5 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <Typography variant="h6" fontWeight={500}>
-            Odontograma Digital
-          </Typography>
+          <Typography variant="h6" fontWeight={500}>Odontograma Digital</Typography>
           {dirty && (
-            <Chip
-              icon={<WarningIcon />}
-              label="Sin guardar"
-              color="warning"
-              size="small"
-              variant="outlined"
-            />
+            <Chip icon={<WarningIcon />} label="Sin guardar" color="warning" size="small" variant="outlined" />
           )}
         </Box>
         {!readOnly && patient && (
           <Button
             variant="contained"
-            startIcon={
-              saving ? (
-                <CircularProgress size={16} color="inherit" />
-              ) : (
-                <SaveIcon />
-              )
-            }
+            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
             onClick={handleSave}
             disabled={saving || !dirty}
             size={isMobile ? "small" : "medium"}
@@ -119,19 +108,43 @@ export default function OdontogramPage() {
         )}
       </Box>
 
-      {/* Selector de paciente */}
-      <Box sx={{ mb: 2.5, maxWidth: { sm: 420 } }}>
+      {/* Selector de paciente + toggle adulto/niño */}
+      <Box sx={{ display: "flex", gap: 2, mb: 2.5, flexDirection: { xs: "column", sm: "row" }, alignItems: { sm: "center" } }}>
         <Autocomplete
           options={patients}
           getOptionLabel={(p) => `${p.full_name}${p.dni ? " — " + p.dni : ""}`}
           value={patient}
           onChange={handlePatientChange}
+          sx={{ flex: 1, maxWidth: { sm: 400 } }}
           renderInput={(params) => (
             <TextField {...params} label="Seleccionar paciente" size="small" />
           )}
         />
+
+        {patient && data && (
+          <ToggleButtonGroup
+            value={odontogramType}
+            exclusive
+            onChange={(_, val) => { if (val) setOdontogramType(val); }}
+            size="small"
+          >
+            <ToggleButton value="adult" sx={{ gap: 0.75, px: 1.5 }}>
+              <PersonIcon fontSize="small" />
+              <Typography variant="caption" sx={{ display: { xs: "none", sm: "block" } }}>
+                Adulto
+              </Typography>
+            </ToggleButton>
+            <ToggleButton value="child" sx={{ gap: 0.75, px: 1.5 }}>
+              <ChildCareIcon fontSize="small" />
+              <Typography variant="caption" sx={{ display: { xs: "none", sm: "block" } }}>
+                Niño
+              </Typography>
+            </ToggleButton>
+          </ToggleButtonGroup>
+        )}
       </Box>
 
+      {/* Feedback */}
       {feedback.msg && (
         <Alert
           severity={feedback.type}
@@ -141,213 +154,62 @@ export default function OdontogramPage() {
           {feedback.msg}
         </Alert>
       )}
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
 
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+      {/* Estado vacío */}
       {!patient && (
-        <Box sx={{ py: 8, textAlign: "center" }}>
+        <Paper
+          variant="outlined"
+          sx={{ p: 6, textAlign: "center", borderStyle: "dashed" }}
+        >
           <Typography color="text.secondary">
             Selecciona un paciente para ver o editar su odontograma.
           </Typography>
-        </Box>
+        </Paper>
       )}
 
-      {patient && loading && (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
+      {/* Cargando */}
+      {loading && (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
         </Box>
       )}
 
-      {patient && !loading && data && (
-        <>
-          {/* ── Desktop: canvas + panel lado a lado ── */}
-          {!isMobile && (
-            <Grid container spacing={3}>
-              <Grid size={{ xs: 12, xl: 8 }}>
-                <Paper variant="outlined" sx={{ p: 2 }}>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    display="block"
-                    mb={1.5}
-                  >
-                    {readOnly
-                      ? "Vista de solo lectura"
-                      : "Selecciona una acción y haz clic en las caras del diente"}
-                  </Typography>
-                  <OdontogramCanvas readOnly={readOnly} />
-                  <Divider sx={{ mt: 2, mb: 1.5 }} />
-                  <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-                    {[
-                      ["▲", "Oclusal"],
-                      ["▼", "Lingual"],
-                      ["◀", "Mesial"],
-                      ["▶", "Distal"],
-                      ["◆", "Vestibular"],
-                    ].map(([icon, label]) => (
-                      <Typography
-                        key={label}
-                        variant="caption"
-                        color="text.secondary"
-                      >
-                        {icon} {label}
-                      </Typography>
-                    ))}
-                  </Box>
-                </Paper>
-              </Grid>
-              <Grid size={{ xs: 12, xl: 4 }}>
-                <Paper
-                  variant="outlined"
-                  sx={{ p: 2, position: "sticky", top: 88 }}
-                >
-                  <OdontogramPanel readOnly={readOnly} />
-                </Paper>
-              </Grid>
-            </Grid>
+      {/* Canvas */}
+      {patient && data && !loading && (
+        <Paper variant="outlined" sx={{ p: { xs: 1, sm: 2 }, overflow: "auto" }}>
+          {readOnly && (
+            <Alert severity="info" sx={{ mb: 2 }} icon={false}>
+              Modo solo lectura — solo ADMIN y DOCTOR pueden editar el odontograma.
+            </Alert>
           )}
 
-          {/* ── Móvil: canvas scrollable + FAB para abrir panel ── */}
-          {isMobile && (
-            <Box>
-              <Paper variant="outlined" sx={{ p: 1.5, mb: 2 }}>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  display="block"
-                  mb={1}
-                >
-                  {readOnly
-                    ? "Solo lectura"
-                    : "Toca una acción en el panel ↘ luego toca una cara del diente"}
-                </Typography>
-                {/* Canvas scrollable horizontalmente si es necesario */}
-                <Box
-                  sx={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}
-                >
-                  <OdontogramCanvas readOnly={readOnly} />
-                </Box>
-                <Divider sx={{ mt: 1.5, mb: 1 }} />
-                <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
-                  {[
-                    ["▲", "Oclusal"],
-                    ["▼", "Lingual"],
-                    ["◀", "Mesial"],
-                    ["▶", "Distal"],
-                    ["◆", "Vestibular"],
-                  ].map(([icon, label]) => (
-                    <Typography
-                      key={label}
-                      variant="caption"
-                      color="text.secondary"
-                    >
-                      {icon} {label}
-                    </Typography>
-                  ))}
-                </Box>
-              </Paper>
+          <OdontogramCanvas
+            odontogramType={odontogramType}
+            onToothClick={!readOnly ? handleToothClick : undefined}
+          />
 
-              {/* FAB para abrir panel de acciones en móvil */}
-              {!readOnly && (
-                <Fab
-                  color="primary"
-                  size="medium"
-                  onClick={() => setPanelOpen(true)}
-                  sx={{
-                    position: "fixed",
-                    bottom: 24,
-                    right: 24,
-                    zIndex: 1200,
-                  }}
-                >
-                  <TuneIcon />
-                </Fab>
-              )}
+          <Divider sx={{ my: 2 }} />
 
-              {/* Drawer bottom sheet del panel */}
-              <Drawer
-                anchor="bottom"
-                open={panelOpen}
-                onClose={() => setPanelOpen(false)}
-                slotProps={{
-                  paper: {
-                    sx: {
-                      borderRadius: "16px 16px 0 0",
-                      maxHeight: "75vh",
-                      display: "flex",
-                      flexDirection: "column",
-                    },
-                  },
-                }}
-              >
-                {/* Handle */}
-                <Box sx={{ display: "flex", justifyContent: "center", pt: 1 }}>
-                  <Box
-                    sx={{
-                      width: 36,
-                      height: 4,
-                      borderRadius: 2,
-                      bgcolor: "divider",
-                    }}
-                  />
-                </Box>
+          {/* Leyenda */}
+          <Box sx={{ px: 1 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={500} display="block" sx={{ mb: 1 }}>
+              LEYENDA DE ACCIONES
+            </Typography>
+            <ActionsLegend actions={actions} />
+          </Box>
+        </Paper>
+      )}
 
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    px: 2.5,
-                    py: 1.5,
-                  }}
-                >
-                  <Typography variant="subtitle1" fontWeight={500}>
-                    Acciones y diente
-                  </Typography>
-                  <IconButton size="small" onClick={() => setPanelOpen(false)}>
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-
-                <Divider />
-
-                <Box sx={{ overflow: "auto", flex: 1, p: 2.5 }}>
-                  <OdontogramPanel readOnly={readOnly} />
-                </Box>
-
-                {/* Botón guardar dentro del drawer en móvil */}
-                {!readOnly && dirty && (
-                  <>
-                    <Divider />
-                    <Box sx={{ p: 2 }}>
-                      <Button
-                        variant="contained"
-                        fullWidth
-                        startIcon={
-                          saving ? (
-                            <CircularProgress size={16} color="inherit" />
-                          ) : (
-                            <SaveIcon />
-                          )
-                        }
-                        onClick={async () => {
-                          await handleSave();
-                          setPanelOpen(false);
-                        }}
-                        disabled={saving}
-                      >
-                        {saving ? "Guardando..." : "Guardar odontograma"}
-                      </Button>
-                    </Box>
-                  </>
-                )}
-              </Drawer>
-            </Box>
-          )}
-        </>
+      {/* Modal de detalle del diente */}
+      {patient && (
+        <ToothDetailModal
+          open={modalOpen}
+          toothNumber={activeTooth}
+          onClose={handleModalClose}
+          readOnly={readOnly}
+        />
       )}
     </Box>
   );

@@ -1,97 +1,86 @@
-import { TOOTH_SIZE_PX } from './odontogramConstants'
+import { TOOTH_SIZE_PX, FACE_LABELS } from './odontogramConstants'
 
-const S  = TOOTH_SIZE_PX      // 34
-const C  = S / 2              // 17 — centro
-const IN = S * 0.15           // triángulo interior
+const S  = TOOTH_SIZE_PX  // 44
+const C  = S / 2          // 22
+const IN = S * 0.22       // factor para triángulos
 
-// Cada cara es un polígono dentro del cuadrado S×S
-// Coordenadas relativas al origen (x,y) del diente
+// Polígonos de las 5 caras — igual que antes para mostrar colores
 const FACE_POLYGONS = {
-  // top: triángulo superior
   top:    `${C},${C - IN}  ${S - IN},${IN}  ${IN},${IN}`,
-  // bottom: triángulo inferior
   bottom: `${C},${C + IN}  ${IN},${S - IN}  ${S - IN},${S - IN}`,
-  // left: triángulo izquierdo
   left:   `${C - IN},${C}  ${IN},${IN}  ${IN},${S - IN}`,
-  // right: triángulo derecho
   right:  `${C + IN},${C}  ${S - IN},${IN}  ${S - IN},${S - IN}`,
-  // center: rombo central
   center: `${C},${C - IN}  ${C + IN},${C}  ${C},${C + IN}  ${C - IN},${C}`,
 }
 
-export default function ToothSVG({
-  tooth,
-  x, y,
-  isSelected,
-  isActionSelected,
-  onFaceClick,
-  onToothClick,
-  darkMode,
-}) {
+/**
+ * Diente en el canvas principal.
+ * En el nuevo flujo ya NO es clickeable por cara individual —
+ * el click en cualquier parte del diente abre el modal ampliado.
+ */
+export default function ToothSVG({ tooth, x, y, isSelected, onClick, darkMode }) {
   const borderColor = isSelected
     ? '#534AB7'
-    : darkMode ? '#555' : '#ccc'
+    : darkMode ? '#666' : '#bbb'
 
   const bgColor = tooth.absent
-    ? (darkMode ? '#1a1a1a' : '#f0f0f0')
+    ? (darkMode ? '#1a1a1a' : '#efefef')
     : (darkMode ? '#2a2a2a' : '#ffffff')
+
+  const faceStroke = darkMode ? '#999' : '#bbb'
+
+  // Determinar si el diente tiene algún tratamiento aplicado
+  const hasTreatment = Object.keys(tooth.faces ?? {}).length > 0
 
   return (
     <g
       transform={`translate(${x},${y})`}
+      onClick={() => onClick(tooth.number)}
       style={{ cursor: 'pointer' }}
-      onClick={() => onToothClick(tooth.number)}
     >
-      {/* Fondo del diente */}
+      {/* Fondo clickeable — todo el cuadrado */}
       <rect
-        x={0} y={0}
-        width={S} height={S}
-        rx={3}
+        x={0} y={0} width={S} height={S} rx={4}
         fill={bgColor}
         stroke={borderColor}
-        strokeWidth={isSelected ? 2 : 0.5}
+        strokeWidth={isSelected ? 2.5 : 1}
       />
 
-      {/* Si el diente está ausente, mostrar X */}
+      {/* Diente ausente: X */}
       {tooth.absent ? (
         <>
-          <line x1={4} y1={4} x2={S - 4} y2={S - 4} stroke={darkMode ? '#888' : '#aaa'} strokeWidth={1.5} />
-          <line x1={S - 4} y1={4} x2={4} y2={S - 4} stroke={darkMode ? '#888' : '#aaa'} strokeWidth={1.5} />
+          <line x1={6} y1={6} x2={S-6} y2={S-6}
+            stroke={darkMode ? '#888' : '#aaa'} strokeWidth={2} strokeLinecap="round" />
+          <line x1={S-6} y1={6} x2={6} y2={S-6}
+            stroke={darkMode ? '#888' : '#aaa'} strokeWidth={2} strokeLinecap="round" />
         </>
       ) : (
-        // Caras interactivas
+        /* Mostrar colores de caras pintadas — solo visual, no clickeable aquí */
         Object.entries(FACE_POLYGONS).map(([face, points]) => {
           const painted = tooth.faces?.[face]
-          const fill    = painted?.color ?? 'transparent'
-          const hoverFill = painted ? fill : (darkMode ? '#ffffff18' : '#0000000a')
-
+          if (!painted) return (
+            <polygon key={face} points={points}
+              fill="transparent" stroke={faceStroke} strokeWidth={0.8} strokeLinejoin="round" />
+          )
           return (
-            <polygon
-              key={face}
-              points={points}
-              fill={fill}
-              stroke={darkMode ? '#444' : '#ddd'}
-              strokeWidth={0.9}
-              style={{ cursor: isActionSelected ? 'crosshair' : 'pointer' }}
-              onClick={(e) => {
-                e.stopPropagation()
-                onFaceClick(tooth.number, face)
-              }}
-              onMouseEnter={e => {
-                if (!painted) e.currentTarget.setAttribute('fill', hoverFill)
-              }}
-              onMouseLeave={e => {
-                if (!painted) e.currentTarget.setAttribute('fill', 'transparent')
-              }}
-            />
+            <polygon key={face} points={points}
+              fill={painted.color} stroke={faceStroke} strokeWidth={0.8} strokeLinejoin="round" />
           )
         })
       )}
 
       {/* Indicador de nota */}
       {tooth.notes && (
-        <circle cx={S - 4} cy={4} r={3} fill="#534AB7" />
+        <circle cx={S-5} cy={5} r={4} fill="#534AB7" />
       )}
+
+      {/* Hover overlay — toda el área */}
+      <rect
+        x={0} y={0} width={S} height={S} rx={4}
+        fill="transparent"
+        stroke="transparent"
+        style={{ pointerEvents: 'all' }}
+      />
     </g>
   )
 }

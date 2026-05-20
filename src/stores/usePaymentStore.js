@@ -1,22 +1,24 @@
-import { create } from "zustand";
-import { supabase } from "../services/supabaseClient";
+import { create }      from "zustand";
+import { supabase }    from "../services/supabaseClient";
+import { useAuthStore } from "./useAuthStore";
 
 export const usePaymentStore = create((set, get) => ({
-  rows: [],
+  rows:                  [],
   paymentsByAppointment: {},
-  total: 0,
-  loading: false,
-  saving: false,
-  error: null,
+  total:                 0,
+  loading:               false,
+  saving:                false,
+  error:                 null,
 
   filters: {
-    status: "all",
-    balance: "all",
-    search: "",
-    dateFrom: "",
-    dateTo: "",
+    status:      "all",
+    balance:     "all",
+    search:      "",
+    dateFrom:    "",
+    dateTo:      "",
     paymentType: "all", // 'all' | 'appointment' | 'case'
   },
+
   setFilter: (key, val) =>
     set((s) => ({ filters: { ...s.filters, [key]: val } })),
 
@@ -26,7 +28,7 @@ export const usePaymentStore = create((set, get) => ({
     const { filters } = get();
 
     const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
+    const to   = from + pageSize - 1;
 
     let query = supabase
       .from("payments_summary")
@@ -37,14 +39,15 @@ export const usePaymentStore = create((set, get) => ({
     if (filters.paymentType !== "all")
       query = query.eq("payment_type", filters.paymentType);
 
-    if (filters.status !== "all") query = query.eq("status", filters.status);
+    if (filters.status !== "all")
+      query = query.eq("status", filters.status);
 
     if (filters.balance === "pending") query = query.gt("balance", 0);
     else if (filters.balance === "paid") query = query.lte("balance", 0);
 
     if (filters.search.trim())
       query = query.or(
-        `patient_name.ilike.%${filters.search}%,patient_dni.ilike.%${filters.search}%`,
+        `patient_name.ilike.%${filters.search}%,patient_dni.ilike.%${filters.search}%`
       );
 
     if (filters.dateFrom)
@@ -58,11 +61,11 @@ export const usePaymentStore = create((set, get) => ({
 
     const { data, error, count } = await query;
     if (error) set({ error: error.message });
-    else set({ rows: data ?? [], total: count ?? 0 });
+    else       set({ rows: data ?? [], total: count ?? 0 });
     set({ loading: false });
   },
 
-  // AGREGADO ULTIMO PARA TRAER PAGOS POR CITA
+  // ── Pagos de una cita ─────────────────────────────────────
   fetchPaymentsByAppointment: async (appointmentId) => {
     const { data, error } = await supabase
       .from("payments")
@@ -70,50 +73,39 @@ export const usePaymentStore = create((set, get) => ({
       .eq("appointment_id", appointmentId)
       .order("created_at");
 
-    if (error) {
-      return { error: error.message };
-    }
+    if (error) return { error: error.message };
 
-    set((state) => ({
+    set((s) => ({
       paymentsByAppointment: {
-        ...state.paymentsByAppointment,
+        ...s.paymentsByAppointment,
         [appointmentId]: data ?? [],
       },
     }));
-
     return { error: null };
   },
 
-  // ── Pago en cita individual (sesión única) ────────────────
-
-  registerAppointmentPayment: async ({
-    appointmentId,
-    amount,
-    method,
-    notes,
-    createdBy,
-  }) => {
+  // ── Registrar pago de cita individual ────────────────────
+  // created_by se resuelve internamente
+  registerAppointmentPayment: async ({ appointmentId, amount, method, notes }) => {
     set({ saving: true, error: null });
 
-    // Insertar pago y retornar registro completo
+    const userId = useAuthStore.getState().user?.id ?? null;
+
     const { data, error: payErr } = await supabase
       .from("payments")
       .insert({
         appointment_id: appointmentId,
         amount,
         method,
-        notes: notes || null,
-        created_by: createdBy,
+        notes:      notes || null,
+        created_by: userId,
       })
       .select("*, created_by_profile:profiles(full_name)")
       .single();
 
-    if (payErr) {
-      set({ saving: false });
-      return { error: payErr.message };
-    }
+    if (payErr) { set({ saving: false }); return { error: payErr.message }; }
 
-    // Actualizar paid en appointment
+    // Actualizar campo `paid` en la cita
     const { data: appt } = await supabase
       .from("appointments")
       .select("paid")
@@ -122,72 +114,34 @@ export const usePaymentStore = create((set, get) => ({
 
     await supabase
       .from("appointments")
-      .update({
-        paid: Number(appt?.paid ?? 0) + amount,
-      })
+      .update({ paid: Number(appt?.paid ?? 0) + amount })
       .eq("id", appointmentId);
 
-    // ✅ Actualización LOCAL
-    set((state) => ({
+    // Actualizar localmente
+    set((s) => ({
       paymentsByAppointment: {
-        ...state.paymentsByAppointment,
+        ...s.paymentsByAppointment,
         [appointmentId]: [
-          ...(state.paymentsByAppointment[appointmentId] || []),
+          ...(s.paymentsByAppointment[appointmentId] ?? []),
           data,
         ],
       },
       saving: false,
     }));
 
-    return {
-      error: null,
-      data,
-    };
+    return { data, error: null };
   },
 
-  /*registerAppointmentPayment: async ({
-    appointmentId, amount, method, notes, createdBy,
-  }) => {
-    set({ saving: true, error: null })
-
-    const { error: payErr } = await supabase
-      .from('payments')
-      .insert({
-        appointment_id: appointmentId,
-        amount,
-        method,
-        notes:      notes || null,
-        created_by: createdBy,
-      })
-
-    if (payErr) { set({ saving: false }); return { error: payErr.message } }
-
-    const { data: appt } = await supabase
-      .from('appointments')
-      .select('paid')
-      .eq('id', appointmentId)
-      .single()
-
-    await supabase
-      .from('appointments')
-      .update({ paid: (appt?.paid ?? 0) + amount })
-      .eq('id', appointmentId)
-
-    set({ saving: false })
-    return { error: null }
-  },*/
-
+  // ── Eliminar pago de cita ─────────────────────────────────
   deleteAppointmentPayment: async ({ paymentId, appointmentId, amount }) => {
     const { error } = await supabase
       .from("payments")
       .delete()
       .eq("id", paymentId);
 
-    if (error) {
-      return { error: error.message };
-    }
+    if (error) return { error: error.message };
 
-    // Actualizar paid
+    // Revertir `paid` en la cita
     const { data: appt } = await supabase
       .from("appointments")
       .select("paid")
@@ -196,18 +150,15 @@ export const usePaymentStore = create((set, get) => ({
 
     await supabase
       .from("appointments")
-      .update({
-        paid: Math.max(0, Number(appt?.paid ?? 0) - Number(amount)),
-      })
+      .update({ paid: Math.max(0, Number(appt?.paid ?? 0) - Number(amount)) })
       .eq("id", appointmentId);
 
-    // ✅ Eliminar localmente
-    set((state) => ({
+    // Eliminar localmente
+    set((s) => ({
       paymentsByAppointment: {
-        ...state.paymentsByAppointment,
-        [appointmentId]: (
-          state.paymentsByAppointment[appointmentId] || []
-        ).filter((p) => p.id !== paymentId),
+        ...s.paymentsByAppointment,
+        [appointmentId]: (s.paymentsByAppointment[appointmentId] ?? [])
+          .filter((p) => p.id !== paymentId),
       },
     }));
 

@@ -1,12 +1,14 @@
-import { create } from "zustand";
-import { supabase } from "../services/supabaseClient";
+import { create }      from "zustand";
+import { supabase }    from "../services/supabaseClient";
+import { useAuthStore } from "./useAuthStore";
 
 export const useCasePaymentStore = create((set, get) => ({
   paymentsByCase: {},
-  loading: false,
-  saving: false,
-  error: null,
+  loading:        false,
+  saving:         false,
+  error:          null,
 
+  // ── Pagos de un caso ──────────────────────────────────────
   fetchByCase: async (caseId) => {
     set({ loading: true, error: null });
 
@@ -16,98 +18,66 @@ export const useCasePaymentStore = create((set, get) => ({
       .eq("case_id", caseId)
       .order("created_at");
 
-    if (error) {
-      set({
-        error: error.message,
-        loading: false,
-      });
+    if (error) { set({ error: error.message, loading: false }); return []; }
 
-      return [];
-    }
-
-    set((state) => ({
-      paymentsByCase: {
-        ...state.paymentsByCase,
-        [caseId]: data ?? [],
-      },
+    set((s) => ({
+      paymentsByCase: { ...s.paymentsByCase, [caseId]: data ?? [] },
       loading: false,
     }));
-
     return data ?? [];
   },
 
-  registerPayment: async ({
-    caseId,
-    amount,
-    method,
-    notes,
-    createdBy,
-  }) => {
+  // ── Registrar pago de caso multisesión ────────────────────
+  // created_by se resuelve internamente
+  registerPayment: async ({ caseId, amount, method, notes }) => {
     set({ saving: true, error: null });
 
-    const { data, error } = await supabase
+    const userId = useAuthStore.getState().user?.id ?? null;
+
+    const { data, error: payErr } = await supabase
       .from("case_payments")
       .insert({
-        case_id: caseId,
+        case_id:    caseId,
         amount,
         method,
-        notes: notes || null,
-        created_by: createdBy,
+        notes:      notes || null,
+        created_by: userId,
       })
       .select("*, created_by_profile:profiles(full_name)")
       .single();
 
-    set({ saving: false });
+    if (payErr) { set({ saving: false }); return { error: payErr.message }; }
 
-    if (error) {
-      set({ error: error.message });
-
-      return { error: error.message };
-    }
-
-    // ✅ Actualización LOCAL sin refetch
-    set((state) => ({
+    // Actualizar localmente
+    set((s) => ({
       paymentsByCase: {
-        ...state.paymentsByCase,
-        [caseId]: [
-          ...(state.paymentsByCase[caseId] || []),
-          data,
-        ],
+        ...s.paymentsByCase,
+        [caseId]: [...(s.paymentsByCase[caseId] ?? []), data],
       },
+      saving: false,
     }));
 
-    return { error: null, data };
+    return { data, error: null };
   },
 
+  // ── Eliminar pago de caso ─────────────────────────────────
   deletePayment: async (paymentId, caseId) => {
     const { error } = await supabase
       .from("case_payments")
       .delete()
       .eq("id", paymentId);
 
-    if (error) {
-      return { error: error.message };
-    }
+    if (error) return { error: error.message };
 
-    // ✅ Eliminar LOCALMENTE
-    set((state) => ({
+    // Eliminar localmente
+    set((s) => ({
       paymentsByCase: {
-        ...state.paymentsByCase,
-        [caseId]: (
-          state.paymentsByCase[caseId] || []
-        ).filter((p) => p.id !== paymentId),
+        ...s.paymentsByCase,
+        [caseId]: (s.paymentsByCase[caseId] ?? [])
+          .filter((p) => p.id !== paymentId),
       },
     }));
 
     return { error: null };
   },
-
-  clearPayments: (caseId) =>
-    set((state) => {
-      const updated = { ...state.paymentsByCase };
-
-      delete updated[caseId];
-
-      return { paymentsByCase: updated };
-    }),
 }));
