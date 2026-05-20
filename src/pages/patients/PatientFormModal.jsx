@@ -76,12 +76,14 @@ export default function PatientFormModal({ open, patient, onClose }) {
 
   useEffect(() => {
     if (patient) {
-      const parts = (patient.full_name || "").split(" ");
+      //const parts = (patient.full_name || "").split(" ");
+      const patientNames = buildPatientForm(patient);
 
       setForm({
-        first_name: parts.slice(0, -2).join(" ") || "",
+        /*first_name: parts.slice(0, -2).join(" ") || "",
         last_name: parts.at(-2) || "",
-        mother_last_name: parts.at(-1) || "",
+        mother_last_name: parts.at(-1) || "",*/
+        ...patientNames,
 
         dni: patient.dni ?? "",
         birth_date: patient.birth_date ?? "",
@@ -126,50 +128,64 @@ export default function PatientFormModal({ open, patient, onClose }) {
     }));
   };
 
+  const buildPatientForm = (patient) => {
+    // Prioridad:
+    // usar columnas reales si existen
+    if (patient.first_name || patient.last_name || patient.mother_last_name) {
+      return {
+        first_name: patient.first_name ?? "",
+        last_name: patient.last_name ?? "",
+        mother_last_name: patient.mother_last_name ?? "",
+      };
+    }
+
+    // fallback legacy
+    return {
+      first_name: patient.full_name ?? "",
+      last_name: "",
+      mother_last_name: "",
+    };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setError("");
 
-    if (
-      !form.first_name.trim() ||
-      !form.last_name.trim() ||
-      !form.mother_last_name.trim()
-    ) {
-      setError("Nombres y apellidos son obligatorios.");
+    // Validación mínima realista
+    if (!form.first_name.trim() || !form.last_name.trim()) {
+      setError("Nombres y primer apellido son obligatorios.");
+
       return;
     }
 
-    if (!form.dni.trim()) {
-      setError("El DNI es obligatorio.");
-      return;
-    }
-
-    if (form.dni.length !== 8) {
+    // DNI opcional
+    if (form.dni && form.dni.length !== 8) {
       setError("El DNI debe tener exactamente 8 dígitos.");
+
       return;
     }
 
-    if (!form.phone.trim()) {
-      setError("El teléfono es obligatorio.");
-      return;
-    }
-
-    if (form.phone.length !== 9) {
+    // Teléfono opcional
+    if (form.phone && form.phone.length !== 9) {
       setError("El teléfono debe tener exactamente 9 dígitos.");
+
       return;
     }
 
+    // Fecha futura
     if (isFutureDate(form.birth_date)) {
       setError("La fecha de nacimiento no puede ser futura.");
+
       return;
     }
 
-    // Construir nombre completo
-    const full_name = capitalizeWords(`
-    ${form.first_name}
-    ${form.last_name}
-    ${form.mother_last_name}
-  `);
+    // Construcción segura del nombre completo
+    const full_name = capitalizeWords(
+      [form.first_name, form.last_name, form.mother_last_name]
+        .filter(Boolean)
+        .join(" "),
+    );
 
     // Payload final
     const payload = {
@@ -177,15 +193,24 @@ export default function PatientFormModal({ open, patient, onClose }) {
 
       full_name,
 
-      // Enviar NULL si está vacío
+      // Normalización de opcionales
+      dni: form.dni || null,
       birth_date: form.birth_date || null,
+      phone: form.phone || null,
+      email: form.email || null,
+      address: form.address || null,
       gender: form.gender || null,
-    };
+      allergies: form.allergies || null,
+      medications: form.medications || null,
+      diagnosis: form.diagnosis || null,
+      observations: form.observations || null,
 
-    // Eliminar campos temporales
-    delete payload.first_name;
-    delete payload.last_name;
-    delete payload.mother_last_name;
+      // NUEVO:
+      // guardar SIEMPRE campos atómicos
+      first_name: form.first_name.trim(),
+      last_name: form.last_name.trim(),
+      mother_last_name: form.mother_last_name.trim() || null,
+    };
 
     const result = patient
       ? await updatePatient(patient.id, payload)
@@ -193,11 +218,14 @@ export default function PatientFormModal({ open, patient, onClose }) {
 
     if (result.error) {
       setError(result.error);
+
       return;
     }
 
     onClose(true);
   };
+
+  console.log("Renderizando Formulario");
 
   return (
     <Dialog open={open} onClose={() => onClose(false)} maxWidth="md" fullWidth>
@@ -217,27 +245,29 @@ export default function PatientFormModal({ open, patient, onClose }) {
         <Grid container spacing={2} sx={{ mt: 0.5, mb: 2 }}>
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
-              label="Nombres *"
+              label="Nombres"
               value={form.first_name}
               onChange={setNameField("first_name")}
               size="small"
               fullWidth
+              required
             />
           </Grid>
 
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
-              label="Primer apellido *"
+              label="Primer apellido"
               value={form.last_name}
               onChange={setNameField("last_name")}
               size="small"
               fullWidth
+              required
             />
           </Grid>
 
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
-              label="Segundo apellido *"
+              label="Segundo apellido"
               value={form.mother_last_name}
               onChange={setNameField("mother_last_name")}
               size="small"
@@ -246,7 +276,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
           </Grid>
           <Grid size={{ xs: 12, sm: 3 }}>
             <TextField
-              label="DNI *"
+              label="DNI"
               value={form.dni}
               onChange={setNumberField("dni", 8)}
               size="small"
@@ -292,7 +322,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
           </Grid>
           <Grid size={{ xs: 12, sm: 3 }}>
             <TextField
-              label="Teléfono *"
+              label="Teléfono"
               value={form.phone}
               onChange={setNumberField("phone", 9)}
               size="small"

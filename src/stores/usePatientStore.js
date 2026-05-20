@@ -3,22 +3,36 @@ import { supabase } from "../services/supabaseClient";
 import { useAuthStore } from "./useAuthStore";
 
 // URL Edge Function create-user (para activar portal de paciente)
-const EDGE_CREATE_USER =
-  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`;
+const EDGE_CREATE_USER = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`;
+
+// Helpers
+const normalizeText = (text = "") =>
+  text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+const patientExists = (patients, fullName) => {
+  const normalized = normalizeText(fullName);
+
+  return patients.find((p) => normalizeText(p.full_name) === normalized);
+};
 
 export const usePatientStore = create((set, get) => ({
   patients: [],
-  total:    0,
+  total: 0,
   selected: null,
-  loading:  false,
-  saving:   false,
-  error:    null,
+  loading: false,
+  saving: false,
+  error: null,
 
   // ── Listado paginado con búsqueda ─────────────────────────
   fetchPatients: async ({ search = "", page = 1, pageSize = 20 } = {}) => {
     set({ loading: true, error: null });
     const from = (page - 1) * pageSize;
-    const to   = from + pageSize - 1;
+    const to = from + pageSize - 1;
 
     let query = supabase
       .from("patients")
@@ -28,13 +42,11 @@ export const usePatientStore = create((set, get) => ({
       .range(from, to);
 
     if (search.trim())
-      query = query.or(
-        `full_name.ilike.%${search}%,dni.ilike.%${search}%`
-      );
+      query = query.or(`full_name.ilike.%${search}%,dni.ilike.%${search}%`);
 
     const { data, error, count } = await query;
     if (error) set({ error: error.message });
-    else       set({ patients: data ?? [], total: count ?? 0 });
+    else set({ patients: data ?? [], total: count ?? 0 });
     set({ loading: false });
   },
 
@@ -48,7 +60,7 @@ export const usePatientStore = create((set, get) => ({
       .single();
 
     if (error) set({ error: error.message });
-    else       set({ selected: data });
+    else set({ selected: data });
     set({ loading: false });
     return { data, error };
   },
@@ -58,6 +70,35 @@ export const usePatientStore = create((set, get) => ({
   // ── Crear paciente (formulario completo) ──────────────────
   createPatient: async (payload) => {
     set({ saving: true, error: null });
+
+    const existingByDni = get().patients.find(
+      (p) => p.dni && payload.dni && p.dni === payload.dni,
+    );
+
+    if (existingByDni) {
+      set({
+        saving: false,
+        error: "Ya existe un paciente con ese DNI.",
+      });
+
+      return {
+        error: "Ya existe un paciente con este DNI.",
+      };
+    }
+
+    const existing = patientExists(get().patients, payload.full_name);
+
+    if (existing) {
+      set({
+        saving: false,
+        error: "Ya existe un paciente con ese nombre.",
+      });
+
+      return {
+        error: "Ya existe un paciente con ese nombre.",
+      };
+    }
+
     const { data, error } = await supabase
       .from("patients")
       .insert(payload)
@@ -65,21 +106,52 @@ export const usePatientStore = create((set, get) => ({
       .single();
 
     set({ saving: false });
-    if (error) { set({ error: error.message }); return { error: error.message }; }
+
+    if (error) {
+      set({ error: error.message });
+
+      return {
+        error: error.message,
+      };
+    }
+
     return { data, error: null };
   },
 
   // ── Crear paciente rápido (solo nombre, para citas) ───────
-  createQuickPatient: async (full_name) => {
+  createQuickPatient: async (payload) => {
     set({ saving: true, error: null });
+
+    const existing = patientExists(get().patients, payload.full_name);
+
+    if (existing) {
+      set({
+        saving: false,
+        error: "Ya existe un paciente con ese nombre.",
+      });
+
+      return {
+        error: "Ya existe un paciente con ese nombre.",
+      };
+    }
+
     const { data, error } = await supabase
       .from("patients")
-      .insert({ full_name: full_name.trim() })
+      .insert(payload)
       .select()
       .single();
 
     set({ saving: false });
-    if (error) { set({ error: error.message }); return { data: null, error: error.message }; }
+
+    if (error) {
+      set({ error: error.message });
+
+      return {
+        data: null,
+        error: error.message,
+      };
+    }
+
     return { data, error: null };
   },
 
@@ -126,8 +198,8 @@ export const usePatientStore = create((set, get) => ({
       const res = await fetch(EDGE_CREATE_USER, {
         method: "POST",
         headers: {
-          "Content-Type":  "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           email,
@@ -162,7 +234,9 @@ export const usePatientStore = create((set, get) => ({
 
       // Actualizar selected localmente
       set((s) => ({
-        selected: s.selected ? { ...s.selected, user_id: newUserId } : s.selected,
+        selected: s.selected
+          ? { ...s.selected, user_id: newUserId }
+          : s.selected,
         saving: false,
       }));
 

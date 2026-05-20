@@ -1,21 +1,39 @@
 import { useEffect, useState } from "react";
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, TextField, MenuItem, Grid, CircularProgress,
-  Alert, InputAdornment, Autocomplete,
-  useTheme, useMediaQuery,
-  Box, Typography, Divider, Paper,
-  IconButton, Collapse, Chip,
-  Radio, RadioGroup, FormControlLabel, FormLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  MenuItem,
+  Grid,
+  CircularProgress,
+  Alert,
+  InputAdornment,
+  Autocomplete,
+  useTheme,
+  useMediaQuery,
+  Box,
+  Typography,
+  Divider,
+  Paper,
+  IconButton,
+  Collapse,
+  Chip,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormLabel,
 } from "@mui/material";
-import AddIcon             from "@mui/icons-material/Add";
-import CloseIcon           from "@mui/icons-material/Close";
-import PersonAddIcon       from "@mui/icons-material/PersonAdd";
-import FolderOpenIcon      from "@mui/icons-material/FolderOpen";
+import AddIcon from "@mui/icons-material/Add";
+import CloseIcon from "@mui/icons-material/Close";
+import PersonAddIcon from "@mui/icons-material/PersonAdd";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
-import { useAppointmentStore }   from "../../stores/useAppointmentStore";
-import { useCatalogStore }       from "../../stores/useCatalogStore";
-import { usePatientStore }       from "../../stores/usePatientStore";
+import { useAppointmentStore } from "../../stores/useAppointmentStore";
+import { useCatalogStore } from "../../stores/useCatalogStore";
+import { usePatientStore } from "../../stores/usePatientStore";
 import { useTreatmentCaseStore } from "../../stores/useTreatmentCaseStore";
 
 // ─────────────────────────────────────────────────────────────
@@ -32,34 +50,61 @@ const toDatetimeLocal = (d) => {
 };
 
 const EMPTY = {
-  patient_id:   "",
-  doctor_id:    "",
+  patient_id: "",
+  doctor_id: "",
   treatment_id: "",
-  date:         "",
-  notes:        "",
-  total:        "",
+  date: "",
+  notes: "",
+  total: "",
 };
 
 // ── Paciente rápido ───────────────────────────────────────────
 function QuickPatientForm({ onCreated, onCancel, saving }) {
   const [first, setFirst] = useState("");
-  const [last,  setLast]  = useState("");
-  const full  = `${first.trim()} ${last.trim()}`.trim();
-  const valid = first.trim().length > 0 && last.trim().length > 0;
+  const [last, setLast] = useState("");
+  /*const full  = `${first.trim()} ${last.trim()}`.trim();
+  const valid = first.trim().length > 0 && last.trim().length > 0;*/
+  const payload = {
+    first_name: first.trim(),
+    last_name: last.trim(),
+    mother_last_name: "",
+    full_name: `${first.trim()} ${last.trim()}`.trim(),
+  };
+
+  const valid = payload.first_name.length > 0 && payload.last_name.length > 0;
 
   return (
     <Paper
       variant="outlined"
-      sx={{ p: 2, mt: 1, borderColor: "primary.main", borderWidth: 1.5, borderRadius: 2, bgcolor: "background.default" }}
+      sx={{
+        p: 2,
+        mt: 1,
+        borderColor: "primary.main",
+        borderWidth: 1.5,
+        borderRadius: 2,
+        bgcolor: "background.default",
+      }}
     >
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 1,
+        }}
+      >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <PersonAddIcon fontSize="small" color="primary" />
-          <Typography variant="body2" sx={{ fontWeight: 500, color: "primary.main" }}>
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 500, color: "primary.main" }}
+          >
             Nuevo paciente rápido
           </Typography>
         </Box>
-        <IconButton size="small" onClick={onCancel}><CloseIcon fontSize="small" /></IconButton>
+        <IconButton size="small" onClick={onCancel}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
       </Box>
       <Grid container spacing={1.5}>
         <Grid size={{ xs: 12, sm: 6 }}>
@@ -85,12 +130,19 @@ function QuickPatientForm({ onCreated, onCancel, saving }) {
           <Button
             variant="contained"
             size="small"
-            startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <AddIcon />}
-            onClick={() => onCreated(full)}
+            startIcon={
+              saving ? (
+                <CircularProgress size={14} color="inherit" />
+              ) : (
+                <AddIcon />
+              )
+            }
+            /*onClick={() => onCreated(full)}*/
+            onClick={() => onCreated(payload)}
             disabled={!valid || saving}
             fullWidth
           >
-            {saving ? "Creando..." : `Crear "${full}"`}
+            {saving ? "Creando..." : `Crear "${payload.full_name}"`}
           </Button>
         </Grid>
       </Grid>
@@ -100,13 +152,30 @@ function QuickPatientForm({ onCreated, onCancel, saving }) {
 
 // ── Sección multisesión ───────────────────────────────────────
 function MultisessionSection({
-  openCase, caseOption, setCaseOption, onCaseOptionChange,
-  caseNotes, setCaseNotes, totalSessions, setTotalSessions,
-  totalCost, setTotalCost,
+  openCase,
+  caseOption,
+  setCaseOption,
+  onCaseOptionChange,
+  caseNotes,
+  setCaseNotes,
+  totalSessions,
+  setTotalSessions,
+  totalCost,
+  setTotalCost,
 }) {
   return (
-    <Box sx={{ border: "1px solid", borderColor: "primary.light", borderRadius: 1.5, p: 1.5 }}>
-      <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 500, display: "block", mb: 1 }}>
+    <Box
+      sx={{
+        border: "1px solid",
+        borderColor: "primary.light",
+        borderRadius: 1.5,
+        p: 1.5,
+      }}
+    >
+      <Typography
+        variant="caption"
+        sx={{ color: "primary.main", fontWeight: 500, display: "block", mb: 1 }}
+      >
         Tratamiento multisesión
       </Typography>
 
@@ -115,17 +184,34 @@ function MultisessionSection({
           <FormLabel sx={{ fontSize: 13 }}>¿Esta cita pertenece a:</FormLabel>
           <RadioGroup
             value={caseOption}
-            onChange={(e) => { setCaseOption(e.target.value); onCaseOptionChange?.(e.target.value); }}
+            onChange={(e) => {
+              setCaseOption(e.target.value);
+              onCaseOptionChange?.(e.target.value);
+            }}
             row
             sx={{ mt: 0.5, mb: 1 }}
           >
-            <FormControlLabel value="existing" control={<Radio size="small" />} label={<Typography variant="body2">Caso en curso</Typography>} />
-            <FormControlLabel value="new"      control={<Radio size="small" />} label={<Typography variant="body2">Nuevo caso</Typography>} />
+            <FormControlLabel
+              value="existing"
+              control={<Radio size="small" />}
+              label={<Typography variant="body2">Caso en curso</Typography>}
+            />
+            <FormControlLabel
+              value="new"
+              control={<Radio size="small" />}
+              label={<Typography variant="body2">Nuevo caso</Typography>}
+            />
           </RadioGroup>
         </>
       ) : (
-        <Alert severity="success" icon={<CreateNewFolderIcon fontSize="small" />} sx={{ mb: 1.5, py: 0.5 }}>
-          <Typography variant="caption">Se creará un nuevo caso de tratamiento para este paciente.</Typography>
+        <Alert
+          severity="success"
+          icon={<CreateNewFolderIcon fontSize="small" />}
+          sx={{ mb: 1.5, py: 0.5 }}
+        >
+          <Typography variant="caption">
+            Se creará un nuevo caso de tratamiento para este paciente.
+          </Typography>
         </Alert>
       )}
 
@@ -140,7 +226,13 @@ function MultisessionSection({
               size="small"
               fullWidth
               helperText="Monto total acordado con el paciente"
-              slotProps={{ input: { startAdornment: <InputAdornment position="start">S/</InputAdornment> } }}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">S/</InputAdornment>
+                  ),
+                },
+              }}
             />
           </Grid>
           <Grid size={{ xs: 6 }}>
@@ -174,13 +266,32 @@ function MultisessionSection({
 }
 
 // ── Sección Obturación dental ─────────────────────────────────
-function ObturacionSection({ teethCount, setTeethCount, unitPrice, setUnitPrice, onTotalChange }) {
+function ObturacionSection({
+  teethCount,
+  setTeethCount,
+  unitPrice,
+  setUnitPrice,
+  onTotalChange,
+}) {
   const total = (parseFloat(unitPrice) || 0) * (parseInt(teethCount) || 0);
-  useEffect(() => { onTotalChange(total > 0 ? total : ""); }, [teethCount, unitPrice]);
+  useEffect(() => {
+    onTotalChange(total > 0 ? total : "");
+  }, [teethCount, unitPrice]);
 
   return (
-    <Box sx={{ bgcolor: "background.default", border: "1px solid", borderColor: "warning.light", borderRadius: 2, p: 2 }}>
-      <Typography variant="body2" sx={{ fontWeight: 500, color: "warning.dark", mb: 1.5 }}>
+    <Box
+      sx={{
+        bgcolor: "background.default",
+        border: "1px solid",
+        borderColor: "warning.light",
+        borderRadius: 2,
+        p: 2,
+      }}
+    >
+      <Typography
+        variant="body2"
+        sx={{ fontWeight: 500, color: "warning.dark", mb: 1.5 }}
+      >
         🦷 Obturación dental — cálculo por diente
       </Typography>
       <Grid container spacing={1.5} sx={{ alignItems: "center" }}>
@@ -204,15 +315,34 @@ function ObturacionSection({ teethCount, setTeethCount, unitPrice, setUnitPrice,
             onChange={(e) => setUnitPrice(e.target.value)}
             size="small"
             fullWidth
-            slotProps={{ input: { startAdornment: <InputAdornment position="start">S/</InputAdornment> } }}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">S/</InputAdornment>
+                ),
+              },
+            }}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 4 }}>
-          <Box sx={{ bgcolor: "warning.light", borderRadius: 2, p: 1.5, textAlign: "center" }}>
-            <Typography variant="caption" display="block">Total calculado</Typography>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>S/ {total.toFixed(2)}</Typography>
+          <Box
+            sx={{
+              bgcolor: "warning.light",
+              borderRadius: 2,
+              p: 1.5,
+              textAlign: "center",
+            }}
+          >
+            <Typography variant="caption" display="block">
+              Total calculado
+            </Typography>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              S/ {total.toFixed(2)}
+            </Typography>
             {parseInt(teethCount) > 0 && (
-              <Typography variant="caption">{teethCount} × S/ {parseFloat(unitPrice || 0).toFixed(2)}</Typography>
+              <Typography variant="caption">
+                {teethCount} × S/ {parseFloat(unitPrice || 0).toFixed(2)}
+              </Typography>
             )}
           </Box>
         </Grid>
@@ -223,46 +353,52 @@ function ObturacionSection({ teethCount, setTeethCount, unitPrice, setUnitPrice,
 
 // ── Modal principal ───────────────────────────────────────────
 export default function AppointmentFormModal({ open, prefillDate, onClose }) {
-  const theme    = useTheme();
+  const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
-  const { createAppointment, saving }              = useAppointmentStore();
-  const { doctors, treatments, fetchAll }          = useCatalogStore();
+  const { createAppointment, saving } = useAppointmentStore();
+  const { doctors, treatments, fetchAll } = useCatalogStore();
   const { patients, fetchPatients, createQuickPatient } = usePatientStore();
-  const { findOpenCase, createCase }               = useTreatmentCaseStore();
+  const { findOpenCase, createCase } = useTreatmentCaseStore();
 
   // ── Estado del formulario ─────────────────────────────────
-  const [form,            setForm]            = useState(EMPTY);
-  const [error,           setError]           = useState("");
+  const [form, setForm] = useState(EMPTY);
+  const [error, setError] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const [showQuickForm,   setShowQuickForm]   = useState(false);
-  const [quickSaving,     setQuickSaving]     = useState(false);
-  const [quickError,      setQuickError]      = useState("");
+  const [showQuickForm, setShowQuickForm] = useState(false);
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [quickError, setQuickError] = useState("");
 
   // Multisesión
-  const [openCase,       setOpenCase]       = useState(null);
-  const [caseOption,     setCaseOption]     = useState("existing");
-  const [caseNotes,      setCaseNotes]      = useState("");
-  const [totalSessions,  setTotalSessions]  = useState("");
-  const [totalCost,      setTotalCost]      = useState("");
-  const [checkingCase,   setCheckingCase]   = useState(false);
+  const [openCase, setOpenCase] = useState(null);
+  const [caseOption, setCaseOption] = useState("existing");
+  const [caseNotes, setCaseNotes] = useState("");
+  const [totalSessions, setTotalSessions] = useState("");
+  const [totalCost, setTotalCost] = useState("");
+  const [checkingCase, setCheckingCase] = useState(false);
 
   // Obturación
   const [teethCount, setTeethCount] = useState("");
-  const [unitPrice,  setUnitPrice]  = useState("50");
-  const [calcTotal,  setCalcTotal]  = useState("");
+  const [unitPrice, setUnitPrice] = useState("50");
+  const [calcTotal, setCalcTotal] = useState("");
 
-  const selectedTreatment = treatments.find((t) => t.id === form.treatment_id) ?? null;
-  const isMultisession    = selectedTreatment?.is_multisession === true;
-  const isObturacion      = selectedTreatment?.name?.toUpperCase().includes("OBTURACIÓN");
-  const showTotalField    = !isObturacion && !isMultisession;
+  const selectedTreatment =
+    treatments.find((t) => t.id === form.treatment_id) ?? null;
+  const isMultisession = selectedTreatment?.is_multisession === true;
+  const isObturacion = selectedTreatment?.name
+    ?.toUpperCase()
+    .includes("OBTURACIÓN");
+  const showTotalField = !isObturacion && !isMultisession;
 
   // Reset al abrir
   useEffect(() => {
     if (!open) return;
     fetchAll();
     fetchPatients({ page: 1, pageSize: 200 });
-    setForm({ ...EMPTY, date: prefillDate ? toDatetimeLocal(prefillDate) : "" });
+    setForm({
+      ...EMPTY,
+      date: prefillDate ? toDatetimeLocal(prefillDate) : "",
+    });
     setSelectedPatient(null);
     setShowQuickForm(false);
     setOpenCase(null);
@@ -285,7 +421,8 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       setTeethCount("");
       setCalcTotal("");
       setForm((f) => ({ ...f, total: "" }));
-      if (selectedTreatment.unit_price) setUnitPrice(String(selectedTreatment.unit_price));
+      if (selectedTreatment.unit_price)
+        setUnitPrice(String(selectedTreatment.unit_price));
       return;
     }
 
@@ -312,14 +449,18 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     });
   }, [form.patient_id, form.treatment_id]);
 
-  const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  const set = (field) => (e) =>
+    setForm((f) => ({ ...f, [field]: e.target.value }));
 
-  const handleQuickCreate = async (fullName) => {
+  const handleQuickCreate = async (patientData) => {
     setQuickSaving(true);
     setQuickError("");
-    const { data, error } = await createQuickPatient(fullName);
+    const { data, error } = await createQuickPatient(patientData);
     setQuickSaving(false);
-    if (error) { setQuickError(error); return; }
+    if (error) {
+      setQuickError(error);
+      return;
+    }
     await fetchPatients({ page: 1, pageSize: 200 });
     setSelectedPatient(data);
     setForm((f) => ({ ...f, patient_id: data.id }));
@@ -334,19 +475,32 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     e.preventDefault();
     setError("");
 
-    if (!form.patient_id)    { setError("Selecciona o crea un paciente."); return; }
-    if (!form.doctor_id)     { setError("Selecciona un doctor."); return; }
-    if (!form.date)          { setError("Ingresa la fecha y hora."); return; }
+    if (!form.patient_id) {
+      setError("Selecciona o crea un paciente.");
+      return;
+    }
+    if (!form.doctor_id) {
+      setError("Selecciona un doctor.");
+      return;
+    }
+    if (!form.date) {
+      setError("Ingresa la fecha y hora.");
+      return;
+    }
     if (isObturacion && (!teethCount || parseInt(teethCount) < 1)) {
-      setError("Ingresa la cantidad de dientes a curar."); return;
+      setError("Ingresa la cantidad de dientes a curar.");
+      return;
     }
     if (isMultisession && (!openCase || caseOption === "new") && !totalCost) {
-      setError("Ingresa el costo total pactado del tratamiento."); return;
+      setError("Ingresa el costo total pactado del tratamiento.");
+      return;
     }
 
     const startDate = new Date(form.date);
-    const endDate   = new Date(startDate.getTime() + (selectedTreatment?.duration_min ?? 30) * 60000);
-    const total     = isObturacion
+    const endDate = new Date(
+      startDate.getTime() + (selectedTreatment?.duration_min ?? 30) * 60000,
+    );
+    const total = isObturacion
       ? (parseFloat(unitPrice) || 0) * (parseInt(teethCount) || 0)
       : parseFloat(form.total) || 0;
 
@@ -358,48 +512,66 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
         caseId = openCase.id;
       } else {
         const { data: newCase, error: caseError } = await createCase({
-          patient_id:     form.patient_id,
-          treatment_id:   form.treatment_id,
-          doctor_id:      form.doctor_id,
-          notes:          caseNotes || null,
+          patient_id: form.patient_id,
+          treatment_id: form.treatment_id,
+          doctor_id: form.doctor_id,
+          notes: caseNotes || null,
           total_sessions: totalSessions ? parseInt(totalSessions) : null,
-          total_cost:     totalCost ? parseFloat(totalCost) : null,
+          total_cost: totalCost ? parseFloat(totalCost) : null,
         });
-        if (caseError) { setError("Error al crear el caso: " + caseError); return; }
+        if (caseError) {
+          setError("Error al crear el caso: " + caseError);
+          return;
+        }
         caseId = newCase.id;
       }
     }
 
     // created_by lo resuelve createAppointment internamente
     const { error: apptError } = await createAppointment({
-      patient_id:   form.patient_id,
-      doctor_id:    form.doctor_id,
+      patient_id: form.patient_id,
+      doctor_id: form.doctor_id,
       treatment_id: form.treatment_id || null,
-      date:         startDate.toISOString(),
-      end_date:     endDate.toISOString(),
+      date: startDate.toISOString(),
+      end_date: endDate.toISOString(),
       total,
-      notes:        form.notes || null,
-      case_id:      caseId,
-      teeth_count:  isObturacion ? parseInt(teethCount) : null,
-      unit_price:   isObturacion ? parseFloat(unitPrice) : null,
+      notes: form.notes || null,
+      case_id: caseId,
+      teeth_count: isObturacion ? parseInt(teethCount) : null,
+      unit_price: isObturacion ? parseFloat(unitPrice) : null,
     });
 
-    if (apptError) { setError(apptError); return; }
+    if (apptError) {
+      setError(apptError);
+      return;
+    }
     onClose(true);
   };
 
   return (
-    <Dialog open={open} onClose={() => onClose(false)} maxWidth="sm" fullWidth fullScreen={isMobile}>
+    <Dialog
+      open={open}
+      onClose={() => onClose(false)}
+      maxWidth="sm"
+      fullWidth
+      fullScreen={isMobile}
+    >
       <DialogTitle>Nueva cita</DialogTitle>
       <DialogContent dividers>
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
 
         <Grid container spacing={2}>
           {/* Paciente */}
           <Grid size={{ xs: 12 }}>
             <Autocomplete
               options={patients}
-              getOptionLabel={(p) => `${p.full_name}${p.dni ? " — " + p.dni : ""}`}
+              getOptionLabel={(p) =>
+                `${p.full_name}${p.dni ? " — " + p.dni : ""}`
+              }
               value={selectedPatient}
               onChange={(_, val) => {
                 setSelectedPatient(val);
@@ -408,11 +580,20 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
               }}
               noOptionsText={
                 <Box
-                  sx={{ display: "flex", alignItems: "center", gap: 1, cursor: "pointer", py: 0.5 }}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    cursor: "pointer",
+                    py: 0.5,
+                  }}
                   onClick={() => setShowQuickForm(true)}
                 >
                   <PersonAddIcon fontSize="small" color="primary" />
-                  <Typography variant="body2" sx={{ color: "primary.main", fontWeight: 500 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "primary.main", fontWeight: 500 }}
+                  >
                     Crear paciente rápido
                   </Typography>
                 </Box>
@@ -422,7 +603,11 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                   {...params}
                   label="Paciente *"
                   size="small"
-                  helperText={selectedPatient ? "" : "Escribe para buscar o crea uno nuevo"}
+                  helperText={
+                    selectedPatient
+                      ? ""
+                      : "Escribe para buscar o crea uno nuevo"
+                  }
                 />
               )}
             />
@@ -438,7 +623,13 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             )}
             <Collapse in={showQuickForm} unmountOnExit>
               {quickError && (
-                <Alert severity="error" sx={{ mt: 1 }} onClose={() => setQuickError("")}>{quickError}</Alert>
+                <Alert
+                  severity="error"
+                  sx={{ mt: 1 }}
+                  onClose={() => setQuickError("")}
+                >
+                  {quickError}
+                </Alert>
               )}
               <QuickPatientForm
                 onCreated={handleQuickCreate}
@@ -450,24 +641,52 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
 
           {/* Tratamiento */}
           <Grid size={{ xs: 12 }}>
-            <TextField select label="Tratamiento" value={form.treatment_id} onChange={set("treatment_id")} size="small" fullWidth>
+            <TextField
+              select
+              label="Tratamiento"
+              value={form.treatment_id}
+              onChange={set("treatment_id")}
+              size="small"
+              fullWidth
+            >
               <MenuItem value="">Sin especificar</MenuItem>
               {treatments.map((t) => (
                 <MenuItem key={t.id} value={t.id}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                      width: "100%",
+                    }}
+                  >
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="body2" noWrap>{t.name}</Typography>
+                      <Typography variant="body2" noWrap>
+                        {t.name}
+                      </Typography>
                     </Box>
                     {t.is_multisession && (
-                      <Chip label="Multisesión" size="small" color="primary" variant="outlined" sx={{ fontSize: 10, height: 18, flexShrink: 0 }} />
+                      <Chip
+                        label="Multisesión"
+                        size="small"
+                        color="primary"
+                        variant="outlined"
+                        sx={{ fontSize: 10, height: 18, flexShrink: 0 }}
+                      />
                     )}
                     {!t.is_multisession && !t.unit_price && (
-                      <Typography variant="caption" sx={{ flexShrink: 0, color: "text.secondary" }}>
+                      <Typography
+                        variant="caption"
+                        sx={{ flexShrink: 0, color: "text.secondary" }}
+                      >
                         S/ {Number(t.price).toFixed(2)}
                       </Typography>
                     )}
                     {t.unit_price && (
-                      <Typography variant="caption" sx={{ flexShrink: 0, color: "warning.dark" }}>
+                      <Typography
+                        variant="caption"
+                        sx={{ flexShrink: 0, color: "warning.dark" }}
+                      >
                         S/ {Number(t.unit_price).toFixed(2)}/d
                       </Typography>
                     )}
@@ -479,10 +698,21 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
 
           {/* Doctor */}
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField select label="Doctor *" value={form.doctor_id} onChange={set("doctor_id")} size="small" fullWidth>
-              {filteredDoctors.length === 0 && <MenuItem disabled>Sin doctores disponibles</MenuItem>}
+            <TextField
+              select
+              label="Doctor *"
+              value={form.doctor_id}
+              onChange={set("doctor_id")}
+              size="small"
+              fullWidth
+            >
+              {filteredDoctors.length === 0 && (
+                <MenuItem disabled>Sin doctores disponibles</MenuItem>
+              )}
               {filteredDoctors.map((d) => (
-                <MenuItem key={d.id} value={d.id}>{d.profile?.full_name ?? d.id}</MenuItem>
+                <MenuItem key={d.id} value={d.id}>
+                  {d.profile?.full_name ?? d.id}
+                </MenuItem>
               ))}
             </TextField>
           </Grid>
@@ -491,9 +721,14 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
           {isObturacion && (
             <Grid size={{ xs: 12 }}>
               <ObturacionSection
-                teethCount={teethCount} setTeethCount={setTeethCount}
-                unitPrice={unitPrice}   setUnitPrice={setUnitPrice}
-                onTotalChange={(val) => { setCalcTotal(val); setForm((f) => ({ ...f, total: val })); }}
+                teethCount={teethCount}
+                setTeethCount={setTeethCount}
+                unitPrice={unitPrice}
+                setUnitPrice={setUnitPrice}
+                onTotalChange={(val) => {
+                  setCalcTotal(val);
+                  setForm((f) => ({ ...f, total: val }));
+                }}
               />
             </Grid>
           )}
@@ -504,19 +739,29 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
               {checkingCase ? (
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <CircularProgress size={16} />
-                  <Typography variant="caption" color="text.secondary">Verificando casos en curso...</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Verificando casos en curso...
+                  </Typography>
                 </Box>
               ) : (
                 <MultisessionSection
                   openCase={openCase}
-                  caseOption={caseOption} setCaseOption={setCaseOption}
+                  caseOption={caseOption}
+                  setCaseOption={setCaseOption}
                   onCaseOptionChange={(val) => {
-                    if (val === "existing") setForm((f) => ({ ...f, total: "0" }));
-                    else { setTotalCost(String(selectedTreatment?.price ?? "")); setForm((f) => ({ ...f, total: "0" })); }
+                    if (val === "existing")
+                      setForm((f) => ({ ...f, total: "0" }));
+                    else {
+                      setTotalCost(String(selectedTreatment?.price ?? ""));
+                      setForm((f) => ({ ...f, total: "0" }));
+                    }
                   }}
-                  caseNotes={caseNotes}         setCaseNotes={setCaseNotes}
-                  totalSessions={totalSessions} setTotalSessions={setTotalSessions}
-                  totalCost={totalCost}         setTotalCost={setTotalCost}
+                  caseNotes={caseNotes}
+                  setCaseNotes={setCaseNotes}
+                  totalSessions={totalSessions}
+                  setTotalSessions={setTotalSessions}
+                  totalCost={totalCost}
+                  setTotalCost={setTotalCost}
                 />
               )}
             </Grid>
@@ -546,7 +791,11 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                 size="small"
                 fullWidth
                 slotProps={{
-                  input: { startAdornment: <InputAdornment position="start">S/</InputAdornment> },
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">S/</InputAdornment>
+                    ),
+                  },
                   htmlInput: { min: 0, step: "0.01" },
                 }}
               />
@@ -583,9 +832,19 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
         </Grid>
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={() => onClose(false)} disabled={saving}>Cancelar</Button>
-        <Button variant="contained" onClick={handleSubmit} disabled={saving || quickSaving || checkingCase}>
-          {saving ? <CircularProgress size={20} color="inherit" /> : "Crear cita"}
+        <Button onClick={() => onClose(false)} disabled={saving}>
+          Cancelar
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={saving || quickSaving || checkingCase}
+        >
+          {saving ? (
+            <CircularProgress size={20} color="inherit" />
+          ) : (
+            "Crear cita"
+          )}
         </Button>
       </DialogActions>
     </Dialog>
