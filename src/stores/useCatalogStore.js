@@ -16,9 +16,10 @@ import { supabase } from "../services/supabaseClient";
 // ─────────────────────────────────────────────────────────────
 
 export const useCatalogStore = create((set, get) => ({
-  specialties: [],
-  treatments:  [],
-  doctors:     [],
+  specialties:       [],
+  treatments:        [],
+  doctors:           [],
+  odontogramActions: [],
   loading:     false,
   saving:      false,
   error:       null,
@@ -143,6 +144,59 @@ export const useCatalogStore = create((set, get) => ({
     if (!error)
       set((s) => ({
         treatments: s.treatments.filter((x) => x.id !== id),
+      }));
+    return { error: error?.message ?? null };
+  },
+
+
+  // ── ACCIONES ODONTOGRAMA — solo SUPER_ADMIN ───────────────
+
+  odontogramActions: [],
+
+  fetchOdontogramActions: async () => {
+    const { data } = await supabase
+      .from("odontogram_actions")
+      .select("*")
+      .order("name");
+    if (data) set({ odontogramActions: data });
+  },
+
+  createOdontogramAction: async (payload) => {
+    set({ saving: true });
+    const { data, error } = await supabase
+      .from("odontogram_actions")
+      .insert(payload)
+      .select()
+      .single();
+    if (!error) set((s) => ({ odontogramActions: [...s.odontogramActions, data] }));
+    set({ saving: false });
+    return { data, error: error?.message ?? null };
+  },
+
+  updateOdontogramAction: async (id, payload) => {
+    set({ saving: true });
+    const { data, error } = await supabase
+      .from("odontogram_actions")
+      .update(payload)
+      .eq("id", id)
+      .select()
+      .single();
+    if (!error)
+      set((s) => ({
+        odontogramActions: s.odontogramActions.map((x) => (x.id === id ? data : x)),
+      }));
+    set({ saving: false });
+    return { error: error?.message ?? null };
+  },
+
+  deleteOdontogramAction: async (id) => {
+    const { error } = await supabase
+      .from("odontogram_actions")
+      .update({ active: false })
+      .eq("id", id);
+    if (!error)
+      set((s) => ({
+        odontogramActions: s.odontogramActions.filter((x) => x.id !== id),
       }));
     return { error: error?.message ?? null };
   },

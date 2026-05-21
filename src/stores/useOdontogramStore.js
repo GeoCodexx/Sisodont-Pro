@@ -6,10 +6,24 @@ import {
   ADULT_TEETH, CHILD_TEETH,
 } from "../pages/odontogram/odontogramConstants";
 
+// ─────────────────────────────────────────────────────────────
+// useOdontogramStore
+//
+// Un paciente tiene UN solo registro en `odontograms`.
+// El tipo (adulto/niño) se elige al crear por primera vez
+// y queda fijo — se infiere de los números de dientes guardados.
+//
+// Reglas:
+//   - Si odontogramId !== null → ya existe, tipo bloqueado
+//   - Si odontogramId === null → nuevo, tipo seleccionable
+//   - setOdontogramType NUNCA borra datos ya guardados
+// ─────────────────────────────────────────────────────────────
+
 export const useOdontogramStore = create((set, get) => ({
   data:           null,
   odontogramId:   null,
   odontogramType: "adult",  // 'adult' | 'child'
+  isNew:          true,     // true = sin registro guardado aún
   actions:        DEFAULT_ACTIONS,
   selectedTooth:  null,
   selectedAction: null,
@@ -28,21 +42,35 @@ export const useOdontogramStore = create((set, get) => ({
     if (data?.length) set({ actions: data });
   },
 
-  // ── Cambiar tipo (adulto / niño) ──────────────────────────
+  // ── Cambiar tipo (SOLO para odontogramas nuevos) ──────────
+  // Si ya existe un odontograma guardado, esta función no hace nada.
+  // Esto evita que al cambiar el toggle se borren datos reales.
   setOdontogramType: (type) => {
-    const { data } = get();
-    if (!data) { set({ odontogramType: type }); return; }
+    const { odontogramId, isNew } = get();
+
+    // Bloqueado si ya existe registro guardado
+    if (odontogramId || !isNew) return;
 
     const targetTeeth = type === "child" ? CHILD_TEETH : ADULT_TEETH;
-    const existing    = Object.fromEntries(data.teeth.map((t) => [t.number, t]));
-    const newTeeth    = targetTeeth.map((n) => existing[n] ?? emptyTooth(n));
+    const newTeeth    = targetTeeth.map((n) => emptyTooth(n));
 
-    set({ odontogramType: type, data: { teeth: newTeeth }, selectedTooth: null });
+    set({
+      odontogramType: type,
+      data:           { teeth: newTeeth },
+      selectedTooth:  null,
+      dirty:          false,
+    });
   },
 
-  // ── Cargar odontograma ────────────────────────────────────
+  // ── Cargar odontograma del paciente ───────────────────────
   fetchOdontogram: async (patientId) => {
-    set({ loading: true, error: null, dirty: false, selectedTooth: null, selectedAction: null });
+    set({
+      loading:        true,
+      error:          null,
+      dirty:          false,
+      selectedTooth:  null,
+      selectedAction: null,
+    });
 
     const { data, error } = await supabase
       .from("odontograms")
@@ -53,25 +81,37 @@ export const useOdontogramStore = create((set, get) => ({
     if (error) { set({ error: error.message, loading: false }); return; }
 
     if (data) {
-      const savedTeeth  = data.data?.teeth ?? [];
-      const savedMap    = Object.fromEntries(savedTeeth.map((t) => [t.number, t]));
-      const hasChild    = savedTeeth.some((t) => t.number >= 51 && t.number <= 85);
-      const type        = hasChild ? "child" : "adult";
+      // ── Odontograma existente ────────────────────────────
+      const savedTeeth = data.data?.teeth ?? [];
+      const savedMap   = Object.fromEntries(savedTeeth.map((t) => [t.number, t]));
+
+      // Detectar tipo por los números de dientes guardados
+      // Niño: números 51-85 (numeración FDI)
+      const hasChildTeeth = savedTeeth.some(
+        (t) => t.number >= 51 && t.number <= 85
+      );
+      const type        = hasChildTeeth ? "child" : "adult";
       const targetTeeth = type === "child" ? CHILD_TEETH : ADULT_TEETH;
-      const allTeeth    = targetTeeth.map((n) => savedMap[n] ?? emptyTooth(n));
+
+      // Combinar dientes guardados con los del esquema
+      // (por si se agregaron dientes nuevos al esquema)
+      const allTeeth = targetTeeth.map((n) => savedMap[n] ?? emptyTooth(n));
 
       set({
-        data: { teeth: allTeeth },
+        data:           { teeth: allTeeth },
         odontogramId:   data.id,
         odontogramType: type,
-        loading: false,
+        isNew:          false,  // ← tipo bloqueado
+        loading:        false,
       });
     } else {
+      // ── Odontograma nuevo — por defecto adulto ───────────
       set({
         data:           initialOdontogramData("adult"),
         odontogramId:   null,
         odontogramType: "adult",
-        loading: false,
+        isNew:          true,  // ← tipo seleccionable
+        loading:        false,
       });
     }
   },
@@ -134,8 +174,6 @@ export const useOdontogramStore = create((set, get) => ({
   },
 
   // ── Guardar ───────────────────────────────────────────────
-  // updated_by se resuelve internamente — el componente
-  // ya no necesita pasar profile?.id como argumento
   saveOdontogram: async (patientId) => {
     const { data, odontogramId } = get();
     if (!data) return { error: "Sin datos para guardar" };
@@ -165,7 +203,10 @@ export const useOdontogramStore = create((set, get) => ({
         .select("id")
         .single();
       error = res.error;
-      if (!error && res.data) set({ odontogramId: res.data.id });
+      if (!error && res.data) {
+        // Al guardar por primera vez → bloquear tipo
+        set({ odontogramId: res.data.id, isNew: false });
+      }
     }
 
     set({ saving: false, dirty: !!error });
@@ -176,6 +217,7 @@ export const useOdontogramStore = create((set, get) => ({
     data:           null,
     odontogramId:   null,
     odontogramType: "adult",
+    isNew:          true,
     selectedTooth:  null,
     selectedAction: null,
     dirty:          false,

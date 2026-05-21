@@ -97,6 +97,20 @@ const NAV_ITEMS = [
     roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
   },
 
+  // Solo Paciente con acceso a Portal
+  {
+    label: "Mis citas",
+    path: "/my-appointments",
+    icon: <CalendarMonthIcon />,
+    roles: ["PATIENT"],
+  },
+  {
+    label: "Mi Odontograma",
+    path: "/odontogram",
+    icon: <MedicalServicesIcon />,
+    roles: ["PATIENT"],
+  },
+
   // ── Compartido ─────────────────────────────────────────────
   {
     label: "Mi perfil",

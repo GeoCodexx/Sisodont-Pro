@@ -866,6 +866,7 @@ export default function TreatmentCasesPanel({ patientId }) {
                       <Box
                         sx={{
                           display: "flex",
+                          flexDirection: { xs: "column", sm: "row" },
                           alignItems: "center",
                           gap: 0.75,
                           flexShrink: 0,

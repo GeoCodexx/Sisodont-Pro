@@ -9,7 +9,6 @@ import {
   Alert,
   CircularProgress,
   Avatar,
-  Divider,
   Chip,
   Typography,
 } from "@mui/material";
@@ -23,12 +22,14 @@ const ROLE_LABELS = {
   DOCTOR: "Doctor",
   ASSISTANT: "Asistente",
   PATIENT: "Paciente",
+  SUPER_ADMIN: "Super Admin",
 };
 const ROLE_COLORS = {
   ADMIN: "error",
   DOCTOR: "primary",
   ASSISTANT: "warning",
   PATIENT: "default",
+  SUPER_ADMIN: "warning",
 };
 
 function initials(name = "") {
@@ -42,7 +43,11 @@ function initials(name = "") {
 
 export default function ProfilePage() {
   const { isMobile } = useBreakpoint();
-  const { profile, setProfile } = useAuthStore();
+
+  // Selectores granulares — ProfilePage solo re-renderiza
+  // cuando cambian estos campos específicos del store
+  const profile = useAuthStore((s) => s.profile);
+  const refreshProfile = useAuthStore((s) => s.refreshProfile);
 
   const [form, setForm] = useState({ full_name: "", phone: "" });
   const [pwForm, setPwForm] = useState({ password: "", confirm: "" });
@@ -63,6 +68,10 @@ export default function ProfilePage() {
   const set = (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value }));
   const setPw = (f) => (e) => setPwForm((p) => ({ ...p, [f]: e.target.value }));
 
+  // ── Guardar datos personales ──────────────────────────────
+  // Actualiza en Supabase y luego refresca el store completo
+  // via refreshProfile() para que el Sidebar y AppBar
+  // muestren el nuevo nombre sin necesidad de recargar.
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     if (!form.full_name.trim()) {
@@ -70,15 +79,17 @@ export default function ProfilePage() {
       return;
     }
     setSaving(true);
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("profiles")
-      .update({ full_name: form.full_name, phone: form.phone })
-      .eq("id", profile.id)
-      .select()
-      .single();
-    if (error) setFeedback({ msg: error.message, type: "error" });
-    else {
-      setProfile(data);
+      .update({ full_name: form.full_name.trim(), phone: form.phone || null })
+      .eq("id", profile.id);
+
+    if (error) {
+      setFeedback({ msg: error.message, type: "error" });
+    } else {
+      // refreshProfile vuelve a hacer fetch del profile completo
+      // y actualiza todos los campos derivados del store
+      await refreshProfile();
       setFeedback({
         msg: "Perfil actualizado correctamente.",
         type: "success",
@@ -87,6 +98,7 @@ export default function ProfilePage() {
     setSaving(false);
   };
 
+  // ── Cambiar contraseña ────────────────────────────────────
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (pwForm.password.length < 6) {
@@ -101,8 +113,9 @@ export default function ProfilePage() {
     const { error } = await supabase.auth.updateUser({
       password: pwForm.password,
     });
-    if (error) setFeedbackPw({ msg: error.message, type: "error" });
-    else {
+    if (error) {
+      setFeedbackPw({ msg: error.message, type: "error" });
+    } else {
       setFeedbackPw({ msg: "Contraseña actualizada.", type: "success" });
       setPwForm({ password: "", confirm: "" });
     }
@@ -119,14 +132,7 @@ export default function ProfilePage() {
         {/* Tarjeta de resumen */}
         <Grid size={{ xs: 12 }}>
           <Card variant="outlined">
-            <CardContent
-              sx={{
-                display: "flex",
-                alignItems: { xs: "flex-start", sm: "center" },
-                flexDirection: { xs: "row", sm: "row" },
-                gap: 2,
-              }}
-            >
+            <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Avatar
                 sx={{
                   width: { xs: 52, sm: 72 },
@@ -147,7 +153,6 @@ export default function ProfilePage() {
                 </Typography>
                 <Typography
                   variant="body2"
-                  //color="text.secondary"
                   sx={{
                     wordBreak: "break-all",
                     mb: 1,
@@ -170,10 +175,7 @@ export default function ProfilePage() {
         <Grid size={{ xs: 12 }}>
           <Card variant="outlined">
             <CardContent>
-              <Typography
-                variant="subtitle2"
-                sx={{ wordBreak: "break-all", mb: 2 }}
-              >
+              <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 2 }}>
                 Datos personales
               </Typography>
 

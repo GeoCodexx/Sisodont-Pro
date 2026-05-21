@@ -23,7 +23,7 @@ import { useOdontogramStore } from "../../stores/useOdontogramStore";
 // ── Tamaño del diente ampliado ────────────────────────────────
 const BIG = 220; // tamaño total del diente en el modal
 const BC = BIG / 2;
-const BIN = BIG * 0.22; // factor triángulos
+const BIN = BIG * 0.18; // factor triángulos
 
 const BIG_POLYGONS = {
   top: `${BC},${BC - BIN}  ${BIG - BIN},${BIN}  ${BIN},${BIN}`,
@@ -155,7 +155,7 @@ function BigToothSVG({
                 x={lp.x}
                 y={lp.y}
                 textAnchor={lp.anchor}
-                fontSize={10}
+                fontSize={12}
                 fill={painted ? "#fff" : labelColor}
                 style={{ pointerEvents: "none", userSelect: "none" }}
                 fontWeight={painted ? 600 : 400}

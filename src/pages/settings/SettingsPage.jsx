@@ -1,73 +1,61 @@
 import { useEffect, useState } from "react";
 import {
-  Box,
-  Grid,
-  Card,
-  CardContent,
-  TextField,
-  Button,
-  Alert,
-  CircularProgress,
-  Divider,
-  InputAdornment,
-  Typography,
+  Box, Grid, Card, CardContent,
+  TextField, Button, Alert, CircularProgress,
+  Divider, InputAdornment, Typography,
 } from "@mui/material";
 import { useSettingsStore } from "../../stores/useSettingsStore";
-import { useAuthStore } from "../../stores/useAuthStore";
-import { useBreakpoint } from "../../hooks/useBreakpoint";
-import PageHeader from "../../components/PageHeader";
+import { useBreakpoint }    from "../../hooks/useBreakpoint";
+import PageHeader           from "../../components/PageHeader";
+
+// ─────────────────────────────────────────────────────────────
+// Nota: useAuthStore ya NO se importa aquí.
+// updated_by lo resuelve updateMany internamente desde el store.
+// ─────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const { isMobile } = useBreakpoint();
+  const { isMobile }                                    = useBreakpoint();
   const { settings, loading, saving, fetchSettings, updateMany } =
     useSettingsStore();
-  const { profile } = useAuthStore();
 
   const [form, setForm] = useState({
-    clinic_name: "",
-    clinic_phone: "",
-    clinic_address: "",
-    currency: "S/",
+    clinic_name:              "",
+    clinic_phone:             "",
+    clinic_address:           "",
+    currency:                 "S/",
     appointment_slot_minutes: "30",
   });
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
+  useEffect(() => { fetchSettings(); }, []);
 
   useEffect(() => {
     if (Object.keys(settings).length) {
       setForm({
-        clinic_name: settings.clinic_name ?? "",
-        clinic_phone: settings.clinic_phone ?? "",
-        clinic_address: settings.clinic_address ?? "",
-        currency: settings.currency ?? "S/",
-        appointment_slot_minutes: String(
-          settings.appointment_slot_minutes ?? 30,
-        ),
+        clinic_name:              settings.clinic_name              ?? "",
+        clinic_phone:             settings.clinic_phone             ?? "",
+        clinic_address:           settings.clinic_address           ?? "",
+        currency:                 settings.currency                 ?? "S/",
+        appointment_slot_minutes: String(settings.appointment_slot_minutes ?? 30),
       });
     }
   }, [settings]);
 
   const set = (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value }));
 
+  // updated_by ya no se pasa — el store lo resuelve internamente
   const handleSave = async (e) => {
     e.preventDefault();
     const updates = {
-      clinic_name: form.clinic_name,
-      clinic_phone: form.clinic_phone,
-      clinic_address: form.clinic_address,
-      currency: form.currency,
+      clinic_name:              form.clinic_name,
+      clinic_phone:             form.clinic_phone,
+      clinic_address:           form.clinic_address,
+      currency:                 form.currency,
       appointment_slot_minutes: parseInt(form.appointment_slot_minutes) || 30,
     };
-    const { error } = await updateMany(updates, profile?.id);
+    const { error } = await updateMany(updates);
     if (error) setFeedback({ msg: error, type: "error" });
-    else
-      setFeedback({
-        msg: "Configuración guardada correctamente.",
-        type: "success",
-      });
+    else       setFeedback({ msg: "Configuración guardada correctamente.", type: "success" });
   };
 
   return (
@@ -80,6 +68,7 @@ export default function SettingsPage() {
         </Box>
       ) : (
         <Grid container spacing={{ xs: 2, sm: 3 }}>
+
           {/* Datos de la clínica */}
           <Grid size={{ xs: 12 }}>
             <Card variant="outlined">
@@ -150,16 +139,14 @@ export default function SettingsPage() {
                         onChange={set("appointment_slot_minutes")}
                         size="small"
                         fullWidth
+                        helperText="Duración base de cada cita en el calendario"
                         slotProps={{
                           input: {
                             endAdornment: (
-                              <InputAdornment position="end">
-                                min
-                              </InputAdornment>
+                              <InputAdornment position="end">min</InputAdornment>
                             ),
                           },
                         }}
-                        helperText="Duración base de cada cita en el calendario"
                       />
                     </Grid>
 
@@ -170,11 +157,10 @@ export default function SettingsPage() {
                         disabled={saving}
                         fullWidth={isMobile}
                       >
-                        {saving ? (
-                          <CircularProgress size={20} color="inherit" />
-                        ) : (
-                          "Guardar configuración"
-                        )}
+                        {saving
+                          ? <CircularProgress size={20} color="inherit" />
+                          : "Guardar configuración"
+                        }
                       </Button>
                     </Grid>
                   </Grid>
@@ -184,48 +170,38 @@ export default function SettingsPage() {
           </Grid>
 
           {/* Acciones del odontograma */}
-          <Grid size={{ xs: 12 }}>
+          {/* <Grid size={{ xs: 12 }}>
             <Card variant="outlined">
               <CardContent>
                 <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1 }}>
                   Acciones del odontograma
                 </Typography>
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                <Typography variant="body2" color="textSecondary">
                   Los colores y nombres se gestionan desde la tabla{" "}
                   <code>odontogram_actions</code> en Supabase, o puedes agregar
                   una pestaña en el Catálogo para gestionarlos desde la app.
                 </Typography>
               </CardContent>
             </Card>
-          </Grid>
+          </Grid> */}
 
           {/* Info del sistema */}
           <Grid size={{ xs: 12 }}>
             <Card variant="outlined">
               <CardContent>
-                <Typography
-                  variant="subtitle2"
-                  sx={{ fontWeight: 500, mb: 1.5 }}
-                >
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1.5 }}>
                   Información del sistema
                 </Typography>
                 <Grid container spacing={1}>
                   {[
-                    ["Versión", "1.0.0"],
-                    ["Stack", "React + Supabase + Zustand + MUI"],
-                    ["Zona horaria", "America/Lima"],
-                    ["Base de datos", "PostgreSQL (Supabase)"],
+                    ["Versión",        "1.0.0"],
+                    ["Stack",          "React + Supabase + Zustand + MUI"],
+                    ["Zona horaria",   "America/Lima"],
+                    ["Base de datos",  "PostgreSQL (Supabase)"],
                   ].map(([k, v]) => (
                     <Grid size={{ xs: 12, sm: 6 }} key={k}>
                       <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                        <Typography
-                          variant="body2"
-                          //color="text.secondary"
-                          sx={{
-                            minWidth: { xs: "auto", sm: 110 },
-                            color: "text.secondary",
-                          }}
-                        >
+                        <Typography variant="body2" sx={{ minWidth: { xs: "auto", sm: 110 }, color: "text.secondary" }}>
                           {k}:
                         </Typography>
                         <Typography variant="body2">{v}</Typography>
@@ -236,6 +212,7 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           </Grid>
+
         </Grid>
       )}
     </Box>

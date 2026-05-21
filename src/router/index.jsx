@@ -5,68 +5,74 @@ import {
   SuperAdminRoute,
   getRoleHome,
 } from "../components/RoleRoute";
+import { useAuthStore } from "../stores/useAuthStore";
 
-// ── Layouts ──────────────────────────────────────────────────
+// ── Layouts ───────────────────────────────────────────────────
 import MainLayout from "../layouts/MainLayout";
-// TODO Módulo 3: crear SuperAdminLayout
-// import SuperAdminLayout from "../layouts/SuperAdminLayout";
+import SuperAdminLayout from "../layouts/SuperAdminLayout";
 
-// ── Pages: Auth ──────────────────────────────────────────────
+// ── Auth ──────────────────────────────────────────────────────
 import LoginPage from "../pages/auth/LoginPage";
 import UsersPage from "../pages/auth/UsersPage";
 
-// ── Pages: Clínicas ──────────────────────────────────────────
+// ── Clínica ───────────────────────────────────────────────────
 import PatientsPage from "../pages/patients/PatientsPage";
 import PatientDetailPage from "../pages/patients/PatientDetailPage";
 import AppointmentsPage from "../pages/appointments/AppointmentsPage";
 import OdontogramPage from "../pages/odontogram/OdontogramPage";
 import HistoryPage from "../pages/history/HistoryPage";
 
-// ── Pages: Finanzas ──────────────────────────────────────────
+// ── Finanzas ──────────────────────────────────────────────────
 import PaymentsPage from "../pages/payments/PaymentsPage";
 
-// ── Pages: Config ────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────
 import CatalogPage from "../pages/catalog/CatalogPage";
 import SettingsPage from "../pages/settings/SettingsPage";
 import ProfilePage from "../pages/profile/ProfilePage";
 
-// ── Pages: Dashboard ─────────────────────────────────────────
+// ── Dashboard ─────────────────────────────────────────────────
 import DashboardPage from "../pages/dashboard/DashboardPage";
+import MyAppointmentsPage from "../pages/my-appointments/MyAppointmentsPage";
 
-// ── Pages: Super Admin (TODO Módulo 4) ───────────────────────
-// import SuperAdminDashboard from "../pages/super-admin/SuperAdminDashboard";
-// import TenantsPage        from "../pages/super-admin/TenantsPage";
-// import TenantDetailPage   from "../pages/super-admin/TenantDetailPage";
+// ── Super Admin ───────────────────────────────────────────────
+import SuperAdminDashboard from "../pages/super-admin/SuperAdminDashboard";
+import TenantDetailPage from "../pages/super-admin/TenantDetailPage";
+import SuperAdminCatalogPage from "../pages/super-admin/SuperAdminCatalogPage";
 
 // ─────────────────────────────────────────────────────────────
-// Grupos de roles reutilizables
+// Grupos de roles
 // ─────────────────────────────────────────────────────────────
 const STAFF = ["ADMIN", "DOCTOR", "ASSISTANT"];
 const ALL = ["ADMIN", "DOCTOR", "ASSISTANT", "PATIENT"];
 
 // ─────────────────────────────────────────────────────────────
-// Redirect raíz inteligente
-// Lee el role del store para redirigir al home correcto.
-// Se usa en { index: true } de la ruta raíz.
+// RootRedirect — redirige según rol, nunca hardcodea /dashboard
 // ─────────────────────────────────────────────────────────────
-import { useAuthStore } from "../stores/useAuthStore";
-
 function RootRedirect() {
-  const { role } = useAuthStore();
+  const role = useAuthStore((s) => s.role);
   return <Navigate to={getRoleHome(role)} replace />;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Router
-// ─────────────────────────────────────────────────────────────
 export const router = createBrowserRouter([
-  // ── Pública ──────────────────────────────────────────────
+  // ── Pública ───────────────────────────────────────────────
+  { path: "/login", element: <LoginPage /> },
+
+  // ── Super Admin ───────────────────────────────────────────
   {
-    path: "/login",
-    element: <LoginPage />,
+    path: "/super-admin",
+    element: (
+      <SuperAdminRoute>
+        <SuperAdminLayout />
+      </SuperAdminRoute>
+    ),
+    children: [
+      { index: true, element: <SuperAdminDashboard /> },
+      { path: "tenants/:id", element: <TenantDetailPage /> },
+      { path: "catalog", element: <SuperAdminCatalogPage /> },
+    ],
   },
 
-  // ── App principal (staff + patient) ──────────────────────
+  // ── App clínica ───────────────────────────────────────────
   {
     path: "/",
     element: (
@@ -75,13 +81,8 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      // Redirect inteligente según rol
-      {
-        index: true,
-        element: <RootRedirect />,
-      },
+      { index: true, element: <RootRedirect /> },
 
-      // Dashboard (staff)
       {
         path: "dashboard",
         element: (
@@ -90,8 +91,6 @@ export const router = createBrowserRouter([
           </RoleRoute>
         ),
       },
-
-      // Usuarios — solo ADMIN
       {
         path: "users",
         element: (
@@ -100,8 +99,6 @@ export const router = createBrowserRouter([
           </RoleRoute>
         ),
       },
-
-      // Catálogo — solo ADMIN
       {
         path: "catalog",
         element: (
@@ -110,8 +107,6 @@ export const router = createBrowserRouter([
           </RoleRoute>
         ),
       },
-
-      // Pacientes
       {
         path: "patients",
         element: (
@@ -128,8 +123,6 @@ export const router = createBrowserRouter([
           </RoleRoute>
         ),
       },
-
-      // Citas
       {
         path: "appointments",
         element: (
@@ -138,8 +131,14 @@ export const router = createBrowserRouter([
           </RoleRoute>
         ),
       },
-
-      // Pagos
+      {
+        path: "my-appointments",
+        element: (
+          <RoleRoute allowed={["PATIENT"]}>
+            <MyAppointmentsPage />
+          </RoleRoute>
+        ),
+      },
       {
         path: "payments",
         element: (
@@ -148,8 +147,6 @@ export const router = createBrowserRouter([
           </RoleRoute>
         ),
       },
-
-      // Historial
       {
         path: "history",
         element: (
@@ -158,18 +155,14 @@ export const router = createBrowserRouter([
           </RoleRoute>
         ),
       },
-
-      // Odontograma
       {
         path: "odontogram",
         element: (
-          <RoleRoute allowed={STAFF}>
+          <RoleRoute allowed={[...STAFF, "PATIENT"]}>
             <OdontogramPage />
           </RoleRoute>
         ),
       },
-
-      // Perfil — todos los roles
       {
         path: "profile",
         element: (
@@ -178,8 +171,6 @@ export const router = createBrowserRouter([
           </RoleRoute>
         ),
       },
-
-      // Configuración — solo ADMIN
       {
         path: "settings",
         element: (
@@ -188,38 +179,9 @@ export const router = createBrowserRouter([
           </RoleRoute>
         ),
       },
-
-      // Vista paciente: sus citas (TODO Módulo 4)
-      // {
-      //   path: "my-appointments",
-      //   element: (
-      //     <RoleRoute allowed={["PATIENT"]}>
-      //       <MyAppointmentsPage />
-      //     </RoleRoute>
-      //   ),
-      // },
     ],
   },
 
-  // ── Super Admin (módulo independiente) ───────────────────
-  // TODO Módulo 4: descomentar cuando existan las páginas
-  // {
-  //   path: "/super-admin",
-  //   element: (
-  //     <SuperAdminRoute>
-  //       <SuperAdminLayout />
-  //     </SuperAdminRoute>
-  //   ),
-  //   children: [
-  //     { index: true,             element: <SuperAdminDashboard /> },
-  //     { path: "tenants",         element: <TenantsPage /> },
-  //     { path: "tenants/:id",     element: <TenantDetailPage /> },
-  //   ],
-  // },
-
   // ── Fallback ──────────────────────────────────────────────
-  {
-    path: "*",
-    element: <Navigate to="/" replace />,
-  },
+  { path: "*", element: <Navigate to="/" replace /> },
 ]);
