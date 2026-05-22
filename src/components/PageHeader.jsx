@@ -19,11 +19,11 @@ export default function PageHeader({ title, subtitle, actions }) {
       }}
     >
       <Box>
-        <Typography variant="h6" fontWeight={500} sx={{ lineHeight: 1.2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
           {title}
         </Typography>
         {subtitle && (
-          <Typography variant="body2" color="text.secondary" mt={0.25}>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 0.25 }}>
             {subtitle}
           </Typography>
         )}

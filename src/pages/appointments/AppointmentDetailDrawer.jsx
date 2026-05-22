@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../services/supabaseClient";
 import {
   Drawer,
@@ -18,7 +19,6 @@ import {
   useMediaQuery,
   MenuItem,
   Grid,
-  Autocomplete,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -26,13 +26,23 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import PendingIcon from "@mui/icons-material/Pending";
 import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
+
 import { useAppointmentStore } from "../../stores/useAppointmentStore";
 import { useCatalogStore } from "../../stores/useCatalogStore";
 import { useTreatmentCaseStore } from "../../stores/useTreatmentCaseStore";
+import { useLedgerStore } from "../../stores/useLedgerStore";
 import { useRole } from "../../hooks/useRole";
-import { useNavigate } from "react-router-dom";
-import { usePaymentStore } from "../../stores/usePaymentStore";
-import { useAuthStore } from "../../stores/useAuthStore";
+
+// ─────────────────────────────────────────────────────────────
+// Cambios respecto al original:
+// 1. usePaymentStore → useLedgerStore
+// 2. loadCaseFinancials → lee financial_summary (no payments_summary)
+// 3. handlePayment → useLedgerStore.register con ref_type='appointment'
+// 4. paymentInfo: paid viene de appointments_full.paid (calculado
+//    desde ledger_entries en la view) — no de appointments.paid manual
+// 5. EditSection.createCase: created_by eliminado (store lo resuelve)
+// 6. EditSection: useAuthStore eliminado (no necesita profile?.id)
+// ─────────────────────────────────────────────────────────────
 
 const STATUS_META = {
   pendiente: {
@@ -68,17 +78,21 @@ function Row({ label, value }) {
   );
 }
 
-// ── Sección de edición de cita ────────────────────────────────
-// Reglas:
+// ─────────────────────────────────────────────────────────────
+// EditSection
+// Reglas (sin cambios de lógica respecto al original):
 // - Solo citas sin case_id (sesión única / Consulta)
 // - Permite cambiar tratamiento, doctor, total y notas
-// - Si se cambia a tratamiento multisesión: crea treatment_case + vincula case_id
-// - No permite editar de multisesión a otro tratamiento (demasiado riesgo de inconsistencia)
+// - Si se cambia a multisesión: crea treatment_case + vincula case_id
+// - No permite editar de multisesión a otro tratamiento
+//
+// Cambio: created_by eliminado de createCase —
+//         useTreatmentCaseStore.createCase lo resuelve internamente
+// ─────────────────────────────────────────────────────────────
 function EditSection({ selected, onSaved, onCancel }) {
   const { doctors, treatments, fetchAll } = useCatalogStore();
   const { findOpenCase, createCase } = useTreatmentCaseStore();
   const { updateAppointment } = useAppointmentStore();
-  const { profile } = useAuthStore();
 
   const [form, setForm] = useState({
     treatment_id: selected.treatment_id ?? "",
@@ -111,11 +125,9 @@ function EditSection({ selected, onSaved, onCancel }) {
     fetchAll();
   }, []);
 
-  // Autocompletar precio y verificar caso al cambiar tratamiento
   useEffect(() => {
     if (!selectedTreatment) return;
 
-    // Obturación: reset campos de cálculo
     if (isObturacion) {
       setTeethCount("");
       if (selectedTreatment.unit_price)
@@ -131,7 +143,7 @@ function EditSection({ selected, onSaved, onCancel }) {
       return;
     }
 
-    // Multisesión: autocompletar costo y verificar caso abierto
+    // Multisesión: verificar caso abierto
     setTotalCost(String(selectedTreatment.price ?? ""));
     setCheckingCase(true);
     findOpenCase(selected.patient_id, form.treatment_id).then((found) => {
@@ -154,9 +166,8 @@ function EditSection({ selected, onSaved, onCancel }) {
 
     setSaving(true);
 
-    let caseId = selected.case_id ?? null; // normalmente null para citas editables
+    let caseId = selected.case_id ?? null;
 
-    // Si cambió a multisesión: crear o reutilizar caso
     if (isMultisession) {
       if (openCase) {
         caseId = openCase.id;
@@ -166,6 +177,7 @@ function EditSection({ selected, onSaved, onCancel }) {
           setSaving(false);
           return;
         }
+        // created_by ya NO se pasa — useTreatmentCaseStore.createCase lo resuelve
         const { data: newCase, error: caseError } = await createCase({
           patient_id: selected.patient_id,
           treatment_id: form.treatment_id,
@@ -173,7 +185,6 @@ function EditSection({ selected, onSaved, onCancel }) {
           notes: caseNotes || null,
           total_sessions: totalSessions ? parseInt(totalSessions) : null,
           total_cost: parseFloat(totalCost),
-          created_by: profile?.id ?? null,
         });
         if (caseError) {
           setError("Error al crear el caso: " + caseError);
@@ -294,7 +305,7 @@ function EditSection({ selected, onSaved, onCancel }) {
           </TextField>
         </Grid>
 
-        {/* Si cambió a multisesión: mostrar campos del caso */}
+        {/* Campos del caso si cambió a multisesión */}
         {isMultisession && (
           <Grid size={{ xs: 12 }}>
             {checkingCase ? (
@@ -329,7 +340,7 @@ function EditSection({ selected, onSaved, onCancel }) {
                     color: "primary.main",
                     fontWeight: 500,
                     display: "block",
-                    mb1,
+                    mb: 1,
                   }}
                 >
                   Nuevo caso de tratamiento
@@ -380,7 +391,7 @@ function EditSection({ selected, onSaved, onCancel }) {
           </Grid>
         )}
 
-        {/* Obturación dental: calculadora por diente */}
+        {/* Obturación dental */}
         {isObturacion && (
           <Grid size={{ xs: 12 }}>
             <Box
@@ -418,7 +429,6 @@ function EditSection({ selected, onSaved, onCancel }) {
                     fullWidth
                     autoFocus
                     slotProps={{ htmlInput: { min: 1, max: 32 } }}
-                    //helperText="Máximo 32"
                   />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
@@ -467,10 +477,7 @@ function EditSection({ selected, onSaved, onCancel }) {
                       ).toFixed(2)}
                     </Typography>
                     {parseInt(teethCount) > 0 && (
-                      <Typography
-                        variant="caption"
-                        //sx={{ color: "warning.dark" }}
-                      >
+                      <Typography variant="caption">
                         {teethCount} × S/{" "}
                         {parseFloat(unitPrice || 0).toFixed(2)}
                       </Typography>
@@ -482,7 +489,7 @@ function EditSection({ selected, onSaved, onCancel }) {
           </Grid>
         )}
 
-        {/* Total — solo para sesión única no obturación y no multisesión */}
+        {/* Total — solo sesión única, no obturación, no multisesión */}
         {!isMultisession && !isObturacion && (
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
@@ -544,17 +551,18 @@ function EditSection({ selected, onSaved, onCancel }) {
   );
 }
 
-// ── Drawer principal ──────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// AppointmentDetailDrawer — componente principal
+// ─────────────────────────────────────────────────────────────
 export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const navigate = useNavigate();
+  const { can } = useRole();
 
-  const { registerAppointmentPayment } = usePaymentStore();
-  const { profile } = useAuthStore();
   const { selected, saving, changeStatus, deleteAppointment, setSelected } =
     useAppointmentStore();
-  const { can } = useRole();
+  const { register } = useLedgerStore();
 
   const [form, setForm] = useState({
     amount: "",
@@ -566,14 +574,15 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
   const [loadingCase, setLoadingCase] = useState(false);
   const [editMode, setEditMode] = useState(false);
 
-  // Resetear modo edición al cambiar la cita seleccionada
   useEffect(() => {
     setEditMode(false);
     setFeedback({ msg: "", type: "success" });
     setForm({ amount: "", method: "efectivo", notes: "" });
-    if (selected) loadCaseFinancials();
-  }, [selected?.id]);
+    if (selected?.id) loadCaseFinancials();
+  }, [selected?.id, selected?.case_id, selected?.is_multisession]);
 
+  // ── Reload desde appointments_full ───────────────────────
+  // .paid se calcula desde ledger_entries en la view
   const reloadSelected = async () => {
     if (!selected?.id) return;
     const { data } = await supabase
@@ -584,6 +593,9 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
     if (data) setSelected(data);
   };
 
+  // ── Financiero del caso multisesión ───────────────────────
+  // Lee financial_summary — billed/collected/balance
+  // (payments_summary fue eliminada en la migración)
   const loadCaseFinancials = async () => {
     if (!selected?.case_id || !selected?.is_multisession) {
       setCaseFinancials(null);
@@ -591,17 +603,20 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
     }
     setLoadingCase(true);
     const { data, error } = await supabase
-      .from("payments_summary")
-      .select("*")
-      .eq("payment_type", "case")
+      .from("financial_summary")
+      .select("billed, collected, balance")
+      .eq("ref_type", "case")
       .eq("ref_id", selected.case_id)
       .single();
+
     if (!error && data) {
       setCaseFinancials({
-        total: Number(data.total ?? 0),
-        paid: Number(data.paid ?? 0),
+        total: Number(data.billed ?? 0),
+        paid: Number(data.collected ?? 0),
         balance: Number(data.balance ?? 0),
       });
+    } else {
+      setCaseFinancials(null);
     }
     setLoadingCase(false);
   };
@@ -610,17 +625,20 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
 
   const isCaseAppointment = !!(selected?.is_multisession && selected?.case_id);
 
-  // Edición solo para citas cuyo tratamiento sea "Consulta" (o sin tratamiento)
-  // y que no estén canceladas ni sean sesión multisesión
   const isConsulta =
     !selected.treatment_name ||
     selected.treatment_name.toUpperCase().includes("CONSULTA");
+
   const canEdit =
     can(["ADMIN", "ASSISTANT"]) &&
     !isCaseAppointment &&
     isConsulta &&
     selected.status !== "cancelado";
 
+  // paymentInfo:
+  // - Cita individual: .paid viene de appointments_full.paid
+  //   (SUM de ledger_entries calculado en la view)
+  // - Caso multisesión: viene de financial_summary
   const paymentInfo = isCaseAppointment
     ? (caseFinancials ?? { total: 0, paid: 0, balance: 0 })
     : {
@@ -634,6 +652,15 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
   const setField = (f) => (e) =>
     setForm((p) => ({ ...p, [f]: e.target.value }));
 
+  const fmt = (iso) =>
+    iso
+      ? new Date(iso).toLocaleString("es-PE", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        })
+      : "—";
+
+  // ── Cambiar estado ────────────────────────────────────────
   const handleStatus = async (status) => {
     const { error } = await changeStatus(selected.id, status);
     if (error) setFeedback({ msg: error, type: "error" });
@@ -643,6 +670,9 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
     }
   };
 
+  // ── Registrar pago (cita individual) ─────────────────────
+  // useLedgerStore.register → inserta en ledger_entries
+  // ref_type='appointment', created_by resuelto en el store
   const handlePayment = async () => {
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) {
@@ -654,12 +684,12 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
       return;
     }
 
-    const { error } = await registerAppointmentPayment({
-      appointmentId: selected.id,
+    const { error } = await register({
+      refType: "appointment",
+      refId: selected.id,
       amount,
       method: form.method,
       notes: form.notes || null,
-      createdBy: profile?.id,
     });
 
     if (error) {
@@ -669,11 +699,12 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
 
     setFeedback({ msg: "Pago registrado.", type: "success" });
     setForm({ amount: "", method: "efectivo", notes: "" });
+    // appointments_full.paid se recalcula automáticamente desde ledger_entries
     await reloadSelected();
-    if (isCaseAppointment) await loadCaseFinancials();
     onUpdate();
   };
 
+  // ── Eliminar cita ─────────────────────────────────────────
   const handleDelete = async () => {
     if (!window.confirm("¿Eliminar esta cita?")) return;
     const { error } = await deleteAppointment(selected.id);
@@ -683,14 +714,6 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
       onUpdate();
     }
   };
-
-  const fmt = (iso) =>
-    iso
-      ? new Date(iso).toLocaleString("es-PE", {
-          dateStyle: "medium",
-          timeStyle: "short",
-        })
-      : "—";
 
   return (
     <Drawer
@@ -710,6 +733,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
         },
       }}
     >
+      {/* Handle móvil */}
       {isMobile && (
         <Box sx={{ display: "flex", justifyContent: "center", pt: 1, pb: 0.5 }}>
           <Box
@@ -750,7 +774,6 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
             </Box>
           </Box>
           <Box sx={{ display: "flex", gap: 0.5 }}>
-            {/* Botón editar — solo para citas únicas editables */}
             {canEdit && !editMode && (
               <Tooltip title="Editar cita">
                 <IconButton size="small" onClick={() => setEditMode(true)}>
@@ -776,17 +799,21 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
 
         <Divider sx={{ mb: 2 }} />
 
-        {/* ── Modo edición ── */}
+        {/* Modo edición */}
         {editMode ? (
           <EditSection
             selected={selected}
             onSaved={async () => {
               setEditMode(false);
+
+              await reloadSelected();
+              await loadCaseFinancials();
+
               setFeedback({
                 msg: "Cita actualizada correctamente.",
                 type: "success",
               });
-              await reloadSelected();
+
               onUpdate();
             }}
             onCancel={() => setEditMode(false)}
@@ -828,6 +855,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
                 ? "Resumen financiero del tratamiento"
                 : "Pagos"}
             </Typography>
+
             <Box
               sx={{
                 display: "grid",
@@ -860,21 +888,18 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
                   >
                     {label}
                   </Typography>
-                  {loadingCase && label === "Saldo" ? (
+                  {loadingCase ? (
                     <CircularProgress size={16} />
                   ) : (
-                    <Typography
-                      variant="body2"
-                      sx={{ fontWeight: 500, color: color }}
-                    >
-                      S/ {Number(value).toFixed(2)}
+                    <Typography variant="body2" sx={{ fontWeight: 500, color }}>
+                      S/ {Number(value ?? 0).toFixed(2)}
                     </Typography>
                   )}
                 </Box>
               ))}
             </Box>
 
-            {/* Multisesión: redirigir a ficha del paciente */}
+            {/* Caso multisesión → redirigir a ficha del paciente */}
             {isCaseAppointment ? (
               <>
                 <Alert severity="info" sx={{ mb: 2 }}>
@@ -886,11 +911,12 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
                   variant="contained"
                   sx={{ mb: 2 }}
                   onClick={() => {
-                    const pid = selected.patient_id;
-                    const cid = selected.case_id;
                     onClose();
                     setTimeout(
-                      () => navigate(`/patients/${pid}?case=${cid}`),
+                      () =>
+                        navigate(
+                          `/patients/${selected.patient_id}?case=${selected.case_id}`,
+                        ),
                       150,
                     );
                   }}
@@ -899,7 +925,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
                 </Button>
               </>
             ) : (
-              /* Cita individual: formulario de pago */
+              /* Cita individual — formulario de pago */
               <>
                 {can(["ADMIN", "ASSISTANT"]) && balance > 0 && (
                   <>
@@ -984,8 +1010,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
                     </Grid>
                   </>
                 )}
-
-                {balance <= 0 && Number(selected.paid) > 0 && (
+                {balance <= 0 && Number(selected.paid ?? 0) > 0 && (
                   <Alert severity="success" icon={false} sx={{ mb: 2 }}>
                     Cita completamente pagada.
                   </Alert>
@@ -995,7 +1020,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
 
             <Divider sx={{ my: 2 }} />
 
-            {/* Cambio de estado */}
+            {/* Cambiar estado */}
             {can(["ADMIN", "DOCTOR", "ASSISTANT"]) && (
               <>
                 <Typography

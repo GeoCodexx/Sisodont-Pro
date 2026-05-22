@@ -28,7 +28,7 @@ export default function StatusDonutChart({ kpis }) {
   return (
     <Card variant="outlined" sx={{ height: "100%" }}>
       <CardContent>
-        <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
           Distribución de citas
         </Typography>
         <ResponsiveContainer width="100%" height={220}>

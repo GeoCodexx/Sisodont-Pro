@@ -89,7 +89,7 @@ export default function ExportMenu({
         }}
       >
         <MenuItem disabled sx={{ opacity: "1 !important" }}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" color="textSecondary">
             {totalRows} registro{totalRows !== 1 ? "s" : ""} (filtros aplicados)
           </Typography>
         </MenuItem>

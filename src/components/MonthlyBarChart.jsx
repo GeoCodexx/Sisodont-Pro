@@ -30,7 +30,7 @@ export default function MonthlyBarChart({ data }) {
   return (
     <Card variant="outlined" sx={{ height: "100%" }}>
       <CardContent>
-        <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 2 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
           Citas por mes
         </Typography>
         <ResponsiveContainer width="100%" height={220}>

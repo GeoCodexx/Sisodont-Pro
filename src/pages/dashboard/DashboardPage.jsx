@@ -18,6 +18,8 @@ import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
+import TaskIcon from "@mui/icons-material/Task";
 import TuneIcon from "@mui/icons-material/Tune";
 
 import { useDashboardStore } from "../../stores/useDashboardStore";
@@ -30,7 +32,10 @@ import TopRankingsCard from "../../components/TopRankingsCard";
 import RecentAppointmentsCard from "../../components/RecentAppointmentsCard";
 
 const fmtSoles = (n) =>
-  `S/ ${Number(n ?? 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `S/ ${Number(n ?? 0).toLocaleString("es-PE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 const PERIODS = [
   { label: "7d", labelFull: "7 días", days: 7 },
@@ -40,7 +45,7 @@ const PERIODS = [
 ];
 
 export default function DashboardPage() {
-  const { isMobile, isSmallScreen } = useBreakpoint();
+  const { isMobile } = useBreakpoint();
   const {
     kpis,
     monthly,
@@ -77,9 +82,65 @@ export default function DashboardPage() {
     if (isMobile) setShowDateRange(false);
   };
 
+  // ── KPIs con datos reales unificados ──────────────────────
+  // grossRevenue y collected ahora incluyen AMBOS flujos:
+  // citas individuales + casos multisesión (desde financial_summary)
+  const kpiCards = [
+    {
+      label: "Total citas",
+      value: kpis?.totalAppts ?? 0,
+      icon: <CalendarMonthIcon />,
+      //sub:   kpis?.totalCases ? `+ ${kpis.totalCases} casos` : undefined,
+    },
+    {
+      label: "Atendidas",
+      value: kpis?.attended ?? 0,
+      icon: <CheckCircleIcon />,
+      color: "success.main",
+      sub: (kpis?.attendanceRate ?? 0) + "% del total",
+    },
+    {
+      label: "Total casos",
+      value: kpis?.totalCases ?? 0,
+      icon: <FolderOpenIcon />,
+      color: "primary.main",
+    },
+    {
+      label: "Casos activos",
+      value: kpis?.activeCases ?? 0,
+      icon: <TaskIcon />,
+      color: "success.main",
+    },
+    {
+      label: "Pacientes",
+      value: kpis?.uniquePatients ?? 0,
+      icon: <PeopleIcon />,
+      color: "primary.main",
+      sub: "Con tratamiento alguno",
+    },
+    {
+      label: "Facturado",
+      value: fmtSoles(kpis?.grossRevenue),
+      icon: <AttachMoneyIcon />,
+      sub: "Citas unicas + casos",
+    },
+    {
+      label: "Cobrado",
+      value: fmtSoles(kpis?.collected),
+      icon: <TrendingUpIcon />,
+      color: "success.main",
+    },
+    {
+      label: "Por cobrar",
+      value: fmtSoles(kpis?.pendingBalance),
+      icon: <WarningAmberIcon />,
+      color: (kpis?.pendingBalance ?? 0) > 0 ? "error.main" : "text.primary",
+    },
+  ];
+
   return (
     <Box>
-      {/* ── Header ── */}
+      {/* Header + filtros de período */}
       <Box sx={{ mb: 2.5 }}>
         <Box
           sx={{
@@ -89,11 +150,9 @@ export default function DashboardPage() {
             mb: 1.5,
           }}
         >
-          <Typography variant="h6" sx={{ fontWeight: 500 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
             Dashboard
           </Typography>
-
-          {/* En móvil: botón de tune para mostrar/ocultar filtros */}
           {isMobile && (
             <Tooltip title="Filtrar período">
               <IconButton
@@ -107,7 +166,6 @@ export default function DashboardPage() {
           )}
         </Box>
 
-        {/* Botones de período — siempre visibles */}
         <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
           {PERIODS.map((p) => (
             <Button
@@ -121,7 +179,6 @@ export default function DashboardPage() {
             </Button>
           ))}
 
-          {/* En desktop: fechas inline */}
           {!isMobile && (
             <>
               <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
@@ -131,11 +188,7 @@ export default function DashboardPage() {
                 label="Desde"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true,
-                  },
-                }}
+                slotProps={{ inputLabel: { shrink: true } }}
                 sx={{ width: 145 }}
               />
               <TextField
@@ -144,11 +197,7 @@ export default function DashboardPage() {
                 label="Hasta"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true,
-                  },
-                }}
+                slotProps={{ inputLabel: { shrink: true } }}
                 sx={{ width: 145 }}
               />
               <Button
@@ -162,7 +211,6 @@ export default function DashboardPage() {
           )}
         </Box>
 
-        {/* En móvil: rango de fechas colapsable */}
         {isMobile && (
           <Collapse in={showDateRange}>
             <Box sx={{ display: "flex", gap: 1, mt: 1.5, flexWrap: "wrap" }}>
@@ -172,11 +220,7 @@ export default function DashboardPage() {
                 label="Desde"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true,
-                  },
-                }}
+                slotProps={{ inputLabel: { shrink: true } }}
                 sx={{ flex: 1, minWidth: 130 }}
               />
               <TextField
@@ -185,11 +229,7 @@ export default function DashboardPage() {
                 label="Hasta"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                slotProps={{
-                  inputLabel: {
-                    shrink: true,
-                  },
-                }}
+                slotProps={{ inputLabel: { shrink: true } }}
                 sx={{ flex: 1, minWidth: 130 }}
               />
               <Button
@@ -217,57 +257,19 @@ export default function DashboardPage() {
         </Box>
       ) : (
         <>
-          {/* ── KPIs: 2 columnas en móvil, 3 en tablet, 6 en desktop ── */}
+          {/* KPIs */}
           <Grid container spacing={{ xs: 1.5, sm: 2 }} sx={{ mb: 3 }}>
-            {[
-              {
-                label: "Total citas",
-                value: kpis?.totalAppts ?? 0,
-                icon: <CalendarMonthIcon />,
-                color: undefined,
-              },
-              {
-                label: "Atendidas",
-                value: kpis?.attended ?? 0,
-                icon: <CheckCircleIcon />,
-                color: "success.main",
-                sub: (kpis?.attendanceRate ?? 0) + "% del total",
-              },
-              {
-                label: "Pacientes únicos",
-                value: kpis?.uniquePatients ?? 0,
-                icon: <PeopleIcon />,
-                color: "primary.main",
-              },
-              {
-                label: "Facturado",
-                value: fmtSoles(kpis?.grossRevenue),
-                icon: <AttachMoneyIcon />,
-                color: undefined,
-              },
-              {
-                label: "Cobrado",
-                value: fmtSoles(kpis?.collected),
-                icon: <TrendingUpIcon />,
-                color: "success.main",
-              },
-              {
-                label: "Por cobrar",
-                value: fmtSoles(kpis?.pendingBalance),
-                icon: <WarningAmberIcon />,
-                color:
-                  (kpis?.pendingBalance ?? 0) > 0
-                    ? "error.main"
-                    : "text.primary",
-              },
-            ].map((kpi) => (
-              <Grid size={{ xs: 6, sm: 4, md: 2 }} key={kpi.label}>
+            {kpiCards.map((kpi) => (
+              <Grid
+                size={{ xs: 6, sm: 4, md: 3 /*12 / kpiCards.length*/ }}
+                key={kpi.label}
+              >
                 <KpiCard {...kpi} loading={loading} />
               </Grid>
             ))}
           </Grid>
 
-          {/* ── Gráficos fila 1 ── */}
+          {/* Gráficos fila 1 */}
           <Grid
             container
             spacing={{ xs: 1.5, sm: 2 }}
@@ -281,7 +283,7 @@ export default function DashboardPage() {
             </Grid>
           </Grid>
 
-          {/* ── Gráficos fila 2 ── */}
+          {/* Gráficos fila 2 */}
           <Grid
             container
             spacing={{ xs: 1.5, sm: 2 }}
@@ -298,7 +300,7 @@ export default function DashboardPage() {
             </Grid>
           </Grid>
 
-          {/* ── Últimas citas ── */}
+          {/* Últimas citas */}
           <RecentAppointmentsCard rows={recentAppointments} />
         </>
       )}

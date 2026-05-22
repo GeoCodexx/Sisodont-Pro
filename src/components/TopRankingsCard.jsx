@@ -43,7 +43,7 @@ export default function TopRankingsCard({ topTreatments, topDoctors }) {
   return (
     <Card variant="outlined">
       <CardContent>
-        <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 2 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
           Top tratamientos
         </Typography>
         {topTreatments.length === 0 ? (
@@ -64,7 +64,7 @@ export default function TopRankingsCard({ topTreatments, topDoctors }) {
 
         <Divider sx={{ my: 2 }} />
 
-        <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 2 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
           Top doctores
         </Typography>
         {topDoctors.length === 0 ? (

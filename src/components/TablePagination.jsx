@@ -35,7 +35,7 @@ export default function TablePagination({
       px: { xs: 0, sm: 1 },
     }}>
       {/* Info de registros */}
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" color="textSecondary">
         {total === 0
           ? 'Sin registros'
           : `${from}–${to} de ${total} registro${total !== 1 ? 's' : ''}`}
@@ -44,7 +44,7 @@ export default function TablePagination({
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         {/* Selector de filas por página */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+          <Typography variant="caption" color="textSecondary" sx={{ whiteSpace: 'nowrap' }}>
             Filas:
           </Typography>
           <FormControl size="small" variant="outlined">

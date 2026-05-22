@@ -71,7 +71,7 @@ export default function FilterDrawer({
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <FilterIcon fontSize="small" color="primary" />
-          <Typography variant="subtitle1" fontWeight={500}>
+          <Typography variant="subtitle1" sx={{fontWeight:600}}>
             {title}
           </Typography>
           {activeCount > 0 && (

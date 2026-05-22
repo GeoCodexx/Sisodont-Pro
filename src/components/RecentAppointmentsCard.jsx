@@ -12,6 +12,7 @@ import {
   Button,
   Box,
   Divider,
+  Avatar,
 } from "@mui/material";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -35,67 +36,155 @@ export default function RecentAppointmentsCard({ rows }) {
       : "—";
 
   return (
-    <Card variant="outlined">
-      <CardContent>
-        <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 2 }}>
-          Últimas citas
-        </Typography>
+    <Card
+      variant="outlined"
+      sx={{
+        //borderRadius: 3,
+        overflow: "hidden",
+      }}
+    >
+      <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+        {/* Header */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              Últimas citas
+            </Typography>
 
+            <Typography variant="body2" color="textSecondary">
+              Actividad clínica reciente
+            </Typography>
+          </Box>
+
+          {rows.length > 0 && (
+            <Chip
+              size="small"
+              label={`${rows.length} registros`}
+              variant="outlined"
+            />
+          )}
+        </Box>
+
+        {/* Empty */}
         {rows.length === 0 && (
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
             No hay citas registradas aún.
           </Typography>
         )}
 
-        {/* Vista móvil: lista compacta */}
+        {/* MOBILE */}
         {isMobile && rows.length > 0 && (
           <Box>
             {rows.map((a, i) => (
               <Box key={a.id}>
-                {i > 0 && <Divider sx={{ my: 1 }} />}
+                {i > 0 && <Divider sx={{ my: 1.5 }} />}
+
                 <Box
+                  onClick={() => navigate(`/patients/${a.patient_id}`)}
                   sx={{
                     display: "flex",
-                    justifyContent: "space-between",
                     alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: 1.5,
+                    cursor: "pointer",
+                    borderRadius: 2,
+                    p: 1,
+                    transition: "0.2s",
+                    "&:hover": {
+                      bgcolor: "action.hover",
+                    },
                   }}
-                  onClick={() => navigate(`/patients/${a.patient_id}`)}
-                  style={{ cursor: "pointer" }}
                 >
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
-                      {a.patient_name}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      sx={{ color: "text.secondary", display: "block" }}
+                  {/* Left */}
+                  <Box
+                    sx={{
+                      flex: 1,
+                      minWidth: 0,
+                      display: "flex",
+                      gap: 1.2,
+                    }}
+                  >
+                    <Avatar
+                      sx={{
+                        width: 36,
+                        height: 36,
+                        fontSize: 14,
+                      }}
                     >
-                      {a.treatment_name ?? "—"} · {fmt(a.date)}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      sx={{ color: "text.secondary" }}
-                    >
-                      {a.doctor_name ?? "—"}
-                    </Typography>
+                      {a.patient_name?.[0] ?? "P"}
+                    </Avatar>
+
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 600,
+                        }}
+                        noWrap
+                      >
+                        {a.patient_name}
+                      </Typography>
+
+                      <Typography
+                        variant="caption"
+                        color="textSecondary"
+                        noWrap
+                      >
+                        {a.treatment_name ?? "—"}
+                      </Typography>
+
+                      <Typography
+                        variant="caption"
+                        color="textSecondary"
+                        sx={{ display: "block" }}
+                      >
+                        {a.doctor_name ?? "—"}
+                      </Typography>
+
+                      <Typography variant="caption" color="textSecondary">
+                        {fmt(a.date)}
+                      </Typography>
+                    </Box>
                   </Box>
+
+                  {/* Right */}
                   <Box
                     sx={{
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "flex-end",
-                      gap: 0.5,
-                      ml: 1,
+                      gap: 0.7,
                     }}
                   >
                     <Chip
                       label={a.status}
                       color={STATUS_COLOR[a.status] ?? "default"}
                       size="small"
-                      sx={{ textTransform: "capitalize" }}
+                      sx={{
+                        textTransform: "capitalize",
+                      }}
                     />
-                    <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                      S/ {Number(a.total).toFixed(2)}
+
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={a.case_id ? "Multisesión" : "Única"}
+                    />
+
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        fontWeight: 700,
+                      }}
+                    >
+                      {a.case_id ? "—" : `S/ ${Number(a.total).toFixed(2)}`}
                     </Typography>
                   </Box>
                 </Box>
@@ -104,7 +193,7 @@ export default function RecentAppointmentsCard({ rows }) {
           </Box>
         )}
 
-        {/* Vista desktop: tabla */}
+        {/* DESKTOP */}
         {!isMobile && rows.length > 0 && (
           <Table size="small">
             <TableHead>
@@ -113,47 +202,102 @@ export default function RecentAppointmentsCard({ rows }) {
                 <TableCell>Tratamiento</TableCell>
                 <TableCell>Doctor</TableCell>
                 <TableCell>Fecha</TableCell>
-                <TableCell>Total</TableCell>
+                <TableCell>Tipo</TableCell>
+                <TableCell align="right">Costo</TableCell>
                 <TableCell>Estado</TableCell>
               </TableRow>
             </TableHead>
+
             <TableBody>
               {rows.map((a) => (
                 <TableRow
                   key={a.id}
                   hover
-                  sx={{ cursor: "pointer" }}
                   onClick={() => navigate(`/patients/${a.patient_id}`)}
+                  sx={{
+                    cursor: "pointer",
+                    transition: "0.15s",
+                    "&:hover": {
+                      bgcolor: "action.hover",
+                    },
+                  }}
                 >
+                  {/* Paciente */}
                   <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {a.patient_name}
-                    </Typography>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                      }}
+                    >
+                      {/* <Avatar
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          fontSize: 13,
+                        }}
+                      >
+                        {a.patient_name?.[0] ?? "P"}
+                      </Avatar> */}
+
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {a.patient_name}
+                      </Typography>
+                    </Box>
                   </TableCell>
+
+                  {/* Tratamiento */}
                   <TableCell>
                     <Typography variant="body2">
                       {a.treatment_name ?? "—"}
                     </Typography>
                   </TableCell>
+
+                  {/* Doctor */}
                   <TableCell>
-                    <Typography variant="body2">
+                    <Typography variant="body2" color="textSecondary">
                       {a.doctor_name ?? "—"}
                     </Typography>
                   </TableCell>
+
+                  {/* Fecha */}
                   <TableCell>
                     <Typography variant="body2">{fmt(a.date)}</Typography>
                   </TableCell>
+
+                  {/* Tipo */}
                   <TableCell>
-                    <Typography variant="body2">
-                      S/ {Number(a.total).toFixed(2)}
+                    <Chip
+                      size="small"
+                      variant="outlined" //{a.case_id ? "filled" : "outlined"}
+                      color={a.case_id ? "primary" : "default"}
+                      label={a.case_id ? "Multisesión" : "Única"}
+                    />
+                  </TableCell>
+
+                  {/* Costo */}
+                  <TableCell align="right">
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 600,
+                      }}
+                    >
+                      {a.case_id ? "—" : `S/ ${Number(a.total).toFixed(2)}`}
                     </Typography>
                   </TableCell>
+
+                  {/* Estado */}
                   <TableCell>
                     <Chip
                       label={a.status}
                       color={STATUS_COLOR[a.status] ?? "default"}
                       size="small"
-                      sx={{ textTransform: "capitalize" }}
+                      sx={{
+                        textTransform: "capitalize",
+                        fontWeight: 500,
+                      }}
                     />
                   </TableCell>
                 </TableRow>
@@ -162,15 +306,23 @@ export default function RecentAppointmentsCard({ rows }) {
           </Table>
         )}
 
+        {/* Footer */}
         {rows.length > 0 && (
-          <Button
-            size="small"
-            sx={{ mt: 1.5 }}
-            endIcon={<OpenInNewIcon fontSize="small" />}
-            onClick={() => navigate("/history")}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "flex-end",
+              mt: 2,
+            }}
           >
-            Ver historial completo
-          </Button>
+            <Button
+              size="small"
+              endIcon={<OpenInNewIcon fontSize="small" />}
+              onClick={() => navigate("/history")}
+            >
+              Ver historial completo
+            </Button>
+          </Box>
         )}
       </CardContent>
     </Card>

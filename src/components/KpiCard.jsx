@@ -23,7 +23,7 @@ export default function KpiCard({ label, value, sub, icon, color, loading }) {
             ) : (
               <Typography
                 variant="h5"
-                sx={{ fontWeight: 500, color: color ?? "text.primary" }}
+                sx={{ fontWeight: 600, color: color ?? "text.primary" }}
               >
                 {value}
               </Typography>

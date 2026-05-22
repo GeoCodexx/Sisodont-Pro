@@ -24,7 +24,7 @@ import {
 import SearchIcon from "@mui/icons-material/Search";
 import ReceiptIcon from "@mui/icons-material/Receipt";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
-import { usePaymentStore } from "../../stores/usePaymentStore";
+import { usePaymentsPageStore } from "../../stores/usePaymentsPageStore";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import PaymentDetailModal from "./PaymentDetailModal";
 import FilterDrawer from "../../components/FilterDrawer";
@@ -49,7 +49,6 @@ function fmt(iso) {
 }
 
 function KpiCard({ label, value, color }) {
-  console.log(color);
   return (
     <Card variant="outlined">
       <CardContent sx={{ pb: "16px !important" }}>
@@ -115,7 +114,7 @@ function PaymentCard({ row, onDetail }) {
             )}
           </Box>
           <Box sx={{ display: "flex", gap: 0.5, ml: 1, flexShrink: 0 }}>
-            <TypeChip type={row.payment_type} />
+            <TypeChip type={row.ref_type} />
             <Chip
               label={row.status}
               color={STATUS_COLOR[row.status] ?? "default"}
@@ -144,10 +143,10 @@ function PaymentCard({ row, onDetail }) {
                 variant="caption"
                 sx={{ display: "block", color: "text.secondary" }}
               >
-                {row.payment_type === "case" ? "Costo total" : "Total"}
+                {row.ref_type === "case" ? "Costo total" : "Total"}
               </Typography>
               <Typography variant="body2" fontWeight={500}>
-                S/ {Number(row.total).toFixed(2)}
+                S/ {Number(row.billed).toFixed(2)}
               </Typography>
             </Box>
             <Box>
@@ -158,7 +157,7 @@ function PaymentCard({ row, onDetail }) {
                 Pagado
               </Typography>
               <Typography variant="body2" sx={{ color: "success.main" }}>
-                S/ {Number(row.paid).toFixed(2)}
+                S/ {Number(row.collected).toFixed(2)}
               </Typography>
             </Box>
             <Box>
@@ -179,7 +178,7 @@ function PaymentCard({ row, onDetail }) {
           </Box>
           <Tooltip title="Ver detalle de pagos">
             <IconButton size="small" onClick={() => onDetail(row)}>
-              {row.payment_type === "case" ? (
+              {row.ref_type === "case" ? (
                 <FolderOpenIcon fontSize="small" />
               ) : (
                 <ReceiptIcon fontSize="small" />
@@ -195,7 +194,7 @@ function PaymentCard({ row, onDetail }) {
 export default function PaymentsPage() {
   const { isMobile } = useBreakpoint();
   const { rows, total, loading, error, filters, setFilter, fetchPayments } =
-    usePaymentStore();
+    usePaymentsPageStore();
 
   const [selected, setSelected] = useState(null);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -226,7 +225,7 @@ export default function PaymentsPage() {
       search: "",
       dateFrom: "",
       dateTo: "",
-      paymentType: "all",
+      refType: "all",
     };
     setLocalFilters(empty);
     Object.entries(empty).forEach(([k, v]) => setFilter(k, v));
@@ -238,11 +237,11 @@ export default function PaymentsPage() {
     !!filters.search,
     !!filters.dateFrom,
     !!filters.dateTo,
-    filters.paymentType !== "all",
+    filters.refType !== "all",
   ].filter(Boolean).length;
 
-  const totalBruto = rows.reduce((s, r) => s + Number(r.total), 0);
-  const totalCobrado = rows.reduce((s, r) => s + Number(r.paid), 0);
+  const totalBruto = rows.reduce((s, r) => s + Number(r.billed), 0);
+  const totalCobrado = rows.reduce((s, r) => s + Number(r.collected), 0);
   const totalPendiente = rows.reduce((s, r) => s + Number(r.balance), 0);
   const conDeuda = rows.filter((r) => Number(r.balance) > 0).length;
 
@@ -269,7 +268,7 @@ export default function PaymentsPage() {
         label="Tipo"
         size="small"
         fullWidth
-        value={f.paymentType}
+        value={f.refType}
         onChange={(e) => set("paymentType")(e.target.value)}
       >
         <MenuItem value="all">Todos</MenuItem>
@@ -371,118 +370,122 @@ export default function PaymentsPage() {
 
       {/* Filtros desktop */}
       {!isMobile && (
-        <Grid container spacing={1.5} sx={{ mb: 2 }}>
-          <Grid size={{ xs: 12, sm: 3 }}>
-            <TextField
-              size="small"
-              fullWidth
-              placeholder="Buscar paciente o DNI..."
-              value={filters.search}
-              onChange={(e) => {
-                setFilter("search", e.target.value);
-                setPage(1);
-              }}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon fontSize="small" />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-          </Grid>
-          <Grid size={{ xs: 6, sm: 2 }}>
-            <TextField
-              select
-              label="Tipo"
-              size="small"
-              fullWidth
-              value={filters.paymentType}
-              onChange={(e) => {
-                setFilter("paymentType", e.target.value);
-                setPage(1);
-              }}
-            >
-              <MenuItem value="all">Todos</MenuItem>
-              <MenuItem value="appointment">Cita única</MenuItem>
-              <MenuItem value="case">Multisesión</MenuItem>
-            </TextField>
-          </Grid>
-          <Grid size={{ xs: 6, sm: 2 }}>
-            <TextField
-              select
-              label="Estado"
-              size="small"
-              fullWidth
-              value={filters.status}
-              onChange={(e) => {
-                setFilter("status", e.target.value);
-                setPage(1);
-              }}
-            >
-              <MenuItem value="all">Todos</MenuItem>
-              <MenuItem value="pendiente">Pendiente</MenuItem>
-              <MenuItem value="atendido">Atendido</MenuItem>
-              <MenuItem value="en_curso">En curso</MenuItem>
-              <MenuItem value="completado">Completado</MenuItem>
-            </TextField>
-          </Grid>
-          <Grid size={{ xs: 6, sm: 1.5 }}>
-            <TextField
-              select
-              label="Saldo"
-              size="small"
-              fullWidth
-              value={filters.balance}
-              onChange={(e) => {
-                setFilter("balance", e.target.value);
-                setPage(1);
-              }}
-            >
-              <MenuItem value="all">Todos</MenuItem>
-              <MenuItem value="pending">Con deuda</MenuItem>
-              <MenuItem value="paid">Pagado</MenuItem>
-            </TextField>
-          </Grid>
-          <Grid size={{ xs: 6, sm: 1.75 }}>
-            <TextField
-              label="Desde"
-              type="date"
-              size="small"
-              fullWidth
-              slotProps={{
-                inputLabel: {
-                  shrink: true,
-                },
-              }}
-              value={filters.dateFrom}
-              onChange={(e) => {
-                setFilter("dateFrom", e.target.value);
-                setPage(1);
-              }}
-            />
-          </Grid>
-          <Grid size={{ xs: 6, sm: 1.75 }}>
-            <TextField
-              label="Hasta"
-              type="date"
-              size="small"
-              fullWidth
-              slotProps={{
-                inputLabel: {
-                  shrink: true,
-                },
-              }}
-              value={filters.dateTo}
-              onChange={(e) => {
-                setFilter("dateTo", e.target.value);
-                setPage(1);
-              }}
-            />
-          </Grid>
-        </Grid>
+        <Card variant="outlined" sx={{ mb: 1.5 }}>
+          <CardContent>
+            <Grid container spacing={1.5}>
+              <Grid size={{ xs: 12, sm: 3 }}>
+                <TextField
+                  size="small"
+                  fullWidth
+                  placeholder="Buscar paciente o DNI..."
+                  value={filters.search}
+                  onChange={(e) => {
+                    setFilter("search", e.target.value);
+                    setPage(1);
+                  }}
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+              </Grid>
+              <Grid size={{ xs: 6, sm: 2 }}>
+                <TextField
+                  select
+                  label="Tipo"
+                  size="small"
+                  fullWidth
+                  value={filters.refType}
+                  onChange={(e) => {
+                    setFilter("refType", e.target.value);
+                    setPage(1);
+                  }}
+                >
+                  <MenuItem value="all">Todos</MenuItem>
+                  <MenuItem value="appointment">Cita única</MenuItem>
+                  <MenuItem value="case">Multisesión</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid size={{ xs: 6, sm: 2 }}>
+                <TextField
+                  select
+                  label="Estado"
+                  size="small"
+                  fullWidth
+                  value={filters.status}
+                  onChange={(e) => {
+                    setFilter("status", e.target.value);
+                    setPage(1);
+                  }}
+                >
+                  <MenuItem value="all">Todos</MenuItem>
+                  <MenuItem value="pendiente">Pendiente</MenuItem>
+                  <MenuItem value="atendido">Atendido</MenuItem>
+                  <MenuItem value="en_curso">En curso</MenuItem>
+                  <MenuItem value="completado">Completado</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid size={{ xs: 6, sm: 1.5 }}>
+                <TextField
+                  select
+                  label="Saldo"
+                  size="small"
+                  fullWidth
+                  value={filters.balance}
+                  onChange={(e) => {
+                    setFilter("balance", e.target.value);
+                    setPage(1);
+                  }}
+                >
+                  <MenuItem value="all">Todos</MenuItem>
+                  <MenuItem value="pending">Con deuda</MenuItem>
+                  <MenuItem value="paid">Pagado</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid size={{ xs: 6, sm: 1.75 }}>
+                <TextField
+                  label="Desde"
+                  type="date"
+                  size="small"
+                  fullWidth
+                  slotProps={{
+                    inputLabel: {
+                      shrink: true,
+                    },
+                  }}
+                  value={filters.dateFrom}
+                  onChange={(e) => {
+                    setFilter("dateFrom", e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </Grid>
+              <Grid size={{ xs: 6, sm: 1.75 }}>
+                <TextField
+                  label="Hasta"
+                  type="date"
+                  size="small"
+                  fullWidth
+                  slotProps={{
+                    inputLabel: {
+                      shrink: true,
+                    },
+                  }}
+                  value={filters.dateTo}
+                  onChange={(e) => {
+                    setFilter("dateTo", e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
       )}
 
       {isMobile && (
@@ -559,7 +562,7 @@ export default function PaymentsPage() {
                       }}
                     >
                       <TableCell>
-                        <TypeChip type={r.payment_type} />
+                        <TypeChip type={r.ref_type} />
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" fontWeight={500}>
@@ -589,7 +592,7 @@ export default function PaymentsPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          S/ {Number(r.total).toFixed(2)}
+                          S/ {Number(r.billed).toFixed(2)}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -597,7 +600,7 @@ export default function PaymentsPage() {
                           variant="body2"
                           sx={{ color: "success.main" }}
                         >
-                          S/ {Number(r.paid).toFixed(2)}
+                          S/ {Number(r.collected).toFixed(2)}
                         </Typography>
                       </TableCell>
                       <TableCell>

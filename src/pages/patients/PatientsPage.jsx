@@ -335,7 +335,7 @@ export default function PatientsPage() {
                   {patients.map((p) => (
                     <TableRow key={p.id} hover>
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
                           {p.full_name}
                         </Typography>
                         {p.email && (
