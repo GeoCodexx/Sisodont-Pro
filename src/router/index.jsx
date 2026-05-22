@@ -1,61 +1,180 @@
+import { lazy, Suspense } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
+import { ErrorBoundary } from "react-error-boundary";
+
 import {
   ProtectedRoute,
   RoleRoute,
   SuperAdminRoute,
   getRoleHome,
 } from "../components/RoleRoute";
+
 import { useAuthStore } from "../stores/useAuthStore";
 
 // ── Layouts ───────────────────────────────────────────────────
 import MainLayout from "../layouts/MainLayout";
 import SuperAdminLayout from "../layouts/SuperAdminLayout";
 
-// ── Auth ──────────────────────────────────────────────────────
-import LoginPage from "../pages/auth/LoginPage";
-import UsersPage from "../pages/auth/UsersPage";
+// ── Loader global ─────────────────────────────────────────────
+import { Box, CircularProgress, Button, Typography } from "@mui/material";
 
-// ── Clínica ───────────────────────────────────────────────────
-import PatientsPage from "../pages/patients/PatientsPage";
-import PatientDetailPage from "../pages/patients/PatientDetailPage";
-import AppointmentsPage from "../pages/appointments/AppointmentsPage";
-import OdontogramPage from "../pages/odontogram/OdontogramPage";
-import HistoryPage from "../pages/history/HistoryPage";
+// ── Lazy Pages ────────────────────────────────────────────────
 
-// ── Finanzas ──────────────────────────────────────────────────
-import PaymentsPage from "../pages/payments/PaymentsPage";
+// Auth
+const LoginPage = lazy(
+  () => import(/* webpackChunkName: "login" */ "../pages/auth/LoginPage"),
+);
+const UsersPage = lazy(
+  () => import(/* webpackChunkName: "users" */ "../pages/auth/UsersPage"),
+);
 
-// ── Config ────────────────────────────────────────────────────
-import CatalogPage from "../pages/catalog/CatalogPage";
-import SettingsPage from "../pages/settings/SettingsPage";
-import ProfilePage from "../pages/profile/ProfilePage";
+// Clínica
+const PatientsPage = lazy(
+  () => import(/* webpackChunkName: "patients" */ "../pages/patients/PatientsPage"),
+);
+const PatientDetailPage = lazy(
+  () => import(/* webpackChunkName: "patients" */ "../pages/patients/PatientDetailPage"),
+);
+const AppointmentsPage = lazy(
+  () => import(/* webpackChunkName: "appointments" */ "../pages/appointments/AppointmentsPage"),
+);
+const OdontogramPage = lazy(
+  () => import(/* webpackChunkName: "odontogram" */ "../pages/odontogram/OdontogramPage"),
+);
+const HistoryPage = lazy(
+  () => import(/* webpackChunkName: "history" */ "../pages/history/HistoryPage"),
+);
 
-// ── Dashboard ─────────────────────────────────────────────────
-import DashboardPage from "../pages/dashboard/DashboardPage";
-import MyAppointmentsPage from "../pages/my-appointments/MyAppointmentsPage";
+// Finanzas
+const PaymentsPage = lazy(
+  () => import(/* webpackChunkName: "payments" */ "../pages/payments/PaymentsPage"),
+);
 
-// ── Super Admin ───────────────────────────────────────────────
-import SuperAdminDashboard from "../pages/super-admin/SuperAdminDashboard";
-import TenantDetailPage from "../pages/super-admin/TenantDetailPage";
-import SuperAdminCatalogPage from "../pages/super-admin/SuperAdminCatalogPage";
+// Config
+const CatalogPage = lazy(
+  () => import(/* webpackChunkName: "catalog" */ "../pages/catalog/CatalogPage"),
+);
+const SettingsPage = lazy(
+  () => import(/* webpackChunkName: "settings" */ "../pages/settings/SettingsPage"),
+);
+const ProfilePage = lazy(
+  () => import(/* webpackChunkName: "profile" */ "../pages/profile/ProfilePage"),
+);
+
+// Dashboard
+const DashboardPage = lazy(
+  () => import(/* webpackChunkName: "dashboard" */ "../pages/dashboard/DashboardPage"),
+);
+const MyAppointmentsPage = lazy(
+  () => import(/* webpackChunkName: "my-appointments" */ "../pages/my-appointments/MyAppointmentsPage"),
+);
+
+// Super Admin
+const SuperAdminDashboard = lazy(
+  () => import(/* webpackChunkName: "super-admin" */ "../pages/super-admin/SuperAdminDashboard"),
+);
+const TenantDetailPage = lazy(
+  () => import(/* webpackChunkName: "super-admin" */ "../pages/super-admin/TenantDetailPage"),
+);
+const SuperAdminCatalogPage = lazy(
+  () => import(/* webpackChunkName: "super-admin" */ "../pages/super-admin/SuperAdminCatalogPage"),
+);
+
+// ─────────────────────────────────────────────────────────────
+// Preloaders — úsalos en hover o idle para anticipar navegación
+// ─────────────────────────────────────────────────────────────
+export const preloadRoutes = {
+  dashboard:       () => import(/* webpackChunkName: "dashboard" */       "../pages/dashboard/DashboardPage"),
+  patients:        () => import(/* webpackChunkName: "patients" */        "../pages/patients/PatientsPage"),
+  appointments:    () => import(/* webpackChunkName: "appointments" */    "../pages/appointments/AppointmentsPage"),
+  payments:        () => import(/* webpackChunkName: "payments" */        "../pages/payments/PaymentsPage"),
+  myAppointments:  () => import(/* webpackChunkName: "my-appointments" */ "../pages/my-appointments/MyAppointmentsPage"),
+};
+
+// ─────────────────────────────────────────────────────────────
+// PageLoader
+// ─────────────────────────────────────────────────────────────
+function PageLoader() {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100vh",
+      }}
+    >
+      <CircularProgress />
+    </Box>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// ChunkErrorFallback — mostrado si el chunk falla al cargar
+// ─────────────────────────────────────────────────────────────
+function ChunkErrorFallback({ error, resetErrorBoundary }) {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 2,
+        height: "100vh",
+        px: 3,
+        textAlign: "center",
+      }}
+    >
+      <Typography variant="h6">No se pudo cargar esta página</Typography>
+      <Typography variant="body2" color="text.secondary">
+        {error?.message ?? "Error al cargar el módulo. Verifica tu conexión."}
+      </Typography>
+      <Button variant="contained" onClick={resetErrorBoundary}>
+        Reintentar
+      </Button>
+    </Box>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Loadable — Suspense + ErrorBoundary reutilizable
+// ─────────────────────────────────────────────────────────────
+function Loadable({ children }) {
+  return (
+    <ErrorBoundary FallbackComponent={ChunkErrorFallback}>
+      <Suspense fallback={<PageLoader />}>{children}</Suspense>
+    </ErrorBoundary>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // Grupos de roles
 // ─────────────────────────────────────────────────────────────
 const STAFF = ["ADMIN", "DOCTOR", "ASSISTANT"];
-const ALL = ["ADMIN", "DOCTOR", "ASSISTANT", "PATIENT"];
+const ALL   = ["ADMIN", "DOCTOR", "ASSISTANT", "PATIENT"];
 
 // ─────────────────────────────────────────────────────────────
-// RootRedirect — redirige según rol, nunca hardcodea /dashboard
+// RootRedirect — separado para evitar llamadas de hook en render
 // ─────────────────────────────────────────────────────────────
 function RootRedirect() {
   const role = useAuthStore((s) => s.role);
   return <Navigate to={getRoleHome(role)} replace />;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Router
+// ─────────────────────────────────────────────────────────────
 export const router = createBrowserRouter([
   // ── Pública ───────────────────────────────────────────────
-  { path: "/login", element: <LoginPage /> },
+  {
+    path: "/login",
+    element: (
+      <Loadable>
+        <LoginPage />
+      </Loadable>
+    ),
+  },
 
   // ── Super Admin ───────────────────────────────────────────
   {
@@ -66,9 +185,30 @@ export const router = createBrowserRouter([
       </SuperAdminRoute>
     ),
     children: [
-      { index: true, element: <SuperAdminDashboard /> },
-      { path: "tenants/:id", element: <TenantDetailPage /> },
-      { path: "catalog", element: <SuperAdminCatalogPage /> },
+      {
+        index: true,
+        element: (
+          <Loadable>
+            <SuperAdminDashboard />
+          </Loadable>
+        ),
+      },
+      {
+        path: "tenants/:id",
+        element: (
+          <Loadable>
+            <TenantDetailPage />
+          </Loadable>
+        ),
+      },
+      {
+        path: "catalog",
+        element: (
+          <Loadable>
+            <SuperAdminCatalogPage />
+          </Loadable>
+        ),
+      },
     ],
   },
 
@@ -87,95 +227,130 @@ export const router = createBrowserRouter([
         path: "dashboard",
         element: (
           <RoleRoute allowed={STAFF}>
-            <DashboardPage />
+            <Loadable>
+              <DashboardPage />
+            </Loadable>
           </RoleRoute>
         ),
       },
+
       {
         path: "users",
         element: (
           <RoleRoute allowed={["ADMIN"]}>
-            <UsersPage />
+            <Loadable>
+              <UsersPage />
+            </Loadable>
           </RoleRoute>
         ),
       },
+
       {
         path: "catalog",
         element: (
           <RoleRoute allowed={["ADMIN"]}>
-            <CatalogPage />
+            <Loadable>
+              <CatalogPage />
+            </Loadable>
           </RoleRoute>
         ),
       },
+
       {
         path: "patients",
         element: (
           <RoleRoute allowed={STAFF}>
-            <PatientsPage />
+            <Loadable>
+              <PatientsPage />
+            </Loadable>
           </RoleRoute>
         ),
       },
+
       {
         path: "patients/:id",
         element: (
           <RoleRoute allowed={STAFF}>
-            <PatientDetailPage />
+            <Loadable>
+              <PatientDetailPage />
+            </Loadable>
           </RoleRoute>
         ),
       },
+
       {
         path: "appointments",
         element: (
           <RoleRoute allowed={STAFF}>
-            <AppointmentsPage />
+            <Loadable>
+              <AppointmentsPage />
+            </Loadable>
           </RoleRoute>
         ),
       },
+
       {
         path: "my-appointments",
         element: (
           <RoleRoute allowed={["PATIENT"]}>
-            <MyAppointmentsPage />
+            <Loadable>
+              <MyAppointmentsPage />
+            </Loadable>
           </RoleRoute>
         ),
       },
+
       {
         path: "payments",
         element: (
           <RoleRoute allowed={STAFF}>
-            <PaymentsPage />
+            <Loadable>
+              <PaymentsPage />
+            </Loadable>
           </RoleRoute>
         ),
       },
+
       {
         path: "history",
         element: (
           <RoleRoute allowed={STAFF}>
-            <HistoryPage />
+            <Loadable>
+              <HistoryPage />
+            </Loadable>
           </RoleRoute>
         ),
       },
+
       {
         path: "odontogram",
         element: (
           <RoleRoute allowed={[...STAFF, "PATIENT"]}>
-            <OdontogramPage />
+            <Loadable>
+              <OdontogramPage />
+            </Loadable>
           </RoleRoute>
         ),
       },
+
       {
         path: "profile",
         element: (
           <RoleRoute allowed={ALL}>
-            <ProfilePage />
+            <Loadable>
+              <ProfilePage />
+            </Loadable>
           </RoleRoute>
         ),
       },
+
       {
         path: "settings",
         element: (
           <RoleRoute allowed={["ADMIN"]}>
-            <SettingsPage />
+            <Loadable>
+              <SettingsPage />
+            </Loadable>
           </RoleRoute>
         ),
       },
@@ -183,5 +358,8 @@ export const router = createBrowserRouter([
   },
 
   // ── Fallback ──────────────────────────────────────────────
-  { path: "*", element: <Navigate to="/" replace /> },
+  {
+    path: "*",
+    element: <Navigate to="/" replace />,
+  },
 ]);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
@@ -38,13 +38,13 @@ import BarChartIcon from "@mui/icons-material/BarChart";
 
 import { useAuthStore } from "../stores/useAuthStore";
 import { useThemeStore } from "../stores/useThemeStore";
+import { preloadRoutes } from "../router";
 
 const DRAWER_WIDTH = 224;
 
 // ─────────────────────────────────────────────────────────────
-// Definición de ítems de navegación por rol
-// Cada ítem declara los roles que pueden verlo.
-// SUPER_ADMIN tiene su propio grupo separado.
+// Definición de ítems de navegación por rol.
+// preload: función del objeto preloadRoutes correspondiente.
 // ─────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
   // ── Staff ──────────────────────────────────────────────────
@@ -53,6 +53,7 @@ const NAV_ITEMS = [
     path: "/dashboard",
     icon: <DashboardIcon />,
     roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
+    preload: "dashboard",
   },
   {
     label: "Usuarios",
@@ -71,18 +72,21 @@ const NAV_ITEMS = [
     path: "/patients",
     icon: <PeopleIcon />,
     roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
+    preload: "patients",
   },
   {
     label: "Citas",
     path: "/appointments",
     icon: <CalendarMonthIcon />,
     roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
+    preload: "appointments",
   },
   {
     label: "Pagos",
     path: "/payments",
     icon: <PaymentIcon />,
     roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
+    preload: "payments",
   },
   {
     label: "Historial",
@@ -97,12 +101,13 @@ const NAV_ITEMS = [
     roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
   },
 
-  // Solo Paciente con acceso a Portal
+  // ── Paciente ───────────────────────────────────────────────
   {
     label: "Mis citas",
     path: "/my-appointments",
     icon: <CalendarMonthIcon />,
     roles: ["PATIENT"],
+    preload: "myAppointments",
   },
   {
     label: "Mi Odontograma",
@@ -119,8 +124,7 @@ const NAV_ITEMS = [
     roles: ["ADMIN", "DOCTOR", "ASSISTANT", "PATIENT"],
   },
 
-  // ── Solo ADMIN ─────────────────────────────────────────────
-  // Va al fondo separado por Divider
+  // ── Solo ADMIN (fondo) ─────────────────────────────────────
   {
     label: "Configuración",
     path: "/settings",
@@ -130,8 +134,6 @@ const NAV_ITEMS = [
   },
 ];
 
-// ── Ítems exclusivos SUPER_ADMIN ─────────────────────────────
-// Módulo 4: agregar más rutas aquí
 const SUPER_ADMIN_ITEMS = [
   {
     label: "Resumen SaaS",
@@ -143,7 +145,6 @@ const SUPER_ADMIN_ITEMS = [
     path: "/super-admin/tenants",
     icon: <BusinessIcon />,
   },
-  // Perfil también disponible para SUPER_ADMIN
   {
     label: "Mi perfil",
     path: "/profile",
@@ -164,7 +165,6 @@ function initials(name = "") {
     .toUpperCase();
 }
 
-// Etiqueta legible del rol para el chip del sidebar
 const ROLE_LABEL = {
   SUPER_ADMIN: "Super Admin",
   ADMIN: "Admin",
@@ -174,9 +174,17 @@ const ROLE_LABEL = {
 };
 
 // ─────────────────────────────────────────────────────────────
-// NavItem — ítem de lista reutilizable
+// NavItem — ítem de lista con preloading en hover
 // ─────────────────────────────────────────────────────────────
-function NavItem({ label, path, icon, active, navigate, onItemClick }) {
+function NavItem({ label, path, icon, active, navigate, onItemClick, preload }) {
+  // Dispara el preload del chunk la primera vez que el usuario
+  // hace hover sobre el ítem. Idempotente: si ya está cargado, no hace nada.
+  const handleMouseEnter = useCallback(() => {
+    if (preload && preloadRoutes[preload]) {
+      preloadRoutes[preload]();
+    }
+  }, [preload]);
+
   return (
     <ListItem disablePadding sx={{ mb: 0.5 }}>
       <ListItemButton
@@ -184,6 +192,7 @@ function NavItem({ label, path, icon, active, navigate, onItemClick }) {
           navigate(path);
           onItemClick?.();
         }}
+        onMouseEnter={handleMouseEnter}
         selected={active}
         sx={{
           borderRadius: 2,
@@ -213,8 +222,6 @@ function NavItem({ label, path, icon, active, navigate, onItemClick }) {
 
 // ─────────────────────────────────────────────────────────────
 // SidebarContent
-// Renderiza el menú completo según el rol.
-// Recibe los ítems ya filtrados desde MainLayout.
 // ─────────────────────────────────────────────────────────────
 function SidebarContent({
   mainItems,
@@ -226,15 +233,12 @@ function SidebarContent({
   onItemClick,
 }) {
   const isActive = (path) => {
-    // Match exacto para /super-admin para no
-    // activar también /super-admin/tenants
     if (path === "/super-admin") return location.pathname === "/super-admin";
     return location.pathname.startsWith(path);
   };
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* Header del sidebar */}
       <Toolbar sx={{ px: 2, gap: 1.5, minHeight: { xs: 56, sm: 64 } }}>
         <Avatar
           sx={{ width: 28, height: 28, bgcolor: "primary.main", fontSize: 12 }}
@@ -245,7 +249,6 @@ function SidebarContent({
           <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
             {profile?.full_name ?? ""}
           </Typography>
-          {/* Chip de rol — especialmente útil para SUPER_ADMIN */}
           <Chip
             label={ROLE_LABEL[role] ?? role}
             size="small"
@@ -257,14 +260,14 @@ function SidebarContent({
       </Toolbar>
       <Divider />
 
-      {/* Ítems principales */}
       <List sx={{ px: 1, pt: 1, flexGrow: 1 }}>
-        {mainItems.map(({ label, path, icon }) => (
+        {mainItems.map(({ label, path, icon, preload }) => (
           <NavItem
             key={path}
             label={label}
             path={path}
             icon={icon}
+            preload={preload}
             active={isActive(path)}
             navigate={navigate}
             onItemClick={onItemClick}
@@ -272,17 +275,17 @@ function SidebarContent({
         ))}
       </List>
 
-      {/* Ítems del fondo (Configuración, Perfil para SUPER_ADMIN) */}
       {bottomItems.length > 0 && (
         <>
           <Divider sx={{ mx: 1 }} />
           <List sx={{ px: 1, pb: 1 }}>
-            {bottomItems.map(({ label, path, icon }) => (
+            {bottomItems.map(({ label, path, icon, preload }) => (
               <NavItem
                 key={path}
                 label={label}
                 path={path}
                 icon={icon}
+                preload={preload}
                 active={isActive(path)}
                 navigate={navigate}
                 onItemClick={onItemClick}
@@ -308,7 +311,6 @@ export default function MainLayout() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // ── Selección de ítems según rol ───────────────────────────
   const sourceItems = isSuperAdmin
     ? SUPER_ADMIN_ITEMS
     : NAV_ITEMS.filter((i) => i.roles.includes(role));
@@ -316,13 +318,10 @@ export default function MainLayout() {
   const mainItems = sourceItems.filter((i) => !i.isBottom);
   const bottomItems = sourceItems.filter((i) => i.isBottom);
 
-  // ── Título del AppBar ──────────────────────────────────────
-  // Busca en todos los ítems (main + bottom) el que coincida
   const allItems = [...mainItems, ...bottomItems];
   const activeLabel =
     allItems.find((i) => {
-      if (i.path === "/super-admin")
-        return location.pathname === "/super-admin";
+      if (i.path === "/super-admin") return location.pathname === "/super-admin";
       return location.pathname.startsWith(i.path);
     })?.label ?? "Sisodont Pro";
 

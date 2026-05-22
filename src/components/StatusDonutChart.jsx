@@ -1,3 +1,4 @@
+import { memo, useMemo, useCallback } from "react";
 import {
   PieChart,
   Pie,
@@ -8,22 +9,54 @@ import {
 } from "recharts";
 import { Card, CardContent, Typography, useTheme } from "@mui/material";
 
+// ─────────────────────────────────────────────────────────────
+// Constantes estáticas
+// ─────────────────────────────────────────────────────────────
 const COLORS = {
   Atendidas: "#1D9E75",
   Pendientes: "#BA7517",
   Canceladas: "#A32D2D",
 };
 
-export default function StatusDonutChart({ kpis }) {
+const LEGEND_STYLE = { fontSize: 12 };
+
+// Celdas preconstruidas — evita recrear los nodos Cell en cada render.
+// Como los colores son fijos, se pueden definir fuera del componente.
+const PIE_CELLS = Object.entries(COLORS).map(([name, fill]) => (
+  <Cell key={name} fill={fill} />
+));
+
+// ─────────────────────────────────────────────────────────────
+// StatusDonutChart
+// memo: solo re-renderiza si kpis cambia por referencia.
+// ─────────────────────────────────────────────────────────────
+const StatusDonutChart = memo(function StatusDonutChart({ kpis }) {
   const theme = useTheme();
 
-  if (!kpis) return null;
+  // Derivar el array filtrado solo cuando kpis cambia
+  const data = useMemo(() => {
+    if (!kpis) return [];
+    return [
+      { name: "Atendidas", value: kpis.attended },
+      { name: "Pendientes", value: kpis.pending },
+      { name: "Canceladas", value: kpis.cancelled },
+    ].filter((d) => d.value > 0);
+  }, [kpis]);
 
-  const data = [
-    { name: "Atendidas", value: kpis.attended },
-    { name: "Pendientes", value: kpis.pending },
-    { name: "Canceladas", value: kpis.cancelled },
-  ].filter((d) => d.value > 0);
+  const tooltipStyle = useMemo(
+    () => ({
+      backgroundColor: theme.palette.background.paper,
+      border: `0.5px solid ${theme.palette.divider}`,
+      borderRadius: 8,
+      fontSize: 12,
+    }),
+    [theme.palette.background.paper, theme.palette.divider],
+  );
+
+  // useCallback para referencia estable del formatter de Tooltip
+  const tooltipFormatter = useCallback((v) => [`${v} citas`, ""], []);
+
+  if (!kpis || data.length === 0) return null;
 
   return (
     <Card variant="outlined" sx={{ height: "100%" }}>
@@ -42,23 +75,21 @@ export default function StatusDonutChart({ kpis }) {
               paddingAngle={3}
               dataKey="value"
             >
+              {/* Renderizar solo las celdas necesarias según data filtrada */}
               {data.map((entry) => (
                 <Cell key={entry.name} fill={COLORS[entry.name]} />
               ))}
             </Pie>
             <Tooltip
-              formatter={(v) => [`${v} citas`, ""]}
-              contentStyle={{
-                backgroundColor: theme.palette.background.paper,
-                border: `0.5px solid ${theme.palette.divider}`,
-                borderRadius: 8,
-                fontSize: 12,
-              }}
+              formatter={tooltipFormatter}
+              contentStyle={tooltipStyle}
             />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Legend wrapperStyle={LEGEND_STYLE} />
           </PieChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>
   );
-}
+});
+
+export default StatusDonutChart;

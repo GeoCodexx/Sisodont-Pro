@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -21,93 +21,113 @@ import { useAuthStore } from "../../stores/useAuthStore";
 import { getRoleHome } from "../../components/RoleRoute";
 
 // ─────────────────────────────────────────────────────────────
-// Tabs disponibles
-// Se elimina "Registro" porque en un SaaS multi-tenant
-// los usuarios los crea el ADMIN desde el panel,
-// no mediante auto-registro público.
+// Constantes fuera del componente
 // ─────────────────────────────────────────────────────────────
 const TABS = ["Ingresar", "Recuperar contraseña"];
 
+// Ícono estable — evita recrear el nodo JSX en cada render
+const EMAIL_ADORNMENT = <EmailIcon sx={{ mr: 1, color: "text.secondary" }} />;
+const LOCK_ADORNMENT = <LockIcon sx={{ mr: 1, color: "text.secondary" }} />;
+
+// slotProps estables — si se definen inline crean un nuevo objeto
+// en cada render, forzando un re-render interno de TextField
+const EMAIL_SLOT_PROPS = { input: { startAdornment: EMAIL_ADORNMENT } };
+const PASSWORD_SLOT_PROPS = { input: { startAdornment: LOCK_ADORNMENT } };
+
+const INITIAL_FORM = { email: "", password: "" };
+
+// ─────────────────────────────────────────────────────────────
+// LoginPage
+// ─────────────────────────────────────────────────────────────
 export default function LoginPage() {
   const navigate = useNavigate();
+  // Selector granular: solo fetchProfile, no el store completo
   const fetchProfile = useAuthStore((s) => s.fetchProfile);
 
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [form, setForm] = useState(INITIAL_FORM);
 
-  const [form, setForm] = useState({ email: "", password: "" });
-  const set = (field) => (e) =>
-    setForm((f) => ({ ...f, [field]: e.target.value }));
+  // ── Handlers memoizados ───────────────────────────────────
 
-  const clearMessages = () => {
+  const clearMessages = useCallback(() => {
     setError("");
     setSuccess("");
-  };
+  }, []);
 
-  // ── Login ───────────────────────────────────────────────
-  // No hacemos fetch propio del perfil aquí.
-  // onAuthStateChange del store dispara fetchProfile
-  // automáticamente cuando Supabase emite SIGNED_IN.
-  // Nosotros solo esperamos a que el store termine
-  // y luego leemos el role para el redirect.
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    clearMessages();
-    setLoading(true);
+  // Un solo handler de campo en lugar de una función que devuelve
+  // otra función por cada campo (factory que recrea closures).
+  const handleFieldChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value }));
+  }, []);
 
-    try {
-      const { data, error: signInError } =
-        await supabase.auth.signInWithPassword({
-          email: form.email,
-          password: form.password,
-        });
+  const handleTabChange = useCallback(
+    (_, v) => {
+      setTab(v);
+      clearMessages();
+    },
+    [clearMessages],
+  );
 
-      if (signInError) throw signInError;
+  // ── Login ─────────────────────────────────────────────────
+  const handleLogin = useCallback(
+    async (e) => {
+      e.preventDefault();
+      clearMessages();
+      setLoading(true);
 
-      // fetchProfile valida `active` internamente.
-      // Si el usuario está inactivo, llama a signOut()
-      // y setProfile(null), por lo que role quedará null.
-      await fetchProfile(data.user.id);
+      try {
+        const { data, error: signInError } =
+          await supabase.auth.signInWithPassword({
+            email: form.email,
+            password: form.password,
+          });
 
-      // Leer el role actualizado directamente del store
-      const role = useAuthStore.getState().role;
+        if (signInError) throw signInError;
 
-      if (!role) {
-        // fetchProfile encontró el usuario inactivo
-        // y ya cerró la sesión
-        setError("Tu cuenta está inactiva. Contacta al administrador.");
-        return;
+        // fetchProfile valida `active` internamente.
+        // Si el usuario está inactivo, llama a signOut() y setProfile(null).
+        await fetchProfile(data.user.id);
+
+        const role = useAuthStore.getState().role;
+
+        if (!role) {
+          setError("Tu cuenta está inactiva. Contacta al administrador.");
+          return;
+        }
+
+        navigate(getRoleHome(role), { replace: true });
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
+    },
+    [clearMessages, fetchProfile, form.email, form.password, navigate],
+  );
 
-      // Redirect inteligente según rol
-      navigate(getRoleHome(role), { replace: true });
-    } catch (err) {
-      setError(err.message);
-    } finally {
+  // ── Recuperar contraseña ──────────────────────────────────
+  const handleReset = useCallback(
+    async (e) => {
+      e.preventDefault();
+      clearMessages();
+      setLoading(true);
+
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+        form.email,
+        { redirectTo: `${window.location.origin}/reset-password` },
+      );
+
+      if (resetError) setError(resetError.message);
+      else setSuccess("Te enviamos un enlace para restablecer tu contraseña.");
+
       setLoading(false);
-    }
-  };
-
-  // ── Recuperar contraseña ────────────────────────────────
-  const handleReset = async (e) => {
-    e.preventDefault();
-    clearMessages();
-    setLoading(true);
-
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      form.email,
-      {
-        redirectTo: `${window.location.origin}/reset-password`,
-      },
-    );
-
-    if (resetError) setError(resetError.message);
-    else setSuccess("Te enviamos un enlace para restablecer tu contraseña.");
-
-    setLoading(false);
-  };
+    },
+    [clearMessages, form.email],
+  );
 
   return (
     <Box
@@ -117,7 +137,7 @@ export default function LoginPage() {
         flexDirection: { xs: "column", md: "row" },
       }}
     >
-      {/* Branding — solo desktop ───────────────────────── */}
+      {/* Branding — solo desktop */}
       <Box
         sx={{
           flex: { md: 2 },
@@ -149,7 +169,7 @@ export default function LoginPage() {
         </Box>
       </Box>
 
-      {/* Formulario ─────────────────────────────────────── */}
+      {/* Formulario */}
       <Box
         sx={{
           flex: { md: 1 },
@@ -183,10 +203,7 @@ export default function LoginPage() {
               <MedicalServicesIcon
                 sx={{ fontSize: 48, color: "primary.main", mb: 1 }}
               />
-              <Typography
-                variant="h5"
-                sx={{ fontWeight: 600, color: "primary" }}
-              >
+              <Typography variant="h5" sx={{ fontWeight: 600, color: "primary" }}>
                 Sisodont Pro
               </Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
@@ -197,10 +214,7 @@ export default function LoginPage() {
             {/* Tabs */}
             <Tabs
               value={tab}
-              onChange={(_, v) => {
-                setTab(v);
-                clearMessages();
-              }}
+              onChange={handleTabChange}
               variant="fullWidth"
               sx={{ mb: 3 }}
             >
@@ -226,34 +240,24 @@ export default function LoginPage() {
                 <TextField
                   label="Correo electrónico"
                   type="email"
+                  name="email"
                   value={form.email}
-                  onChange={set("email")}
+                  onChange={handleFieldChange}
                   required
                   fullWidth
                   margin="normal"
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <EmailIcon sx={{ mr: 1, color: "text.secondary" }} />
-                      ),
-                    },
-                  }}
+                  slotProps={EMAIL_SLOT_PROPS}
                 />
                 <TextField
                   label="Contraseña"
                   type="password"
+                  name="password"
                   value={form.password}
-                  onChange={set("password")}
+                  onChange={handleFieldChange}
                   required
                   fullWidth
                   margin="normal"
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <LockIcon sx={{ mr: 1, color: "text.secondary" }} />
-                      ),
-                    },
-                  }}
+                  slotProps={PASSWORD_SLOT_PROPS}
                 />
                 <Button
                   type="submit"
@@ -278,18 +282,13 @@ export default function LoginPage() {
                 <TextField
                   label="Correo electrónico"
                   type="email"
+                  name="email"
                   value={form.email}
-                  onChange={set("email")}
+                  onChange={handleFieldChange}
                   required
                   fullWidth
                   margin="normal"
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <EmailIcon sx={{ mr: 1, color: "text.secondary" }} />
-                      ),
-                    },
-                  }}
+                  slotProps={EMAIL_SLOT_PROPS}
                 />
                 <Button
                   type="submit"

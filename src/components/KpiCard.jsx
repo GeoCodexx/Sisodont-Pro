@@ -1,6 +1,10 @@
+import { memo } from "react";
 import { Box, Card, CardContent, Typography, Skeleton } from "@mui/material";
 
-export default function KpiCard({ label, value, sub, icon, color, loading }) {
+// KpiCard recibe solo primitivos (label, value, sub, color) y un nodo
+// JSX estable para icon, por lo que memo es muy efectivo aquí:
+// el componente solo re-renderiza cuando sus propios datos cambian.
+const KpiCard = memo(function KpiCard({ label, value, sub, icon, color, loading }) {
   return (
     <Card variant="outlined" sx={{ height: "100%" }}>
       <CardContent>
@@ -18,6 +22,7 @@ export default function KpiCard({ label, value, sub, icon, color, loading }) {
             >
               {label}
             </Typography>
+
             {loading ? (
               <Skeleton width={80} height={36} />
             ) : (
@@ -28,6 +33,7 @@ export default function KpiCard({ label, value, sub, icon, color, loading }) {
                 {value}
               </Typography>
             )}
+
             {sub && !loading && (
               <Typography
                 variant="caption"
@@ -37,6 +43,7 @@ export default function KpiCard({ label, value, sub, icon, color, loading }) {
               </Typography>
             )}
           </Box>
+
           {icon && (
             <Box
               sx={{
@@ -54,4 +61,6 @@ export default function KpiCard({ label, value, sub, icon, color, loading }) {
       </CardContent>
     </Card>
   );
-}
+});
+
+export default KpiCard;
