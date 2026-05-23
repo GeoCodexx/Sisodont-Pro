@@ -195,9 +195,9 @@ export default function SettingsPage() {
                 <Grid container spacing={1}>
                   {[
                     ["Versión",        "1.0.0"],
-                    ["Stack",          "React + Supabase + Zustand + MUI"],
+                    //["Stack",          "React + Supabase + Zustand + MUI"],
                     ["Zona horaria",   "America/Lima"],
-                    ["Base de datos",  "PostgreSQL (Supabase)"],
+                   // ["Base de datos",  "PostgreSQL (Supabase)"],
                   ].map(([k, v]) => (
                     <Grid size={{ xs: 12, sm: 6 }} key={k}>
                       <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>

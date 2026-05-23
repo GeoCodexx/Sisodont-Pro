@@ -1,5 +1,5 @@
-import { supabase } from "../../services/supabaseClient";
-import React, { useEffect, useState } from "react";
+import { supabase }    from "../../services/supabaseClient";
+import React, { useEffect, useState, useCallback, useMemo, memo } from "react";
 import {
   Box, Typography, Chip, CircularProgress,
   Accordion, AccordionSummary, AccordionDetails,
@@ -17,14 +17,21 @@ import FolderIcon      from "@mui/icons-material/Folder";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import DeleteIcon      from "@mui/icons-material/Delete";
 import { useTreatmentCaseStore } from "../../stores/useTreatmentCaseStore";
-import { useLedgerStore }         from "../../stores/useLedgerStore";
+import { useLedgerStore }        from "../../stores/useLedgerStore";
 import { useAuthStore }          from "../../stores/useAuthStore";
 
-// ── Constantes ────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Constantes fuera del componente
+// ─────────────────────────────────────────────────────────────
+// Íconos instanciados una sola vez — no recrear en cada render
+const ICON_FOLDER_OPEN  = <FolderOpenIcon  fontSize="small" />;
+const ICON_CHECK_CIRCLE = <CheckCircleIcon fontSize="small" />;
+const ICON_FOLDER       = <FolderIcon      fontSize="small" />;
+
 const STATUS_META = {
-  en_curso:   { label: "En curso",    color: "primary", icon: <FolderOpenIcon  fontSize="small" /> },
-  completado: { label: "Completado",  color: "success", icon: <CheckCircleIcon fontSize="small" /> },
-  abandonado: { label: "Abandonado",  color: "default", icon: <FolderIcon      fontSize="small" /> },
+  en_curso:   { label: "En curso",   color: "primary", icon: ICON_FOLDER_OPEN  },
+  completado: { label: "Completado", color: "success", icon: ICON_CHECK_CIRCLE },
+  abandonado: { label: "Abandonado", color: "default", icon: ICON_FOLDER       },
 };
 
 const APPT_STATUS_COLOR = {
@@ -34,6 +41,7 @@ const APPT_STATUS_COLOR = {
 };
 
 const METHODS = ["efectivo", "tarjeta", "transferencia", "yape", "plin"];
+
 const METHOD_COLORS = {
   efectivo:      "default",
   tarjeta:       "success",
@@ -42,15 +50,33 @@ const METHOD_COLORS = {
   plin:          "secondary",
 };
 
-// ── Helpers ───────────────────────────────────────────────────
-const fmtDate = (iso) =>
-  iso ? new Date(iso).toLocaleDateString("es-PE", { dateStyle: "short" }) : "—";
-const fmtDT = (iso) =>
-  iso ? new Date(iso).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—";
-const fmtS = (n) => "S/ " + Number(n ?? 0).toFixed(2);
+// ─────────────────────────────────────────────────────────────
+// Formatters — instancias únicas, no recrear por render
+// ─────────────────────────────────────────────────────────────
+const dateFormatter = new Intl.DateTimeFormat("es-PE", { dateStyle: "short" });
+const dtFormatter   = new Intl.DateTimeFormat("es-PE", { dateStyle: "short", timeStyle: "short" });
+const solesFormatter = new Intl.NumberFormat("es-PE", { minimumFractionDigits: 2 });
 
-// ── PaymentCard — vista móvil ─────────────────────────────────
+const fmtDate = (iso) => (iso ? dateFormatter.format(new Date(iso)) : "—");
+const fmtDT   = (iso) => (iso ? dtFormatter.format(new Date(iso))   : "—");
+const fmtS    = (n)   => `S/ ${solesFormatter.format(Number(n ?? 0))}`;
+
+// slotProps estático para el campo de monto
+const AMOUNT_SLOT = {
+  htmlInput: { min: 0.01, step: "0.01" },
+  input:     { startAdornment: <InputAdornment position="start">S/</InputAdornment> },
+};
+
+// ─────────────────────────────────────────────────────────────
+// PaymentCard — ya tenía React.memo, se mantiene y se añaden
+// callbacks estables internos
+// ─────────────────────────────────────────────────────────────
 const PaymentCard = React.memo(function PaymentCard({ p, onDelete, canDelete }) {
+  // Valores derivados — se calculan una sola vez por render de esta card
+  const amount    = useMemo(() => fmtS(p.amount),           [p.amount]);
+  const createdAt = useMemo(() => fmtDT(p.created_at),      [p.created_at]);
+  const handleDelete = useCallback(() => onDelete(p.id),    [onDelete, p.id]);
+
   return (
     <Card variant="outlined" sx={{ mb: 1 }}>
       <CardContent sx={{ pb: "10px !important", pt: 1.5, px: 2 }}>
@@ -58,7 +84,7 @@ const PaymentCard = React.memo(function PaymentCard({ p, onDelete, canDelete }) 
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
               <Typography variant="body2" sx={{ fontWeight: 600, color: "success.main" }}>
-                {fmtS(p.amount)}
+                {amount}
               </Typography>
               <Chip
                 label={p.method}
@@ -69,17 +95,20 @@ const PaymentCard = React.memo(function PaymentCard({ p, onDelete, canDelete }) 
               />
             </Box>
             <Typography variant="caption" color="text.secondary" display="block">
-              {fmtDT(p.created_at)} · {p.created_by_profile?.full_name ?? "—"}
+              {createdAt} · {p.created_by_profile?.full_name ?? "—"}
             </Typography>
             {p.notes && (
-              <Typography variant="caption" sx={{ mt: 0.5, fontStyle: "italic", color: "text.secondary", display: "block" }}>
+              <Typography
+                variant="caption"
+                sx={{ mt: 0.5, fontStyle: "italic", color: "text.secondary", display: "block" }}
+              >
                 {p.notes}
               </Typography>
             )}
           </Box>
           {canDelete && (
             <Tooltip title="Eliminar pago">
-              <IconButton size="small" onClick={() => onDelete(p.id)} sx={{ ml: 1 }}>
+              <IconButton size="small" onClick={handleDelete} sx={{ ml: 1 }}>
                 <DeleteIcon fontSize="small" color="error" />
               </IconButton>
             </Tooltip>
@@ -90,7 +119,63 @@ const PaymentCard = React.memo(function PaymentCard({ p, onDelete, canDelete }) 
   );
 });
 
-// ── PaymentTable — vista desktop ──────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// PaymentTableRow — fila memoizada para la tabla de pagos
+// Extraída del map inline para que React.memo sea efectivo
+// ─────────────────────────────────────────────────────────────
+const PaymentTableRow = memo(function PaymentTableRow({ p, onDelete, canDelete }) {
+  const amount    = useMemo(() => fmtS(p.amount),      [p.amount]);
+  const createdAt = useMemo(() => fmtDT(p.created_at), [p.created_at]);
+  const handleDelete = useCallback(() => onDelete(p.id), [onDelete, p.id]);
+
+  return (
+    <TableRow>
+      <TableCell><Typography variant="body2">{createdAt}</Typography></TableCell>
+      <TableCell>
+        <Typography variant="body2" sx={{ fontWeight: 500, color: "success.main" }}>
+          {amount}
+        </Typography>
+      </TableCell>
+      <TableCell>
+        <Chip
+          label={p.method}
+          size="small"
+          variant="outlined"
+          color={METHOD_COLORS[p.method] ?? "default"}
+          sx={{ textTransform: "capitalize" }}
+        />
+      </TableCell>
+      <TableCell>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ maxWidth: 180, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+        >
+          {p.notes || "—"}
+        </Typography>
+      </TableCell>
+      <TableCell>
+        <Typography variant="body2" color="text.secondary">
+          {p.created_by_profile?.full_name ?? "—"}
+        </Typography>
+      </TableCell>
+      {canDelete && (
+        <TableCell align="right">
+          <Tooltip title="Eliminar pago">
+            <IconButton size="small" onClick={handleDelete}>
+              <DeleteIcon fontSize="small" color="error" />
+            </IconButton>
+          </Tooltip>
+        </TableCell>
+      )}
+    </TableRow>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────
+// PaymentTable — React.memo ya existía, se refactoriza para
+// usar PaymentTableRow memoizado
+// ─────────────────────────────────────────────────────────────
 const PaymentTable = React.memo(function PaymentTable({ payments, onDelete, canDelete }) {
   return (
     <Table size="small" sx={{ mb: 1.5 }}>
@@ -106,81 +191,62 @@ const PaymentTable = React.memo(function PaymentTable({ payments, onDelete, canD
       </TableHead>
       <TableBody>
         {payments.map((p) => (
-          <TableRow key={p.id}>
-            <TableCell><Typography variant="body2">{fmtDT(p.created_at)}</Typography></TableCell>
-            <TableCell>
-              <Typography variant="body2" sx={{ fontWeight: 500, color: "success.main" }}>
-                {fmtS(p.amount)}
-              </Typography>
-            </TableCell>
-            <TableCell>
-              <Chip
-                label={p.method}
-                size="small"
-                variant="outlined"
-                color={METHOD_COLORS[p.method] ?? "default"}
-                sx={{ textTransform: "capitalize" }}
-              />
-            </TableCell>
-            <TableCell>
-              <Typography variant="body2" color="text.secondary"
-                sx={{ maxWidth: 180, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {p.notes || "—"}
-              </Typography>
-            </TableCell>
-            <TableCell>
-              <Typography variant="body2" color="text.secondary">
-                {p.created_by_profile?.full_name ?? "—"}
-              </Typography>
-            </TableCell>
-            {canDelete && (
-              <TableCell align="right">
-                <Tooltip title="Eliminar pago">
-                  <IconButton size="small" onClick={() => onDelete(p.id)}>
-                    <DeleteIcon fontSize="small" color="error" />
-                  </IconButton>
-                </Tooltip>
-              </TableCell>
-            )}
-          </TableRow>
+          <PaymentTableRow
+            key={p.id}
+            p={p}
+            onDelete={onDelete}
+            canDelete={canDelete}
+          />
         ))}
       </TableBody>
     </Table>
   );
 });
 
-// ── PaymentForm — formulario de nuevo pago ────────────────────
-function PaymentForm({ onRegister, saving, maxAmount, showLimit }) {
+// ─────────────────────────────────────────────────────────────
+// PaymentForm — memo + handlers estables
+// ─────────────────────────────────────────────────────────────
+const FORM_EMPTY = { amount: "", method: "efectivo", notes: "" };
+
+const PaymentForm = memo(function PaymentForm({ onRegister, saving, maxAmount, showLimit }) {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const [form, setForm] = useState({ amount: "", method: "efectivo", notes: "" });
-  const set = (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value }));
+  const [form, setForm] = useState(FORM_EMPTY);
 
-  const handleSubmit = () => {
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setForm((p) => ({ ...p, [name]: value }));
+  }, []);
+
+  const handleSubmit = useCallback(() => {
     onRegister(form);
-    setForm({ amount: "", method: "efectivo", notes: "" });
-  };
+    setForm(FORM_EMPTY);
+  }, [form, onRegister]);
+
+  const helperText = useMemo(
+    () => (showLimit && maxAmount > 0 ? `Máx: ${fmtS(maxAmount)}` : ""),
+    [showLimit, maxAmount],
+  );
 
   return (
     <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1.5, flexWrap: "wrap" }}>
       <TextField
         label="Monto"
         type="number"
+        name="amount"
         value={form.amount}
-        onChange={set("amount")}
+        onChange={handleChange}
         size="small"
         sx={{ width: { xs: "100%", sm: 130 } }}
-        slotProps={{
-          htmlInput: { min: 0.01, step: "0.01" },
-          input: { startAdornment: <InputAdornment position="start">S/</InputAdornment> },
-        }}
-        helperText={showLimit && maxAmount > 0 ? `Máx: ${fmtS(maxAmount)}` : ""}
+        slotProps={AMOUNT_SLOT}
+        helperText={helperText}
       />
       <TextField
         select
         label="Método"
+        name="method"
         value={form.method}
-        onChange={set("method")}
+        onChange={handleChange}
         size="small"
         sx={{ width: { xs: "100%", sm: 150 } }}
       >
@@ -190,8 +256,9 @@ function PaymentForm({ onRegister, saving, maxAmount, showLimit }) {
       </TextField>
       <TextField
         label="Notas"
+        name="notes"
         value={form.notes}
-        onChange={set("notes")}
+        onChange={handleChange}
         size="small"
         sx={{ flex: 1, minWidth: { xs: "100%", sm: 120 } }}
         placeholder="Opcional..."
@@ -206,31 +273,56 @@ function PaymentForm({ onRegister, saving, maxAmount, showLimit }) {
       </Button>
     </Box>
   );
-}
+});
 
-// ── CasePaymentsSection ───────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// FinancialSummary — sub-componente memoizado para el resumen
+// de 3 valores (Costo / Pagado / Saldo). Se usa tanto en
+// CasePaymentsSection como en AppointmentPaymentsSection.
+// ─────────────────────────────────────────────────────────────
+const FinancialSummary = memo(function FinancialSummary({ rows }) {
+  return (
+    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, mb: 2 }}>
+      {rows.map(([label, value, color]) => (
+        <Box key={label} sx={{ bgcolor: "action.hover", borderRadius: 1.5, p: 1.25, textAlign: "center" }}>
+          <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 600, color }}>{value}</Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────
+// CasePaymentsSection
+// ─────────────────────────────────────────────────────────────
 function CasePaymentsSection({ caseData }) {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const { entriesByRef, saving, fetchByRef, register, remove } = useLedgerStore();
-  const userId = useAuthStore((s) => s.user?.id);
-  const role   = useAuthStore((s) => s.role);
+  // Selectores granulares — evitan re-suscripciones innecesarias
+  const role = useAuthStore((s) => s.role);
 
   const payments = entriesByRef[caseData.id] ?? [];
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
 
-  const totalBilled   = Number(caseData.total_billed ?? 0);
-  const paymentsTotal = payments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
-  const totalPaid     = paymentsTotal;
-  const totalBalance  = totalBilled - paymentsTotal;
+  const totalBilled   = useMemo(() => Number(caseData.total_billed ?? 0), [caseData.total_billed]);
+  const paymentsTotal = useMemo(
+    () => payments.reduce((acc, p) => acc + Number(p.amount || 0), 0),
+    [payments],
+  );
+  const totalPaid    = paymentsTotal;
+  const totalBalance = totalBilled - paymentsTotal;
 
   const canDelete = role === "ADMIN";
   const canPay    = role === "ADMIN" || role === "ASSISTANT";
 
-  useEffect(() => { fetchByRef('case', caseData.id); }, [caseData.id]);
+  useEffect(() => { fetchByRef("case", caseData.id); }, [caseData.id, fetchByRef]);
 
-  const handleRegister = async (form) => {
+  const clearFeedback = useCallback(() => setFeedback({ msg: "", type: "success" }), []);
+
+  const handleRegister = useCallback(async (form) => {
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) {
       setFeedback({ msg: "Ingresa un monto válido.", type: "error" }); return;
@@ -239,41 +331,32 @@ function CasePaymentsSection({ caseData }) {
       setFeedback({ msg: `Supera el saldo (${fmtS(totalBalance)}).`, type: "error" }); return;
     }
     const { error } = await register({
-      refType: 'case',
-      refId:   caseData.id,
-      amount,
-      method:  form.method,
-      notes:   form.notes,
+      refType: "case", refId: caseData.id, amount,
+      method: form.method, notes: form.notes,
     });
     if (error) setFeedback({ msg: error, type: "error" });
     else       setFeedback({ msg: "Pago registrado.", type: "success" });
-  };
+  }, [totalBilled, totalBalance, caseData.id, register]);
 
-  const handleDelete = async (payId) => {
+  const handleDelete = useCallback(async (payId) => {
     if (!window.confirm("¿Eliminar este pago?")) return;
     const { error } = await remove(payId, caseData.id);
     if (error) setFeedback({ msg: error, type: "error" });
     else       setFeedback({ msg: "Pago eliminado.", type: "success" });
-  };
+  }, [caseData.id, remove]);
+
+  const summaryRows = useMemo(() => [
+    ["Costo total", fmtS(totalBilled),  "text.primary"],
+    ["Pagado",      fmtS(totalPaid),    "success.main"],
+    ["Saldo",       fmtS(totalBalance), totalBalance > 0 ? "error.main" : "text.secondary"],
+  ], [totalBilled, totalPaid, totalBalance]);
 
   return (
     <Box>
-      {/* Resumen financiero */}
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, mb: 2 }}>
-        {[
-          ["Costo total", fmtS(totalBilled),  "text.primary"],
-          ["Pagado",      fmtS(totalPaid),     "success.main"],
-          ["Saldo",       fmtS(totalBalance),  totalBalance > 0 ? "error.main" : "text.secondary"],
-        ].map(([label, value, color]) => (
-          <Box key={label} sx={{ bgcolor: "action.hover", borderRadius: 1.5, p: 1.25, textAlign: "center" }}>
-            <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600, color }}>{value}</Typography>
-          </Box>
-        ))}
-      </Box>
+      <FinancialSummary rows={summaryRows} />
 
       {feedback.msg && (
-        <Alert severity={feedback.type} sx={{ mb: 1.5 }} onClose={() => setFeedback({ msg: "", type: "success" })}>
+        <Alert severity={feedback.type} sx={{ mb: 1.5 }} onClose={clearFeedback}>
           {feedback.msg}
         </Alert>
       )}
@@ -320,28 +403,34 @@ function CasePaymentsSection({ caseData }) {
   );
 }
 
-// ── AppointmentPaymentsSection ────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// AppointmentPaymentsSection
+// ─────────────────────────────────────────────────────────────
 function AppointmentPaymentsSection({ appt }) {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const { entriesByRef, saving, fetchByRef, register, remove } = useLedgerStore();
-  const userId = useAuthStore((s) => s.user?.id);
-  const role   = useAuthStore((s) => s.role);
+  const role = useAuthStore((s) => s.role);
 
-  const payments = entriesByRef[appt.id] ?? [];
-  const paymentsTotal = payments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
-  const totalPaid     = paymentsTotal;
-  const balance       = Number(appt.total ?? 0) - totalPaid;
+  const payments      = entriesByRef[appt.id] ?? [];
+  const paymentsTotal = useMemo(
+    () => payments.reduce((acc, p) => acc + Number(p.amount || 0), 0),
+    [payments],
+  );
+  const totalPaid = paymentsTotal;
+  const balance   = Number(appt.total ?? 0) - totalPaid;
 
   const canDelete = role === "ADMIN";
   const canPay    = role === "ADMIN" || role === "ASSISTANT";
 
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
 
-  useEffect(() => { fetchByRef('appointment', appt.id); }, [appt.id]);
+  useEffect(() => { fetchByRef("appointment", appt.id); }, [appt.id, fetchByRef]);
 
-  const handleRegister = async (form) => {
+  const clearFeedback = useCallback(() => setFeedback({ msg: "", type: "success" }), []);
+
+  const handleRegister = useCallback(async (form) => {
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) {
       setFeedback({ msg: "Ingresa un monto válido.", type: "error" }); return;
@@ -350,54 +439,48 @@ function AppointmentPaymentsSection({ appt }) {
       setFeedback({ msg: `Supera el saldo (${fmtS(balance)}).`, type: "error" }); return;
     }
     const { error } = await register({
-      refType: 'appointment',
-      refId:   appt.id,
-      amount,
-      method:  form.method,
-      notes:   form.notes,
+      refType: "appointment", refId: appt.id, amount,
+      method: form.method, notes: form.notes,
     });
     if (error) setFeedback({ msg: error, type: "error" });
     else       setFeedback({ msg: "Pago registrado.", type: "success" });
-  };
+  }, [balance, appt.id, register]);
 
-  const handleDeletePayment = async (payId) => {
+  const handleDelete = useCallback(async (payId) => {
     if (!window.confirm("¿Eliminar este pago?")) return;
     const { error } = await remove(payId, appt.id);
     if (error) setFeedback({ msg: error, type: "error" });
     else       setFeedback({ msg: "Pago eliminado.", type: "success" });
-  };
+  }, [appt.id, remove]);
+
+  const summaryRows = useMemo(() => [
+    ["Total",  fmtS(appt.total ?? 0), "text.primary"],
+    ["Pagado", fmtS(totalPaid),        "success.main"],
+    ["Saldo",  fmtS(balance),          balance > 0 ? "error.main" : "text.secondary"],
+  ], [appt.total, totalPaid, balance]);
 
   return (
     <Box>
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, mb: 2 }}>
-        {[
-          ["Total",   fmtS(appt.total ?? 0), "text.primary"],
-          ["Pagado",  fmtS(totalPaid),        "success.main"],
-          ["Saldo",   fmtS(balance),           balance > 0 ? "error.main" : "text.secondary"],
-        ].map(([label, value, color]) => (
-          <Box key={label} sx={{ bgcolor: "action.hover", borderRadius: 1.5, p: 1.25, textAlign: "center" }}>
-            <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600, color }}>{value}</Typography>
-          </Box>
-        ))}
-      </Box>
+      <FinancialSummary rows={summaryRows} />
 
       {feedback.msg && (
-        <Alert severity={feedback.type} sx={{ mb: 1.5 }} onClose={() => setFeedback({ msg: "", type: "success" })}>
+        <Alert severity={feedback.type} sx={{ mb: 1.5 }} onClose={clearFeedback}>
           {feedback.msg}
         </Alert>
       )}
 
       {payments.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Sin pagos registrados.</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Sin pagos registrados.
+        </Typography>
       ) : isMobile ? (
         <Box mb={1.5}>
           {payments.map((p) => (
-            <PaymentCard key={p.id} p={p} onDelete={handleDeletePayment} canDelete={canDelete} />
+            <PaymentCard key={p.id} p={p} onDelete={handleDelete} canDelete={canDelete} />
           ))}
         </Box>
       ) : (
-        <PaymentTable payments={payments} onDelete={handleDeletePayment} canDelete={canDelete} />
+        <PaymentTable payments={payments} onDelete={handleDelete} canDelete={canDelete} />
       )}
 
       {canPay && balance > 0 && (
@@ -416,21 +499,161 @@ function AppointmentPaymentsSection({ appt }) {
       )}
 
       {balance <= 0 && totalPaid > 0 && (
-        <Alert severity="success" icon={false} sx={{ mt: 1.5 }}>Cita completamente pagada.</Alert>
+        <Alert severity="success" icon={false} sx={{ mt: 1.5 }}>
+          Cita completamente pagada.
+        </Alert>
       )}
     </Box>
   );
 }
 
-// ── IndividualTreatmentsSection ───────────────────────────────
-// Citas individuales = appointments_full donde case_id IS NULL.
-// Se consultan directamente aquí — no viven en useTreatmentCaseStore
-// que solo gestiona casos multisesión.
-function IndividualTreatmentsSection({ patientId }) {
-  const theme    = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const role     = useAuthStore((s) => s.role);
+// ─────────────────────────────────────────────────────────────
+// CaseAccordion — caso multisesión memoizado
+// Extraído del map inline de TreatmentCasesPanel para que
+// memo pueda hacer bailout cuando el caso no cambió
+// ─────────────────────────────────────────────────────────────
+const CaseAccordion = memo(function CaseAccordion({
+  c, expanded, onToggle, canManage, onStatusChange,
+}) {
+  const meta    = STATUS_META[c.status] ?? STATUS_META.en_curso;
+  const balance = Number(c.total_balance ?? 0);
+  const paid    = Number(c.total_paid    ?? 0);
+  const billed  = Number(c.total_billed  ?? 0);
 
+  const startedAt = useMemo(() => fmtDate(c.started_at), [c.started_at]);
+
+  const handleChange = useCallback(
+    (_, open) => onToggle(open ? c.id : null),
+    [c.id, onToggle],
+  );
+
+  const sessionInfo = useMemo(() => [
+    ["Sesiones realizadas",  c.sessions_attended ?? 0],
+    ["Sesiones planificadas", c.total_sessions   ?? "—"],
+    ["Sesiones pendientes",  c.sessions_pending  ?? 0],
+  ], [c.sessions_attended, c.total_sessions, c.sessions_pending]);
+
+  return (
+    <Accordion
+      expanded={expanded}
+      onChange={handleChange}
+      variant="outlined"
+      sx={{ mb: 1, "&:before": { display: "none" } }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flex: 1, minWidth: 0, mr: 1 }}>
+          {meta.icon}
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="body2" fontWeight={500} noWrap>
+              {c.treatment_name ?? "—"}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Dr. {c.doctor_name ?? "—"} · Inicio: {startedAt}
+              {Number(c.sessions_attended) > 0 && ` · ${c.sessions_attended} sesión(es)`}
+            </Typography>
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexShrink: 0 }}>
+            {billed > 0 && balance > 0 && (
+              <Chip label={`Debe ${fmtS(balance)}`} size="small" color="error" variant="outlined" sx={{ fontSize: 10 }} />
+            )}
+            {billed > 0 && balance <= 0 && paid > 0 && (
+              <Chip label="Pagado" size="small" color="success" variant="outlined" sx={{ fontSize: 10 }} />
+            )}
+            <Chip label={meta.label} color={meta.color} size="small" />
+          </Box>
+        </Box>
+      </AccordionSummary>
+
+      <AccordionDetails sx={{ pt: 0 }}>
+        <Box sx={{ display: "flex", gap: 2, mb: 2, pt: 1, flexWrap: "wrap" }}>
+          {sessionInfo.map(([label, value]) => (
+            <Box key={label}>
+              <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
+              <Typography variant="body2" fontWeight={500}>{value}</Typography>
+            </Box>
+          ))}
+          {c.notes && (
+            <Box sx={{ width: "100%" }}>
+              <Typography variant="caption" color="text.secondary" display="block">Notas del caso</Typography>
+              <Typography variant="body2">{c.notes}</Typography>
+            </Box>
+          )}
+        </Box>
+
+        <Divider sx={{ mb: 2 }} />
+        <Typography variant="caption" color="text.secondary" fontWeight={500} display="block" sx={{ mb: 1.5 }}>
+          PAGOS DEL TRATAMIENTO
+        </Typography>
+        <CasePaymentsSection caseData={c} />
+        <Divider sx={{ my: 2 }} />
+
+        {canManage && (
+          <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+            <Typography variant="caption" color="text.secondary">Estado:</Typography>
+            {["en_curso", "completado", "abandonado"].map((s) => (
+              <Button
+                key={s}
+                size="small"
+                variant={c.status === s ? "contained" : "outlined"}
+                color={STATUS_META[s].color}
+                disabled={c.status === s}
+                onClick={() => onStatusChange(c.id, s)}
+                sx={{ textTransform: "capitalize", fontSize: 12 }}
+              >
+                {STATUS_META[s].label}
+              </Button>
+            ))}
+          </Box>
+        )}
+      </AccordionDetails>
+    </Accordion>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────
+// IndividualTreatmentsSection
+// ─────────────────────────────────────────────────────────────
+const ApptAccordion = memo(function ApptAccordion({ a, expanded, onToggle }) {
+  const statusColor = APPT_STATUS_COLOR[a.status] ?? "default";
+  const date = useMemo(() => fmtDT(a.date), [a.date]);
+  const handleChange = useCallback(
+    (_, open) => onToggle(open ? a.id : null),
+    [a.id, onToggle],
+  );
+
+  return (
+    <Accordion
+      expanded={expanded}
+      onChange={handleChange}
+      variant="outlined"
+      sx={{ mb: 1, "&:before": { display: "none" } }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flex: 1, minWidth: 0, mr: 1 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="body2" fontWeight={500} noWrap>
+              {a.treatment_name ?? "—"}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {date} · Dr. {a.doctor_name ?? "—"}
+            </Typography>
+          </Box>
+          <Chip
+            label={a.status}
+            color={statusColor}
+            size="small"
+            sx={{ textTransform: "capitalize", flexShrink: 0 }}
+          />
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails sx={{ pt: 0 }}>
+        <AppointmentPaymentsSection appt={a} />
+      </AccordionDetails>
+    </Accordion>
+  );
+});
+
+function IndividualTreatmentsSection({ patientId }) {
   const [expandedAppt, setExpandedAppt] = useState(null);
   const [appts,        setAppts]        = useState([]);
   const [loading,      setLoading]      = useState(true);
@@ -450,6 +673,8 @@ function IndividualTreatmentsSection({ patientId }) {
     return () => { cancelled = true; };
   }, [patientId]);
 
+  const handleToggleAppt = useCallback((id) => setExpandedAppt(id), []);
+
   if (loading)
     return <Box sx={{ py: 2 }}><CircularProgress size={20} /></Box>;
 
@@ -462,35 +687,14 @@ function IndividualTreatmentsSection({ patientId }) {
 
   return (
     <Box>
-      {appts.map((a) => {
-        const statusColor = APPT_STATUS_COLOR[a.status] ?? "default";
-        return (
-          <Accordion
-            key={a.id}
-            expanded={expandedAppt === a.id}
-            onChange={(_, open) => setExpandedAppt(open ? a.id : null)}
-            variant="outlined"
-            sx={{ mb: 1, "&:before": { display: "none" } }}
-          >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flex: 1, minWidth: 0, mr: 1 }}>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="body2" fontWeight={500} noWrap>
-                    {a.treatment_name ?? "—"}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {fmtDT(a.date)} · Dr. {a.doctor_name ?? "—"}
-                  </Typography>
-                </Box>
-                <Chip label={a.status} color={statusColor} size="small" sx={{ textTransform: "capitalize", flexShrink: 0 }} />
-              </Box>
-            </AccordionSummary>
-            <AccordionDetails sx={{ pt: 0 }}>
-              <AppointmentPaymentsSection appt={a} />
-            </AccordionDetails>
-          </Accordion>
-        );
-      })}
+      {appts.map((a) => (
+        <ApptAccordion
+          key={a.id}
+          a={a}
+          expanded={expandedAppt === a.id}
+          onToggle={handleToggleAppt}
+        />
+      ))}
     </Box>
   );
 }
@@ -499,32 +703,43 @@ function IndividualTreatmentsSection({ patientId }) {
 // TreatmentCasesPanel — componente principal
 // ─────────────────────────────────────────────────────────────
 export default function TreatmentCasesPanel({ patientId }) {
-  const { cases, loading, fetchByPatient, updateCaseStatus } =
-    useTreatmentCaseStore();
+  const { cases, loading, fetchByPatient, updateCaseStatus } = useTreatmentCaseStore();
   const role = useAuthStore((s) => s.role);
 
   const [tab,          setTab]          = useState(0);
   const [expandedCase, setExpandedCase] = useState(null);
   const [feedback,     setFeedback]     = useState("");
 
-  const canManage = ["ADMIN", "DOCTOR", "ASSISTANT"].includes(role);
+  const canManage = useMemo(
+    () => ["ADMIN", "DOCTOR", "ASSISTANT"].includes(role),
+    [role],
+  );
 
-  useEffect(() => { fetchByPatient(patientId); }, [patientId]);
+  useEffect(() => {
+    fetchByPatient(patientId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
 
-  const handleStatusChange = async (caseId, status) => {
+  const handleTabChange = useCallback((_, v) => setTab(v), []);
+
+  const handleToggleCase = useCallback((id) => setExpandedCase(id), []);
+
+  const handleStatusChange = useCallback(async (caseId, status) => {
     const { error } = await updateCaseStatus(caseId, status);
     if (error) setFeedback("Error: " + error);
     else {
       setFeedback("Estado actualizado.");
       fetchByPatient(patientId);
     }
-  };
+  }, [updateCaseStatus, fetchByPatient, patientId]);
+
+  const clearFeedback = useCallback(() => setFeedback(""), []);
 
   return (
     <Box>
       <Tabs
         value={tab}
-        onChange={(_, v) => setTab(v)}
+        onChange={handleTabChange}
         sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
         variant="fullWidth"
       >
@@ -536,7 +751,7 @@ export default function TreatmentCasesPanel({ patientId }) {
         <Alert
           severity={feedback.startsWith("Error") ? "error" : "success"}
           sx={{ mb: 2 }}
-          onClose={() => setFeedback("")}
+          onClose={clearFeedback}
         >
           {feedback}
         </Alert>
@@ -552,103 +767,22 @@ export default function TreatmentCasesPanel({ patientId }) {
               Sin tratamientos multisesión registrados.
             </Typography>
           ) : (
-            cases.map((c) => {
-              const meta    = STATUS_META[c.status] ?? STATUS_META.en_curso;
-              const balance = Number(c.total_balance ?? 0);
-              const paid    = Number(c.total_paid ?? 0);
-              const billed  = Number(c.total_billed ?? 0);
-
-              return (
-                <Accordion
-                  key={c.id}
-                  expanded={expandedCase === c.id}
-                  onChange={(_, open) => setExpandedCase(open ? c.id : null)}
-                  variant="outlined"
-                  sx={{ mb: 1, "&:before": { display: "none" } }}
-                >
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flex: 1, minWidth: 0, mr: 1 }}>
-                      {meta.icon}
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" fontWeight={500} noWrap>
-                          {c.treatment_name ?? "—"}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Dr. {c.doctor_name ?? "—"} · Inicio: {fmtDate(c.started_at)}
-                          {Number(c.sessions_attended) > 0 && ` · ${c.sessions_attended} sesión(es)`}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexShrink: 0 }}>
-                        {billed > 0 && balance > 0 && (
-                          <Chip label={`Debe ${fmtS(balance)}`} size="small" color="error" variant="outlined" sx={{ fontSize: 10 }} />
-                        )}
-                        {billed > 0 && balance <= 0 && paid > 0 && (
-                          <Chip label="Pagado" size="small" color="success" variant="outlined" sx={{ fontSize: 10 }} />
-                        )}
-                        <Chip label={meta.label} color={meta.color} size="small" />
-                      </Box>
-                    </Box>
-                  </AccordionSummary>
-
-                  <AccordionDetails sx={{ pt: 0 }}>
-                    {/* Info sesiones */}
-                    <Box sx={{ display: "flex", gap: 2, mb: 2, pt: 1, flexWrap: "wrap" }}>
-                      {[
-                        ["Sesiones realizadas",   c.sessions_attended ?? 0],
-                        ["Sesiones planificadas",  c.total_sessions ?? "—"],
-                        ["Sesiones pendientes",    c.sessions_pending ?? 0],
-                      ].map(([label, value]) => (
-                        <Box key={label}>
-                          <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
-                          <Typography variant="body2" fontWeight={500}>{value}</Typography>
-                        </Box>
-                      ))}
-                      {c.notes && (
-                        <Box sx={{ width: "100%" }}>
-                          <Typography variant="caption" color="text.secondary" display="block">Notas del caso</Typography>
-                          <Typography variant="body2">{c.notes}</Typography>
-                        </Box>
-                      )}
-                    </Box>
-
-                    <Divider sx={{ mb: 2 }} />
-                    <Typography variant="caption" color="text.secondary" fontWeight={500} display="block" sx={{ mb: 1.5 }}>
-                      PAGOS DEL TRATAMIENTO
-                    </Typography>
-                    <CasePaymentsSection caseData={c} />
-                    <Divider sx={{ my: 2 }} />
-
-                    {/* Cambio de estado */}
-                    {canManage && (
-                      <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-                        <Typography variant="caption" color="text.secondary">Estado:</Typography>
-                        {["en_curso", "completado", "abandonado"].map((s) => (
-                          <Button
-                            key={s}
-                            size="small"
-                            variant={c.status === s ? "contained" : "outlined"}
-                            color={STATUS_META[s].color}
-                            disabled={c.status === s}
-                            onClick={() => handleStatusChange(c.id, s)}
-                            sx={{ textTransform: "capitalize", fontSize: 12 }}
-                          >
-                            {STATUS_META[s].label}
-                          </Button>
-                        ))}
-                      </Box>
-                    )}
-                  </AccordionDetails>
-                </Accordion>
-              );
-            })
+            cases.map((c) => (
+              <CaseAccordion
+                key={c.id}
+                c={c}
+                expanded={expandedCase === c.id}
+                onToggle={handleToggleCase}
+                canManage={canManage}
+                onStatusChange={handleStatusChange}
+              />
+            ))
           )}
         </>
       )}
 
       {/* Tab 1: Individuales */}
-      {tab === 1 && (
-        <IndividualTreatmentsSection patientId={patientId} />
-      )}
+      {tab === 1 && <IndividualTreatmentsSection patientId={patientId} />}
     </Box>
   );
 }

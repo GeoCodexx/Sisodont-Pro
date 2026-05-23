@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, memo } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -52,8 +52,102 @@ function fmt(iso) {
     : "—";
 }
 
-// Lista de citas para vista móvil
-function AppointmentList({ appointments, onSelect }) {
+// ─────────────────────────────────────────────────────────────
+// AppointmentItem — memo evita re-render de cada fila cuando
+// cambia la selección u otro ítem de la lista.
+// ─────────────────────────────────────────────────────────────
+const AppointmentItem = memo(function AppointmentItem({ appt, onSelect }) {
+  return (
+    <ListItemButton onClick={() => onSelect(appt)} sx={{ py: 1.25, px: 2 }}>
+      <Box
+        sx={{
+          width: 4,
+          height: 36,
+          borderRadius: 2,
+          bgcolor: STATUS_COLORS[appt.status] ?? "#534AB7",
+          mr: 1.5,
+          flexShrink: 0,
+        }}
+      />
+      <ListItemText
+        primary={
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Typography
+              variant="body2"
+              noWrap
+              sx={{ flex: 1, fontWeight: 500 }}
+            >
+              {appt.patient_name}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ ml: 1, flexShrink: 0, color: "text.secondary" }}
+            >
+              {new Date(appt.date).toLocaleTimeString("es-PE", {
+                timeStyle: "short",
+              })}
+            </Typography>
+          </Box>
+        }
+        secondary={
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              mt: 0.25,
+            }}
+          >
+            <Typography
+              variant="caption"
+              noWrap
+              sx={{ color: "text.secondary" }}
+            >
+              {appt.treatment_name ?? "—"} · {appt.doctor_name ?? "—"}
+            </Typography>
+            <Chip
+              label={appt.status}
+              color={STATUS_MUI[appt.status] ?? "default"}
+              size="small"
+              sx={{
+                textTransform: "capitalize",
+                fontSize: 10,
+                height: 18,
+                ml: 1,
+              }}
+            />
+          </Box>
+        }
+        slotProps={{ secondary: { component: "div" } }}
+      />
+    </ListItemButton>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────
+// AppointmentList — memo evita re-render cuando el padre
+// cambia estado no relacionado (feedback, modals, etc.)
+// ─────────────────────────────────────────────────────────────
+const AppointmentList = memo(function AppointmentList({ appointments, onSelect }) {
+  // useMemo: el agrupado por fecha sólo recalcula cuando cambia appointments
+  const groups = useMemo(() => {
+    const g = {};
+    appointments.forEach((a) => {
+      const day = new Date(a.date).toLocaleDateString("es-PE", {
+        dateStyle: "full",
+      });
+      if (!g[day]) g[day] = [];
+      g[day].push(a);
+    });
+    return g;
+  }, [appointments]);
+
   if (appointments.length === 0) {
     return (
       <Typography color="text.secondary" sx={{ textAlign: "center", mt: 6 }}>
@@ -61,16 +155,6 @@ function AppointmentList({ appointments, onSelect }) {
       </Typography>
     );
   }
-
-  // Agrupar por fecha
-  const groups = {};
-  appointments.forEach((a) => {
-    const day = new Date(a.date).toLocaleDateString("es-PE", {
-      dateStyle: "full",
-    });
-    if (!groups[day]) groups[day] = [];
-    groups[day].push(a);
-  });
 
   return (
     <Box>
@@ -92,87 +176,7 @@ function AppointmentList({ appointments, onSelect }) {
               {items.map((a, i) => (
                 <Box key={a.id}>
                   {i > 0 && <Divider />}
-                  <ListItemButton
-                    onClick={() => onSelect(a)}
-                    sx={{ py: 1.25, px: 2 }}
-                  >
-                    {/* Indicador de color de estado */}
-                    <Box
-                      sx={{
-                        width: 4,
-                        height: 36,
-                        borderRadius: 2,
-                        bgcolor: STATUS_COLORS[a.status] ?? "#534AB7",
-                        mr: 1.5,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <ListItemText
-                      primary={
-                        <Box
-                          sx={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <Typography
-                            variant="body2"
-                            noWrap
-                            sx={{ flex: 1, fontWeight: 500 }}
-                          >
-                            {a.patient_name}
-                          </Typography>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              ml: 1,
-                              flexShrink: 0,
-                              color: "text.secondary",
-                            }}
-                          >
-                            {new Date(a.date).toLocaleTimeString("es-PE", {
-                              timeStyle: "short",
-                            })}
-                          </Typography>
-                        </Box>
-                      }
-                      secondary={
-                        <Box
-                          sx={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            mt: 0.25,
-                          }}
-                        >
-                          <Typography
-                            variant="caption"
-                            noWrap
-                            sx={{ color: "text.secondary" }}
-                          >
-                            {a.treatment_name ?? "—"} · {a.doctor_name ?? "—"}
-                          </Typography>
-                          <Chip
-                            label={a.status}
-                            color={STATUS_MUI[a.status] ?? "default"}
-                            size="small"
-                            sx={{
-                              textTransform: "capitalize",
-                              fontSize: 10,
-                              height: 18,
-                              ml: 1,
-                            }}
-                          />
-                        </Box>
-                      }
-                      slotProps={{
-                        secondary: {
-                          component: "div", // clave: evita que sea <p>
-                        },
-                      }}
-                    />
-                  </ListItemButton>
+                  <AppointmentItem appt={a} onSelect={onSelect} />
                 </Box>
               ))}
             </List>
@@ -181,8 +185,43 @@ function AppointmentList({ appointments, onSelect }) {
       ))}
     </Box>
   );
-}
+});
 
+// ─────────────────────────────────────────────────────────────
+// Estilos estáticos del calendario — objeto fuera del componente
+// para que no se recree en cada render.
+// ─────────────────────────────────────────────────────────────
+const CALENDAR_SX = {
+  "& .fc": { fontFamily: "inherit" },
+  "& .fc-button": { textTransform: "capitalize" },
+  "& .fc-event": { cursor: "pointer", fontSize: "0.8rem", px: 0.5 },
+  "& .fc-header-toolbar": {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    mb: 1,
+  },
+  "& .fc-toolbar-chunk": { display: "flex", alignItems: "center", gap: 1 },
+  "@media (max-width:600px)": {
+    "& .fc-header-toolbar": {
+      flexDirection: "column",
+      gap: 0.5,
+      alignItems: "center",
+    },
+    "& .fc-toolbar-chunk": { justifyContent: "center", width: "100%" },
+    "& .fc-button": {
+      fontSize: "0.9rem",
+      px: 0.6,
+      py: 0.3,
+      minWidth: "auto",
+    },
+    "& .fc-toolbar-title": { fontSize: "1rem", textAlign: "center" },
+  },
+};
+
+// ─────────────────────────────────────────────────────────────
+// AppointmentsPage
+// ─────────────────────────────────────────────────────────────
 export default function AppointmentsPage() {
   const calendarRef = useRef(null);
   const { can } = useRole();
@@ -194,26 +233,93 @@ export default function AppointmentsPage() {
   const [openDetail, setOpenDetail] = useState(false);
   const [prefillDate, setPrefillDate] = useState(null);
   const [feedback, setFeedback] = useState("");
-  // En móvil: 'list' | 'calendar'. En desktop siempre calendar
   const [viewMode, setViewMode] = useState("list");
-
-  // Rango actual para refrescar
   const [currentRange, setCurrentRange] = useState({ start: null, end: null });
 
-  const events = appointments.map((a) => ({
-    id: a.id,
-    title: `${a.patient_name} — ${a.treatment_name ?? ""}`,
-    start: a.date,
-    end: a.end_date ?? undefined,
-    backgroundColor: STATUS_COLORS[a.status] ?? "#534AB7",
-    borderColor: STATUS_COLORS[a.status] ?? "#534AB7",
-    extendedProps: a,
-  }));
+  // useMemo: transforma appointments → eventos de FullCalendar.
+  // Solo recalcula cuando cambia el array de appointments.
+  const events = useMemo(
+    () =>
+      appointments.map((a) => ({
+        id: a.id,
+        title: `${a.patient_name} — ${a.treatment_name ?? ""}`,
+        start: a.date,
+        end: a.end_date ?? undefined,
+        backgroundColor: STATUS_COLORS[a.status] ?? "#534AB7",
+        borderColor: STATUS_COLORS[a.status] ?? "#534AB7",
+        extendedProps: a,
+      })),
+    [appointments],
+  );
 
-  const handleDatesSet = ({ start, end }) => {
-    setCurrentRange({ start, end });
-    fetchByRange(start, end);
-  };
+  // useMemo: lista ordenada para la vista móvil.
+  const sortedAppointments = useMemo(
+    () => [...appointments].sort((a, b) => new Date(a.date) - new Date(b.date)),
+    [appointments],
+  );
+
+  // useCallback: handlers estables — evitan que FullCalendar
+  // o los hijos se re-suscriban en cada render del padre.
+  const handleDatesSet = useCallback(
+    ({ start, end }) => {
+      setCurrentRange({ start, end });
+      fetchByRange(start, end);
+    },
+    [fetchByRange],
+  );
+
+  const handleDateClick = useCallback(
+    ({ date }) => {
+      if (!can(["ADMIN", "ASSISTANT"])) return;
+      setPrefillDate(date);
+      setOpenForm(true);
+    },
+    [can],
+  );
+
+  const handleEventClick = useCallback(
+    ({ event }) => {
+      setSelected(event.extendedProps);
+      setOpenDetail(true);
+    },
+    [setSelected],
+  );
+
+  const handleListSelect = useCallback(
+    (appt) => {
+      setSelected(appt);
+      setOpenDetail(true);
+    },
+    [setSelected],
+  );
+
+  const handleFormClose = useCallback(
+    (saved) => {
+      setOpenForm(false);
+      setPrefillDate(null);
+      if (saved) {
+        setFeedback("Cita guardada correctamente.");
+        if (currentRange.start) fetchByRange(currentRange.start, currentRange.end);
+      }
+    },
+    [currentRange, fetchByRange],
+  );
+
+  const handleDetailUpdate = useCallback(() => {
+    if (currentRange.start) fetchByRange(currentRange.start, currentRange.end);
+  }, [currentRange, fetchByRange]);
+
+  const handleViewModeChange = useCallback((_, v) => {
+    if (v) setViewMode(v);
+  }, []);
+
+  const handleNewCita = useCallback(() => {
+    setPrefillDate(null);
+    setOpenForm(true);
+  }, []);
+
+  const handleCloseFeedback = useCallback(() => setFeedback(""), []);
+  const handleCloseDetail = useCallback(() => setOpenDetail(false), []);
 
   // En móvil vista lista: cargar mes actual al montar
   useEffect(() => {
@@ -226,48 +332,17 @@ export default function AppointmentsPage() {
     }
   }, [isMobile, viewMode]);
 
-  const handleDateClick = ({ date }) => {
-    if (!can(["ADMIN", "ASSISTANT"])) return;
-    setPrefillDate(date);
-    setOpenForm(true);
-  };
-
-  const handleEventClick = ({ event }) => {
-    setSelected(event.extendedProps);
-    setOpenDetail(true);
-  };
-
-  const handleListSelect = (appt) => {
-    setSelected(appt);
-    setOpenDetail(true);
-  };
-
-  const handleFormClose = (saved) => {
-    setOpenForm(false);
-    setPrefillDate(null);
-    if (saved) {
-      setFeedback("Cita guardada correctamente.");
-      if (currentRange.start)
-        fetchByRange(currentRange.start, currentRange.end);
-    }
-  };
-
-  const handleDetailUpdate = () => {
-    if (currentRange.start) fetchByRange(currentRange.start, currentRange.end);
-  };
-
   return (
     <Box>
       <PageHeader
         title="Agenda de citas"
         actions={
           <>
-            {/* Toggle vista solo en móvil */}
             {isMobile && (
               <ToggleButtonGroup
                 value={viewMode}
                 exclusive
-                onChange={(_, v) => v && setViewMode(v)}
+                onChange={handleViewModeChange}
                 size="small"
               >
                 <ToggleButton value="list">
@@ -283,10 +358,7 @@ export default function AppointmentsPage() {
                 variant="contained"
                 startIcon={<AddIcon />}
                 size={isMobile ? "small" : "medium"}
-                onClick={() => {
-                  setPrefillDate(null);
-                  setOpenForm(true);
-                }}
+                onClick={handleNewCita}
               >
                 {isMobile ? "Nueva" : "Nueva cita"}
               </Button>
@@ -296,11 +368,7 @@ export default function AppointmentsPage() {
       />
 
       {feedback && (
-        <Alert
-          severity="success"
-          sx={{ mb: 2 }}
-          onClose={() => setFeedback("")}
-        >
+        <Alert severity="success" sx={{ mb: 2 }} onClose={handleCloseFeedback}>
           {feedback}
         </Alert>
       )}
@@ -338,78 +406,21 @@ export default function AppointmentsPage() {
         </Box>
       )}
 
-      {/* ── Vista móvil lista ── */}
+      {/* Vista móvil lista */}
       {isMobile && viewMode === "list" && (
         <AppointmentList
-          appointments={[...appointments].sort(
-            (a, b) => new Date(a.date) - new Date(b.date),
-          )}
+          appointments={sortedAppointments}
           onSelect={handleListSelect}
         />
       )}
 
-      {/* ── Calendario — desktop siempre, móvil solo cuando viewMode=calendar ── */}
+      {/* Calendario */}
       {(!isMobile || viewMode === "calendar") && (
-        <Box
-          sx={{
-            "& .fc": { fontFamily: "inherit" },
-
-            // 🔹 Botones normales (desktop)
-            "& .fc-button": {
-              textTransform: "capitalize",
-            },
-
-            "& .fc-event": {
-              cursor: "pointer",
-              fontSize: "0.8rem",
-              px: 0.5,
-            },
-
-            // 🔥 Toolbar base
-            "& .fc-header-toolbar": {
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              mb: 1, // reducimos espacio vertical
-            },
-
-            "& .fc-toolbar-chunk": {
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-            },
-
-            // 📱 MOBILE FIX
-            "@media (max-width:600px)": {
-              "& .fc-header-toolbar": {
-                flexDirection: "column",
-                gap: 0.5,
-                alignItems: "center",
-              },
-
-              "& .fc-toolbar-chunk": {
-                justifyContent: "center",
-                width: "100%",
-              },
-
-              "& .fc-button": {
-                fontSize: "0.9rem",
-                px: 0.6,
-                py: 0.3,
-                minWidth: "auto",
-              },
-
-              "& .fc-toolbar-title": {
-                fontSize: "1rem",
-                textAlign: "center",
-              },
-            },
-          }}
-        >
+        <Box sx={CALENDAR_SX}>
           <FullCalendar
             ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView={isMobile ? "dayGridMonth" : "dayGridMonth"}
+            initialView="dayGridMonth"
             locale={esLocale}
             headerToolbar={{
               left: "prev,next today",
@@ -435,7 +446,7 @@ export default function AppointmentsPage() {
       />
       <AppointmentDetailDrawer
         open={openDetail}
-        onClose={() => setOpenDetail(false)}
+        onClose={handleCloseDetail}
         onUpdate={handleDetailUpdate}
       />
     </Box>

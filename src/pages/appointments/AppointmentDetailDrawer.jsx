@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../services/supabaseClient";
 import {
@@ -33,17 +33,6 @@ import { useTreatmentCaseStore } from "../../stores/useTreatmentCaseStore";
 import { useLedgerStore } from "../../stores/useLedgerStore";
 import { useRole } from "../../hooks/useRole";
 
-// ─────────────────────────────────────────────────────────────
-// Cambios respecto al original:
-// 1. usePaymentStore → useLedgerStore
-// 2. loadCaseFinancials → lee financial_summary (no payments_summary)
-// 3. handlePayment → useLedgerStore.register con ref_type='appointment'
-// 4. paymentInfo: paid viene de appointments_full.paid (calculado
-//    desde ledger_entries en la view) — no de appointments.paid manual
-// 5. EditSection.createCase: created_by eliminado (store lo resuelve)
-// 6. EditSection: useAuthStore eliminado (no necesita profile?.id)
-// ─────────────────────────────────────────────────────────────
-
 const STATUS_META = {
   pendiente: {
     label: "Pendiente",
@@ -64,32 +53,24 @@ const STATUS_META = {
 
 const METHODS = ["efectivo", "yape", "plin", "transferencia", "tarjeta"];
 
-function Row({ label, value }) {
+// ─────────────────────────────────────────────────────────────
+// Row — memo: componente puramente presentacional.
+// ─────────────────────────────────────────────────────────────
+const Row = memo(function Row({ label, value }) {
   return (
     <Box sx={{ mb: 1.5 }}>
-      <Typography
-        variant="caption"
-        sx={{ color: "text.secondary", display: "block" }}
-      >
+      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
         {label}
       </Typography>
       <Typography variant="body2">{value || "—"}</Typography>
     </Box>
   );
-}
+});
 
 // ─────────────────────────────────────────────────────────────
-// EditSection
-// Reglas (sin cambios de lógica respecto al original):
-// - Solo citas sin case_id (sesión única / Consulta)
-// - Permite cambiar tratamiento, doctor, total y notas
-// - Si se cambia a multisesión: crea treatment_case + vincula case_id
-// - No permite editar de multisesión a otro tratamiento
-//
-// Cambio: created_by eliminado de createCase —
-//         useTreatmentCaseStore.createCase lo resuelve internamente
+// EditSection — memo: sólo re-renderiza si cambia `selected`.
 // ─────────────────────────────────────────────────────────────
-function EditSection({ selected, onSaved, onCancel }) {
+const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
   const { doctors, treatments, fetchAll } = useCatalogStore();
   const { findOpenCase, createCase } = useTreatmentCaseStore();
   const { updateAppointment } = useAppointmentStore();
@@ -107,23 +88,33 @@ function EditSection({ selected, onSaved, onCancel }) {
   const [checkingCase, setCheckingCase] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
-  // Obturación dental
   const [teethCount, setTeethCount] = useState("");
   const [unitPrice, setUnitPrice] = useState("50");
 
-  const set = (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value }));
+  const set = useCallback(
+    (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value })),
+    [],
+  );
 
-  const selectedTreatment =
-    treatments.find((t) => t.id === form.treatment_id) ?? null;
+  const selectedTreatment = useMemo(
+    () => treatments.find((t) => t.id === form.treatment_id) ?? null,
+    [treatments, form.treatment_id],
+  );
   const isMultisession = selectedTreatment?.is_multisession === true;
-  const isObturacion = selectedTreatment?.name
-    ?.toUpperCase()
-    .includes("OBTURACIÓN");
+  const isObturacion = useMemo(
+    () => selectedTreatment?.name?.toUpperCase().includes("OBTURACIÓN") ?? false,
+    [selectedTreatment],
+  );
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
+  const filteredDoctors = useMemo(
+    () =>
+      selectedTreatment?.specialty_id
+        ? doctors.filter((d) => d.specialty_id === selectedTreatment.specialty_id)
+        : doctors,
+    [doctors, selectedTreatment?.specialty_id],
+  );
+
+  useEffect(() => { fetchAll(); }, []);
 
   useEffect(() => {
     if (!selectedTreatment) return;
@@ -143,7 +134,6 @@ function EditSection({ selected, onSaved, onCancel }) {
       return;
     }
 
-    // Multisesión: verificar caso abierto
     setTotalCost(String(selectedTreatment.price ?? ""));
     setCheckingCase(true);
     findOpenCase(selected.patient_id, form.treatment_id).then((found) => {
@@ -153,19 +143,11 @@ function EditSection({ selected, onSaved, onCancel }) {
     });
   }, [form.treatment_id]);
 
-  const filteredDoctors = selectedTreatment?.specialty_id
-    ? doctors.filter((d) => d.specialty_id === selectedTreatment.specialty_id)
-    : doctors;
-
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     setError("");
-    if (!form.doctor_id) {
-      setError("Selecciona un doctor.");
-      return;
-    }
+    if (!form.doctor_id) { setError("Selecciona un doctor."); return; }
 
     setSaving(true);
-
     let caseId = selected.case_id ?? null;
 
     if (isMultisession) {
@@ -177,7 +159,6 @@ function EditSection({ selected, onSaved, onCancel }) {
           setSaving(false);
           return;
         }
-        // created_by ya NO se pasa — useTreatmentCaseStore.createCase lo resuelve
         const { data: newCase, error: caseError } = await createCase({
           patient_id: selected.patient_id,
           treatment_id: form.treatment_id,
@@ -206,12 +187,13 @@ function EditSection({ selected, onSaved, onCancel }) {
     });
 
     setSaving(false);
-    if (updateError) {
-      setError(updateError);
-      return;
-    }
+    if (updateError) { setError(updateError); return; }
     onSaved();
-  };
+  }, [
+    form, isMultisession, isObturacion, openCase, totalCost, caseNotes,
+    totalSessions, teethCount, unitPrice, selected, createCase,
+    updateAppointment, onSaved,
+  ]);
 
   return (
     <Box
@@ -223,10 +205,7 @@ function EditSection({ selected, onSaved, onCancel }) {
         p: 2,
       }}
     >
-      <Typography
-        variant="body2"
-        sx={{ fontWeight: 500, color: "primary.main", mb: 2 }}
-      >
+      <Typography variant="body2" sx={{ fontWeight: 500, color: "primary.main", mb: 2 }}>
         ✏️ Editar cita
       </Typography>
 
@@ -250,17 +229,8 @@ function EditSection({ selected, onSaved, onCancel }) {
             <MenuItem value="">Sin especificar</MenuItem>
             {treatments.map((t) => (
               <MenuItem key={t.id} value={t.id}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                    width: "100%",
-                  }}
-                >
-                  <Typography variant="body2" noWrap sx={{ flex: 1 }}>
-                    {t.name}
-                  </Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
+                  <Typography variant="body2" noWrap sx={{ flex: 1 }}>{t.name}</Typography>
                   {t.is_multisession && (
                     <Chip
                       label="Multisesión"
@@ -271,10 +241,7 @@ function EditSection({ selected, onSaved, onCancel }) {
                     />
                   )}
                   {!t.is_multisession && !t.unit_price && (
-                    <Typography
-                      variant="caption"
-                      sx={{ color: "text.secondary" }}
-                    >
+                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
                       S/ {Number(t.price).toFixed(2)}
                     </Typography>
                   )}
@@ -305,7 +272,7 @@ function EditSection({ selected, onSaved, onCancel }) {
           </TextField>
         </Grid>
 
-        {/* Campos del caso si cambió a multisesión */}
+        {/* Multisesión */}
         {isMultisession && (
           <Grid size={{ xs: 12 }}>
             {checkingCase ? (
@@ -336,12 +303,7 @@ function EditSection({ selected, onSaved, onCancel }) {
               >
                 <Typography
                   variant="caption"
-                  sx={{
-                    color: "primary.main",
-                    fontWeight: 500,
-                    display: "block",
-                    mb: 1,
-                  }}
+                  sx={{ color: "primary.main", fontWeight: 500, display: "block", mb: 1 }}
                 >
                   Nuevo caso de tratamiento
                 </Typography>
@@ -403,10 +365,7 @@ function EditSection({ selected, onSaved, onCancel }) {
                 p: 2,
               }}
             >
-              <Typography
-                variant="body2"
-                sx={{ fontWeight: 500, color: "warning.dark", mb: 1.5 }}
-              >
+              <Typography variant="body2" sx={{ fontWeight: 500, color: "warning.dark", mb: 1.5 }}>
                 🦷 Obturación dental — cálculo por diente
               </Typography>
               <Grid container spacing={1.5} sx={{ alignItems: "center" }}>
@@ -418,12 +377,8 @@ function EditSection({ selected, onSaved, onCancel }) {
                     onChange={(e) => {
                       setTeethCount(e.target.value);
                       const total =
-                        (parseFloat(unitPrice) || 0) *
-                        (parseInt(e.target.value) || 0);
-                      setForm((f) => ({
-                        ...f,
-                        total: total > 0 ? String(total) : "",
-                      }));
+                        (parseFloat(unitPrice) || 0) * (parseInt(e.target.value) || 0);
+                      setForm((f) => ({ ...f, total: total > 0 ? String(total) : "" }));
                     }}
                     size="small"
                     fullWidth
@@ -439,12 +394,8 @@ function EditSection({ selected, onSaved, onCancel }) {
                     onChange={(e) => {
                       setUnitPrice(e.target.value);
                       const total =
-                        (parseFloat(e.target.value) || 0) *
-                        (parseInt(teethCount) || 0);
-                      setForm((f) => ({
-                        ...f,
-                        total: total > 0 ? String(total) : "",
-                      }));
+                        (parseFloat(e.target.value) || 0) * (parseInt(teethCount) || 0);
+                      setForm((f) => ({ ...f, total: total > 0 ? String(total) : "" }));
                     }}
                     size="small"
                     fullWidth
@@ -472,14 +423,12 @@ function EditSection({ selected, onSaved, onCancel }) {
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>
                       S/{" "}
                       {(
-                        (parseFloat(unitPrice) || 0) *
-                        (parseInt(teethCount) || 0)
+                        (parseFloat(unitPrice) || 0) * (parseInt(teethCount) || 0)
                       ).toFixed(2)}
                     </Typography>
                     {parseInt(teethCount) > 0 && (
                       <Typography variant="caption">
-                        {teethCount} × S/{" "}
-                        {parseFloat(unitPrice || 0).toFixed(2)}
+                        {teethCount} × S/ {parseFloat(unitPrice || 0).toFixed(2)}
                       </Typography>
                     )}
                   </Box>
@@ -489,7 +438,7 @@ function EditSection({ selected, onSaved, onCancel }) {
           </Grid>
         )}
 
-        {/* Total — solo sesión única, no obturación, no multisesión */}
+        {/* Total — solo sesión única */}
         {!isMultisession && !isObturacion && (
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
@@ -549,7 +498,7 @@ function EditSection({ selected, onSaved, onCancel }) {
       </Grid>
     </Box>
   );
-}
+});
 
 // ─────────────────────────────────────────────────────────────
 // AppointmentDetailDrawer — componente principal
@@ -564,26 +513,62 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
     useAppointmentStore();
   const { register } = useLedgerStore();
 
-  const [form, setForm] = useState({
-    amount: "",
-    method: "efectivo",
-    notes: "",
-  });
+  const [form, setForm] = useState({ amount: "", method: "efectivo", notes: "" });
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
   const [caseFinancials, setCaseFinancials] = useState(null);
   const [loadingCase, setLoadingCase] = useState(false);
   const [editMode, setEditMode] = useState(false);
 
-  useEffect(() => {
-    setEditMode(false);
-    setFeedback({ msg: "", type: "success" });
-    setForm({ amount: "", method: "efectivo", notes: "" });
-    if (selected?.id) loadCaseFinancials();
-  }, [selected?.id, selected?.case_id, selected?.is_multisession]);
+  // useMemo: derivados de selected — no recalculan si selected no cambia
+  const isCaseAppointment = useMemo(
+    () => !!(selected?.is_multisession && selected?.case_id),
+    [selected?.is_multisession, selected?.case_id],
+  );
 
-  // ── Reload desde appointments_full ───────────────────────
-  // .paid se calcula desde ledger_entries en la view
-  const reloadSelected = async () => {
+  const isConsulta = useMemo(
+    () =>
+      !selected?.treatment_name ||
+      selected.treatment_name.toUpperCase().includes("CONSULTA"),
+    [selected?.treatment_name],
+  );
+
+  const canEdit = useMemo(
+    () =>
+      can(["ADMIN", "ASSISTANT"]) &&
+      !isCaseAppointment &&
+      isConsulta &&
+      selected?.status !== "cancelado",
+    [can, isCaseAppointment, isConsulta, selected?.status],
+  );
+
+  const paymentInfo = useMemo(
+    () =>
+      isCaseAppointment
+        ? (caseFinancials ?? { total: 0, paid: 0, balance: 0 })
+        : {
+            total: Number(selected?.total ?? 0),
+            paid: Number(selected?.paid ?? 0),
+            balance: Number(selected?.total ?? 0) - Number(selected?.paid ?? 0),
+          },
+    [isCaseAppointment, caseFinancials, selected?.total, selected?.paid],
+  );
+
+  const balance = paymentInfo.balance;
+  const meta = STATUS_META[selected?.status] ?? STATUS_META.pendiente;
+
+  const fmt = useCallback(
+    (iso) =>
+      iso
+        ? new Date(iso).toLocaleString("es-PE", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          })
+        : "—",
+    [],
+  );
+
+  // useCallback: reload estable — no cambia entre renders
+  const reloadSelected = useCallback(async () => {
     if (!selected?.id) return;
     const { data } = await supabase
       .from("appointments_full")
@@ -591,12 +576,9 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
       .eq("id", selected.id)
       .single();
     if (data) setSelected(data);
-  };
+  }, [selected?.id, setSelected]);
 
-  // ── Financiero del caso multisesión ───────────────────────
-  // Lee financial_summary — billed/collected/balance
-  // (payments_summary fue eliminada en la migración)
-  const loadCaseFinancials = async () => {
+  const loadCaseFinancials = useCallback(async () => {
     if (!selected?.case_id || !selected?.is_multisession) {
       setCaseFinancials(null);
       return;
@@ -608,7 +590,6 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
       .eq("ref_type", "case")
       .eq("ref_id", selected.case_id)
       .single();
-
     if (!error && data) {
       setCaseFinancials({
         total: Number(data.billed ?? 0),
@@ -619,61 +600,33 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
       setCaseFinancials(null);
     }
     setLoadingCase(false);
-  };
+  }, [selected?.case_id, selected?.is_multisession]);
 
-  if (!selected) return null;
+  useEffect(() => {
+    setEditMode(false);
+    setFeedback({ msg: "", type: "success" });
+    setForm({ amount: "", method: "efectivo", notes: "" });
+    if (selected?.id) loadCaseFinancials();
+  }, [selected?.id, selected?.case_id, selected?.is_multisession]);
 
-  const isCaseAppointment = !!(selected?.is_multisession && selected?.case_id);
+  const setField = useCallback(
+    (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value })),
+    [],
+  );
 
-  const isConsulta =
-    !selected.treatment_name ||
-    selected.treatment_name.toUpperCase().includes("CONSULTA");
+  const handleStatus = useCallback(
+    async (status) => {
+      const { error } = await changeStatus(selected.id, status);
+      if (error) setFeedback({ msg: error, type: "error" });
+      else {
+        setFeedback({ msg: "Estado actualizado.", type: "success" });
+        onUpdate();
+      }
+    },
+    [changeStatus, selected?.id, onUpdate],
+  );
 
-  const canEdit =
-    can(["ADMIN", "ASSISTANT"]) &&
-    !isCaseAppointment &&
-    isConsulta &&
-    selected.status !== "cancelado";
-
-  // paymentInfo:
-  // - Cita individual: .paid viene de appointments_full.paid
-  //   (SUM de ledger_entries calculado en la view)
-  // - Caso multisesión: viene de financial_summary
-  const paymentInfo = isCaseAppointment
-    ? (caseFinancials ?? { total: 0, paid: 0, balance: 0 })
-    : {
-        total: Number(selected?.total ?? 0),
-        paid: Number(selected?.paid ?? 0),
-        balance: Number(selected?.total ?? 0) - Number(selected?.paid ?? 0),
-      };
-
-  const balance = paymentInfo.balance;
-  const meta = STATUS_META[selected.status] ?? STATUS_META.pendiente;
-  const setField = (f) => (e) =>
-    setForm((p) => ({ ...p, [f]: e.target.value }));
-
-  const fmt = (iso) =>
-    iso
-      ? new Date(iso).toLocaleString("es-PE", {
-          dateStyle: "medium",
-          timeStyle: "short",
-        })
-      : "—";
-
-  // ── Cambiar estado ────────────────────────────────────────
-  const handleStatus = async (status) => {
-    const { error } = await changeStatus(selected.id, status);
-    if (error) setFeedback({ msg: error, type: "error" });
-    else {
-      setFeedback({ msg: "Estado actualizado.", type: "success" });
-      onUpdate();
-    }
-  };
-
-  // ── Registrar pago (cita individual) ─────────────────────
-  // useLedgerStore.register → inserta en ledger_entries
-  // ref_type='appointment', created_by resuelto en el store
-  const handlePayment = async () => {
+  const handlePayment = useCallback(async () => {
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) {
       setFeedback({ msg: "Ingresa un monto válido.", type: "error" });
@@ -692,53 +645,66 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
       notes: form.notes || null,
     });
 
-    if (error) {
-      setFeedback({ msg: error, type: "error" });
-      return;
-    }
+    if (error) { setFeedback({ msg: error, type: "error" }); return; }
 
     setFeedback({ msg: "Pago registrado.", type: "success" });
     setForm({ amount: "", method: "efectivo", notes: "" });
-    // appointments_full.paid se recalcula automáticamente desde ledger_entries
     await reloadSelected();
     onUpdate();
-  };
+  }, [form, balance, register, selected?.id, reloadSelected, onUpdate]);
 
-  // ── Eliminar cita ─────────────────────────────────────────
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!window.confirm("¿Eliminar esta cita?")) return;
     const { error } = await deleteAppointment(selected.id);
     if (error) setFeedback({ msg: error, type: "error" });
-    else {
-      onClose();
-      onUpdate();
-    }
-  };
+    else { onClose(); onUpdate(); }
+  }, [deleteAppointment, selected?.id, onClose, onUpdate]);
+
+  const handleEditSaved = useCallback(async () => {
+    setEditMode(false);
+    await reloadSelected();
+    await loadCaseFinancials();
+    setFeedback({ msg: "Cita actualizada correctamente.", type: "success" });
+    onUpdate();
+  }, [reloadSelected, loadCaseFinancials, onUpdate]);
+
+  const handleCancelEdit = useCallback(() => setEditMode(false), []);
+  const handleOpenEdit = useCallback(() => setEditMode(true), []);
+  const handleCloseFeedback = useCallback(
+    () => setFeedback({ msg: "", type: "success" }),
+    [],
+  );
+
+  const handleNavToPatient = useCallback(() => {
+    onClose();
+    setTimeout(
+      () => navigate(`/patients/${selected.patient_id}?case=${selected.case_id}`),
+      150,
+    );
+  }, [onClose, navigate, selected?.patient_id, selected?.case_id]);
+
+  if (!selected) return null;
+
+  // useMemo: props del paper del Drawer — evita object literal inline
+  const drawerPaperSx = isMobile
+    ? {
+        borderRadius: "16px 16px 0 0",
+        maxHeight: "92vh",
+        display: "flex",
+        flexDirection: "column",
+      }
+    : { width: 420, p: 3 };
 
   return (
     <Drawer
       anchor={isMobile ? "bottom" : "right"}
       open={open}
       onClose={onClose}
-      slotProps={{
-        paper: {
-          sx: isMobile
-            ? {
-                borderRadius: "16px 16px 0 0",
-                maxHeight: "92vh",
-                display: "flex",
-                flexDirection: "column",
-              }
-            : { width: 420, p: 3 },
-        },
-      }}
+      slotProps={{ paper: { sx: drawerPaperSx } }}
     >
-      {/* Handle móvil */}
       {isMobile && (
         <Box sx={{ display: "flex", justifyContent: "center", pt: 1, pb: 0.5 }}>
-          <Box
-            sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: "divider" }}
-          />
+          <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: "divider" }} />
         </Box>
       )}
 
@@ -757,26 +723,16 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
               {isCaseAppointment ? "Sesión de tratamiento" : "Detalle de cita"}
             </Typography>
             <Box sx={{ display: "flex", gap: 0.75, mt: 0.5, flexWrap: "wrap" }}>
-              <Chip
-                icon={meta.icon}
-                label={meta.label}
-                color={meta.color}
-                size="small"
-              />
+              <Chip icon={meta.icon} label={meta.label} color={meta.color} size="small" />
               {isCaseAppointment && (
-                <Chip
-                  label="Multisesión"
-                  color="primary"
-                  variant="outlined"
-                  size="small"
-                />
+                <Chip label="Multisesión" color="primary" variant="outlined" size="small" />
               )}
             </Box>
           </Box>
           <Box sx={{ display: "flex", gap: 0.5 }}>
             {canEdit && !editMode && (
               <Tooltip title="Editar cita">
-                <IconButton size="small" onClick={() => setEditMode(true)}>
+                <IconButton size="small" onClick={handleOpenEdit}>
                   <EditIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
@@ -788,46 +744,24 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
         </Box>
 
         {feedback.msg && (
-          <Alert
-            severity={feedback.type}
-            sx={{ mb: 2 }}
-            onClose={() => setFeedback({ msg: "", type: "success" })}
-          >
+          <Alert severity={feedback.type} sx={{ mb: 2 }} onClose={handleCloseFeedback}>
             {feedback.msg}
           </Alert>
         )}
 
         <Divider sx={{ mb: 2 }} />
 
-        {/* Modo edición */}
         {editMode ? (
           <EditSection
             selected={selected}
-            onSaved={async () => {
-              setEditMode(false);
-
-              await reloadSelected();
-              await loadCaseFinancials();
-
-              setFeedback({
-                msg: "Cita actualizada correctamente.",
-                type: "success",
-              });
-
-              onUpdate();
-            }}
-            onCancel={() => setEditMode(false)}
+            onSaved={handleEditSaved}
+            onCancel={handleCancelEdit}
           />
         ) : (
           <>
             {/* Info de la cita */}
             <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 0,
-                mb: 0,
-              }}
+              sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, mb: 0 }}
             >
               <Row label="Paciente" value={selected.patient_name} />
               <Row label="Doctor" value={selected.doctor_name} />
@@ -851,9 +785,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
 
             {/* Resumen financiero */}
             <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1.5 }}>
-              {isCaseAppointment
-                ? "Resumen financiero del tratamiento"
-                : "Pagos"}
+              {isCaseAppointment ? "Resumen financiero del tratamiento" : "Pagos"}
             </Typography>
 
             <Box
@@ -899,33 +831,21 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
               ))}
             </Box>
 
-            {/* Caso multisesión → redirigir a ficha del paciente */}
             {isCaseAppointment ? (
               <>
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  Los pagos de este tratamiento se gestionan desde la ficha del
-                  paciente.
+                  Los pagos de este tratamiento se gestionan desde la ficha del paciente.
                 </Alert>
                 <Button
                   fullWidth
                   variant="contained"
                   sx={{ mb: 2 }}
-                  onClick={() => {
-                    onClose();
-                    setTimeout(
-                      () =>
-                        navigate(
-                          `/patients/${selected.patient_id}?case=${selected.case_id}`,
-                        ),
-                      150,
-                    );
-                  }}
+                  onClick={handleNavToPatient}
                 >
                   Ver tratamiento y pagos
                 </Button>
               </>
             ) : (
-              /* Cita individual — formulario de pago */
               <>
                 {can(["ADMIN", "ASSISTANT"]) && balance > 0 && (
                   <>
@@ -954,9 +874,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
                             htmlInput: { min: 0.01, step: "0.01" },
                             input: {
                               startAdornment: (
-                                <InputAdornment position="start">
-                                  S/
-                                </InputAdornment>
+                                <InputAdornment position="start">S/</InputAdornment>
                               ),
                             },
                           }}
@@ -972,11 +890,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
                           size="small"
                         >
                           {METHODS.map((m) => (
-                            <MenuItem
-                              key={m}
-                              value={m}
-                              sx={{ textTransform: "capitalize" }}
-                            >
+                            <MenuItem key={m} value={m} sx={{ textTransform: "capitalize" }}>
                               {m}
                             </MenuItem>
                           ))}
@@ -1023,10 +937,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
             {/* Cambiar estado */}
             {can(["ADMIN", "DOCTOR", "ASSISTANT"]) && (
               <>
-                <Typography
-                  variant="subtitle2"
-                  sx={{ fontWeight: 500, mb: 1.5 }}
-                >
+                <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1.5 }}>
                   Cambiar estado
                 </Typography>
                 <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
