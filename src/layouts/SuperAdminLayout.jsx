@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
@@ -18,6 +18,7 @@ import {
   Chip,
   useTheme,
   useMediaQuery,
+  Popover,
 } from "@mui/material";
 import BarChartIcon from "@mui/icons-material/BarChart";
 import BusinessIcon from "@mui/icons-material/Business";
@@ -28,11 +29,15 @@ import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import CategoryIcon from "@mui/icons-material/Category";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import AppLogoIcon from "../assets/icon_sisodont.png";
 
 import { useAuthStore } from "../stores/useAuthStore";
 import { useThemeStore } from "../stores/useThemeStore";
 
 const DRAWER_WIDTH = 224;
+//const APP_LOGO = "../assets/icon_sisodont.png";
+const CLINIC_NAME_SUPER = "Sisodont Pro";
 
 const NAV_ITEMS = [
   {
@@ -46,15 +51,11 @@ const NAV_ITEMS = [
     path: "/super-admin/catalog",
     icon: <CategoryIcon />,
   },
-  // "Clínicas" eliminado del sidebar — la navegación es desde la tabla del dashboard
-  {
-    label: "Mi perfil",
-    path: "/profile",
-    icon: <PersonIcon />,
-    isBottom: true,
-  },
 ];
 
+// ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
 function initials(name = "") {
   return name
     .split(" ")
@@ -64,6 +65,356 @@ function initials(name = "") {
     .toUpperCase();
 }
 
+// ─────────────────────────────────────────────────────────────
+// AppLogo
+// ─────────────────────────────────────────────────────────────
+function AppLogo({ clinicName, compact = false }) {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+      <Box
+        component="img"
+        src={AppLogoIcon}
+        alt="Sisodont"
+        sx={{
+          height: compact ? 28 : 32,
+          width: "auto",
+          flexShrink: 0,
+          objectFit: "contain",
+        }}
+        onError={(e) => {
+          e.target.style.display = "none";
+        }}
+      />
+      {!compact && (
+        <Box sx={{ minWidth: 0 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              fontWeight: 700,
+              fontSize: 11,
+              letterSpacing: 1,
+              color: "warning.main",
+              display: "block",
+              lineHeight: 1.1,
+              textTransform: "uppercase",
+            }}
+          >
+            Sisodont
+          </Typography>
+          {clinicName && (
+            <Typography
+              variant="caption"
+              sx={{
+                fontSize: 10,
+                color: "text.secondary",
+                display: "block",
+                lineHeight: 1.1,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: 140,
+              }}
+            >
+              {clinicName}
+            </Typography>
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// UserMenu — Avatar con popover desplegable (AppBar desktop)
+// ─────────────────────────────────────────────────────────────
+function UserMenu({ profile, onLogout, onProfile }) {
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
+
+  return (
+    <>
+      <Box
+        onClick={(e) => setAnchorEl(e.currentTarget)}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 0.75,
+          cursor: "pointer",
+          px: 1,
+          py: 0.5,
+          borderRadius: 2,
+          border: "1px solid",
+          borderColor: open ? "warning.main" : "divider",
+          transition: "all 0.15s ease",
+          "&:hover": {
+            borderColor: "warning.main",
+            bgcolor: "action.hover",
+          },
+        }}
+      >
+        <Avatar
+          sx={{
+            width: 30,
+            height: 30,
+            bgcolor: "warning.main",
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          {initials(profile?.full_name)}
+        </Avatar>
+        <Box
+          sx={{
+            display: { xs: "none", sm: "flex" },
+            flexDirection: "column",
+            minWidth: 0,
+          }}
+        >
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 600, fontSize: 12, lineHeight: 1.2 }}
+            noWrap
+          >
+            {profile?.full_name ?? ""}
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", fontSize: 10, lineHeight: 1 }}
+          >
+            Super Admin
+          </Typography>
+        </Box>
+        <KeyboardArrowDownIcon
+          sx={{
+            fontSize: 16,
+            color: "text.secondary",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.2s ease",
+            display: { xs: "none", sm: "block" },
+          }}
+        />
+      </Box>
+
+      <Popover
+        open={open}
+        anchorEl={anchorEl}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        slotProps={{
+          paper: {
+            sx: {
+              mt: 0.5,
+              minWidth: 180,
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+            },
+          },
+        }}
+      >
+        <Box
+          sx={{
+            px: 2,
+            py: 1.5,
+            borderBottom: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {profile?.full_name ?? ""}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {profile?.email ?? ""}
+          </Typography>
+        </Box>
+
+        <List dense sx={{ py: 0.5 }}>
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                setAnchorEl(null);
+                onProfile?.();
+              }}
+              sx={{ borderRadius: 1, mx: 0.5, px: 1.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: 32 }}>
+                <PersonIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary="Mi perfil"
+                slotProps={{ primary: { sx: { fontSize: 13 } } }}
+              />
+            </ListItemButton>
+          </ListItem>
+          <Divider sx={{ my: 0.5 }} />
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                setAnchorEl(null);
+                onLogout?.();
+              }}
+              sx={{
+                borderRadius: 1,
+                mx: 0.5,
+                px: 1.5,
+                color: "error.main",
+                "&:hover": { bgcolor: "error.50" },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 32, color: "error.main" }}>
+                <LogoutIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary="Cerrar sesión"
+                slotProps={{
+                  primary: { sx: { fontSize: 13, color: "error.main" } },
+                }}
+              />
+            </ListItemButton>
+          </ListItem>
+        </List>
+      </Popover>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SidebarUserButton — botón de usuario al fondo del sidebar
+// ─────────────────────────────────────────────────────────────
+function SidebarUserButton({ profile, onProfile, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef(null);
+
+  return (
+    <>
+      <Box
+        ref={anchorRef}
+        onClick={() => setOpen(true)}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          px: 1.5,
+          py: 1,
+          mx: 1,
+          mb: 1,
+          borderRadius: 2,
+          cursor: "pointer",
+          border: "1px solid",
+          borderColor: "divider",
+          transition: "all 0.15s ease",
+          "&:hover": {
+            bgcolor: "action.hover",
+            borderColor: "warning.main",
+          },
+        }}
+      >
+        <Avatar
+          sx={{
+            width: 30,
+            height: 30,
+            bgcolor: "warning.main",
+            fontSize: 11,
+            fontWeight: 700,
+            flexShrink: 0,
+          }}
+        >
+          {initials(profile?.full_name)}
+        </Avatar>
+        <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 600, fontSize: 12, lineHeight: 1.2 }}
+            noWrap
+          >
+            {profile?.full_name ?? ""}
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", fontSize: 10, lineHeight: 1 }}
+          >
+            Super Admin
+          </Typography>
+        </Box>
+        <KeyboardArrowDownIcon
+          sx={{ fontSize: 16, color: "text.secondary", flexShrink: 0 }}
+        />
+      </Box>
+
+      <Popover
+        open={open}
+        anchorEl={anchorRef.current}
+        onClose={() => setOpen(false)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        transformOrigin={{ vertical: "bottom", horizontal: "center" }}
+        slotProps={{
+          paper: {
+            sx: {
+              mb: 0.5,
+              width: 196,
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              boxShadow: "0 -4px 20px rgba(0,0,0,0.12)",
+            },
+          },
+        }}
+      >
+        <List dense sx={{ py: 0.5 }}>
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                setOpen(false);
+                onProfile?.();
+              }}
+              sx={{ borderRadius: 1, mx: 0.5, px: 1.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: 32 }}>
+                <PersonIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary="Mi perfil"
+                slotProps={{ primary: { sx: { fontSize: 13 } } }}
+              />
+            </ListItemButton>
+          </ListItem>
+          <Divider sx={{ my: 0.5 }} />
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                setOpen(false);
+                onLogout?.();
+              }}
+              sx={{
+                borderRadius: 1,
+                mx: 0.5,
+                px: 1.5,
+                color: "error.main",
+                "&:hover": { bgcolor: "error.50" },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 32, color: "error.main" }}>
+                <LogoutIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary="Cerrar sesión"
+                slotProps={{
+                  primary: { sx: { fontSize: 13, color: "error.main" } },
+                }}
+              />
+            </ListItemButton>
+          </ListItem>
+        </List>
+      </Popover>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// NavItem
+// ─────────────────────────────────────────────────────────────
 function NavItem({ label, path, icon, active, navigate, onItemClick }) {
   return (
     <ListItem disablePadding sx={{ mb: 0.5 }}>
@@ -99,10 +450,17 @@ function NavItem({ label, path, icon, active, navigate, onItemClick }) {
   );
 }
 
-function SidebarContent({ location, navigate, profile, onItemClick }) {
-  const mainItems = NAV_ITEMS.filter((i) => !i.isBottom);
-  const bottomItems = NAV_ITEMS.filter((i) => i.isBottom);
-
+// ─────────────────────────────────────────────────────────────
+// SidebarContent
+// ─────────────────────────────────────────────────────────────
+function SidebarContent({
+  location,
+  navigate,
+  profile,
+  onItemClick,
+  onProfile,
+  onLogout,
+}) {
   const isActive = (item) =>
     item.exact
       ? location.pathname === item.path
@@ -110,34 +468,27 @@ function SidebarContent({ location, navigate, profile, onItemClick }) {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <Toolbar sx={{ px: 2, gap: 1.5, minHeight: { xs: 56, sm: 64 } }}>
-        <Avatar
-          sx={{ width: 28, height: 28, bgcolor: "warning.main", fontSize: 12 }}
-        >
-          {initials(profile?.full_name)}
-        </Avatar>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
-            {profile?.full_name ?? ""}
-          </Typography>
-          <Chip
-            label="Super Admin"
-            size="small"
-            color="warning"
-            variant="outlined"
-            sx={{ height: 16, fontSize: 10, mt: 0.25 }}
-          />
-        </Box>
-      </Toolbar>
+      {/* Logo + nombre SuperAdmin */}
+      <Box
+        sx={{
+          px: 2,
+          py: 1.5,
+          display: "flex",
+          alignItems: "center",
+          minHeight: { xs: 56, sm: 64 },
+        }}
+      >
+        <AppLogo clinicName={CLINIC_NAME_SUPER} />
+      </Box>
       <Divider />
 
-      {/* Badge identificador del módulo */}
-      <Box sx={{ px: 2, py: 1.5 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      {/* Badge Super Admin */}
+      <Box sx={{ px: 2, py: 1.25 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
           <AdminPanelSettingsIcon fontSize="small" color="warning" />
           <Typography
             variant="caption"
-            sx={{ color: "warning.main", fontWeight: 600 }}
+            sx={{ color: "warning.main", fontWeight: 700, letterSpacing: 0.5 }}
           >
             PANEL SUPER ADMIN
           </Typography>
@@ -145,8 +496,9 @@ function SidebarContent({ location, navigate, profile, onItemClick }) {
       </Box>
       <Divider />
 
+      {/* Nav items */}
       <List sx={{ px: 1, pt: 1, flexGrow: 1 }}>
-        {mainItems.map((item) => (
+        {NAV_ITEMS.map((item) => (
           <NavItem
             key={item.path}
             {...item}
@@ -157,26 +509,25 @@ function SidebarContent({ location, navigate, profile, onItemClick }) {
         ))}
       </List>
 
-      {bottomItems.length > 0 && (
-        <>
-          <Divider sx={{ mx: 1 }} />
-          <List sx={{ px: 1, pb: 1 }}>
-            {bottomItems.map((item) => (
-              <NavItem
-                key={item.path}
-                {...item}
-                active={location.pathname.startsWith(item.path)}
-                navigate={navigate}
-                onItemClick={onItemClick}
-              />
-            ))}
-          </List>
-        </>
-      )}
+      {/* Botón de usuario al fondo */}
+      <Divider sx={{ mx: 1, mb: 0.5, display: { xs: "flex", md: "none" } }} />
+      <Box sx={{ display: { xs: "block", md: "none" } }}>
+        <SidebarUserButton
+          profile={profile}
+          onProfile={() => {
+            onProfile?.();
+            onItemClick?.();
+          }}
+          onLogout={onLogout}
+        />
+      </Box>
     </Box>
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// SuperAdminLayout
+// ─────────────────────────────────────────────────────────────
 export default function SuperAdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -199,17 +550,26 @@ export default function SuperAdminLayout() {
     navigate("/login", { replace: true });
   };
 
+  const handleProfile = () => navigate("/profile");
+
+  const sidebarProps = {
+    location,
+    navigate,
+    profile,
+    onProfile: handleProfile,
+    onLogout: handleLogout,
+  };
+
   const drawerContent = (
     <SidebarContent
-      location={location}
-      navigate={navigate}
-      profile={profile}
+      {...sidebarProps}
       onItemClick={() => setMobileOpen(false)}
     />
   );
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
+      {/* ── AppBar ─────────────────────────────────────────── */}
       <AppBar
         position="fixed"
         elevation={0}
@@ -226,55 +586,79 @@ export default function SuperAdminLayout() {
           sx={{
             justifyContent: "space-between",
             minHeight: { xs: 56, sm: 64 },
+            px: { xs: 1.5, sm: 2 },
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            {isMobile && (
+          {isMobile ? (
+            /* ── MOBILE ─────────────────────────────────── */
+            <>
+              {/* Izquierda: hamburger */}
               <IconButton
                 onClick={() => setMobileOpen(true)}
                 size="small"
                 edge="start"
-                sx={{ mr: 0.5 }}
               >
                 <MenuIcon />
               </IconButton>
-            )}
-            <Typography variant="body1" fontWeight={500} noWrap>
-              {activeLabel}
-            </Typography>
-          </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Typography
-              variant="body2"
-              sx={{
-                display: { xs: "none", sm: "block" },
-                mr: 0.5,
-                color: "text.secondary",
-              }}
-              noWrap
-            >
-              {profile?.full_name ?? ""}
-            </Typography>
-            <Tooltip title={darkMode ? "Modo claro" : "Modo oscuro"}>
-              <IconButton onClick={toggle} size="small">
-                {darkMode ? (
-                  <Brightness7Icon fontSize="small" />
-                ) : (
-                  <Brightness4Icon fontSize="small" />
-                )}
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Cerrar sesión">
-              <IconButton onClick={handleLogout} size="small">
-                <LogoutIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
+              {/* Centro: nombre de sección activa */}
+              <Typography
+                variant="body1"
+                fontWeight={600}
+                noWrap
+                sx={{
+                  position: "absolute",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                }}
+              >
+                {activeLabel}
+              </Typography>
+
+              {/* Derecha: toggle tema */}
+              <Tooltip title={darkMode ? "Modo claro" : "Modo oscuro"}>
+                <IconButton onClick={toggle} size="small" edge="end">
+                  {darkMode ? (
+                    <Brightness7Icon fontSize="small" />
+                  ) : (
+                    <Brightness4Icon fontSize="small" />
+                  )}
+                </IconButton>
+              </Tooltip>
+            </>
+          ) : (
+            /* ── DESKTOP ────────────────────────────────── */
+            <>
+              {/* Izquierda: logo + "Sisodont Pro" */}
+              {/* <AppLogo clinicName={CLINIC_NAME_SUPER} /> */}
+              <Typography variant="body1" fontWeight={500} noWrap>
+                {activeLabel}
+              </Typography>
+
+              {/* Derecha: toggle tema + perfil */}
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Tooltip title={darkMode ? "Modo claro" : "Modo oscuro"}>
+                  <IconButton onClick={toggle} size="small">
+                    {darkMode ? (
+                      <Brightness7Icon fontSize="small" />
+                    ) : (
+                      <Brightness4Icon fontSize="small" />
+                    )}
+                  </IconButton>
+                </Tooltip>
+
+                <UserMenu
+                  profile={profile}
+                  onProfile={handleProfile}
+                  onLogout={handleLogout}
+                />
+              </Box>
+            </>
+          )}
         </Toolbar>
       </AppBar>
 
-      {/* Drawer móvil */}
+      {/* ── Drawer móvil ──────────────────────────────────── */}
       <Drawer
         variant="temporary"
         open={mobileOpen}
@@ -293,7 +677,7 @@ export default function SuperAdminLayout() {
         {drawerContent}
       </Drawer>
 
-      {/* Drawer desktop */}
+      {/* ── Drawer desktop ────────────────────────────────── */}
       <Drawer
         variant="permanent"
         sx={{
@@ -309,10 +693,10 @@ export default function SuperAdminLayout() {
         }}
         open
       >
-        {drawerContent}
+        <SidebarContent {...sidebarProps} />
       </Drawer>
 
-      {/* Contenido */}
+      {/* ── Contenido ─────────────────────────────────────── */}
       <Box
         component="main"
         sx={{

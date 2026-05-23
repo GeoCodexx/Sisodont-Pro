@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
@@ -18,6 +18,9 @@ import {
   Chip,
   useMediaQuery,
   useTheme,
+  Popover,
+  MenuItem,
+  ListItemIcon as MenuItemIcon,
 } from "@mui/material";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PeopleIcon from "@mui/icons-material/People";
@@ -35,16 +38,19 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import MenuIcon from "@mui/icons-material/Menu";
 import BusinessIcon from "@mui/icons-material/Business";
 import BarChartIcon from "@mui/icons-material/BarChart";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import AppLogoIcon from "../assets/icon_sisodont.png";
 
 import { useAuthStore } from "../stores/useAuthStore";
 import { useThemeStore } from "../stores/useThemeStore";
+import { useSettingsStore } from "../stores/useSettingsStore";
 import { preloadRoutes } from "../router";
 
 const DRAWER_WIDTH = 224;
+//const APP_LOGO = "/assets/icon_sisodont.png";
 
 // ─────────────────────────────────────────────────────────────
 // Definición de ítems de navegación por rol.
-// preload: función del objeto preloadRoutes correspondiente.
 // ─────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
   // ── Staff ──────────────────────────────────────────────────
@@ -117,12 +123,12 @@ const NAV_ITEMS = [
   },
 
   // ── Compartido ─────────────────────────────────────────────
-  {
-    label: "Mi perfil",
-    path: "/profile",
-    icon: <PersonIcon />,
-    roles: ["ADMIN", "DOCTOR", "ASSISTANT", "PATIENT"],
-  },
+  // {
+  //   label: "Mi perfil",
+  //   path: "/profile",
+  //   icon: <PersonIcon />,
+  //   roles: ["ADMIN", "DOCTOR", "ASSISTANT", "PATIENT"],
+  // },
 
   // ── Solo ADMIN (fondo) ─────────────────────────────────────
   {
@@ -139,17 +145,12 @@ const SUPER_ADMIN_ITEMS = [
     label: "Resumen SaaS",
     path: "/super-admin",
     icon: <BarChartIcon />,
+    exact: true,
   },
   {
     label: "Clínicas",
     path: "/super-admin/tenants",
     icon: <BusinessIcon />,
-  },
-  {
-    label: "Mi perfil",
-    path: "/profile",
-    icon: <PersonIcon />,
-    isBottom: true,
   },
 ];
 
@@ -174,11 +175,235 @@ const ROLE_LABEL = {
 };
 
 // ─────────────────────────────────────────────────────────────
+// Logo de la aplicación
+// ─────────────────────────────────────────────────────────────
+function AppLogo({ clinicName, compact = false }) {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+      <Box
+        component="img"
+        src={AppLogoIcon}
+        alt="Sisodont"
+        sx={{
+          height: compact ? 28 : 32,
+          width: "auto",
+          flexShrink: 0,
+          objectFit: "contain",
+        }}
+        onError={(e) => {
+          // Fallback si no carga la imagen
+          e.target.style.display = "none";
+        }}
+      />
+      {!compact && (
+        <Box sx={{ minWidth: 0 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              fontWeight: 700,
+              fontSize: 11,
+              letterSpacing: 1,
+              color: "primary.main",
+              display: "block",
+              lineHeight: 1.1,
+              textTransform: "uppercase",
+            }}
+          >
+            Sisodont Pro
+          </Typography>
+          {clinicName && (
+            <Typography
+              variant="caption"
+              sx={{
+                fontSize: 10,
+                color: "text.secondary",
+                display: "block",
+                lineHeight: 1.1,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: 140,
+              }}
+            >
+              {clinicName}
+            </Typography>
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// UserMenu — Avatar con popover desplegable
+// ─────────────────────────────────────────────────────────────
+function UserMenu({ profile, role, onLogout, onProfile }) {
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
+
+  return (
+    <>
+      <Box
+        onClick={(e) => setAnchorEl(e.currentTarget)}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 0.75,
+          cursor: "pointer",
+          px: 1,
+          py: 0.5,
+          borderRadius: 2,
+          border: "1px solid",
+          borderColor: open ? "primary.main" : "divider",
+          transition: "all 0.15s ease",
+          "&:hover": {
+            borderColor: "primary.main",
+            bgcolor: "action.hover",
+          },
+        }}
+      >
+        <Avatar
+          sx={{
+            width: 30,
+            height: 30,
+            bgcolor: "primary.main",
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          {initials(profile?.full_name)}
+        </Avatar>
+        <Box
+          sx={{
+            display: { xs: "none", sm: "flex" },
+            flexDirection: "column",
+            minWidth: 0,
+          }}
+        >
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 600, fontSize: 12, lineHeight: 1.2 }}
+            noWrap
+          >
+            {profile?.full_name ?? ""}
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", fontSize: 10, lineHeight: 1 }}
+          >
+            {ROLE_LABEL[role] ?? role}
+          </Typography>
+        </Box>
+        <KeyboardArrowDownIcon
+          sx={{
+            fontSize: 16,
+            color: "text.secondary",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.2s ease",
+            display: { xs: "none", sm: "block" },
+          }}
+        />
+      </Box>
+
+      <Popover
+        open={open}
+        anchorEl={anchorEl}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        slotProps={{
+          paper: {
+            sx: {
+              mt: 0.5,
+              minWidth: 180,
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+            },
+          },
+        }}
+      >
+        {/* Header del menú */}
+        <Box
+          sx={{
+            px: 2,
+            py: 1.5,
+            borderBottom: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {profile?.full_name ?? ""}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {profile?.email ?? ""}
+          </Typography>
+        </Box>
+
+        <List dense sx={{ py: 0.5 }}>
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                setAnchorEl(null);
+                onProfile?.();
+              }}
+              sx={{ borderRadius: 1, mx: 0.5, px: 1.5 }}
+            >
+              <MenuItemIcon sx={{ minWidth: 32 }}>
+                <PersonIcon fontSize="small" />
+              </MenuItemIcon>
+              <ListItemText
+                primary="Mi perfil"
+                slotProps={{ primary: { sx: { fontSize: 13 } } }}
+              />
+            </ListItemButton>
+          </ListItem>
+          <Divider sx={{ my: 0.5 }} />
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                setAnchorEl(null);
+                onLogout?.();
+              }}
+              sx={{
+                borderRadius: 1,
+                mx: 0.5,
+                px: 1.5,
+                color: "error.main",
+                "&:hover": { bgcolor: "error.50" },
+              }}
+            >
+              <MenuItemIcon sx={{ minWidth: 32, color: "error.main" }}>
+                <LogoutIcon fontSize="small" />
+              </MenuItemIcon>
+              <ListItemText
+                primary="Cerrar sesión"
+                slotProps={{
+                  primary: { sx: { fontSize: 13, color: "error.main" } },
+                }}
+              />
+            </ListItemButton>
+          </ListItem>
+        </List>
+      </Popover>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // NavItem — ítem de lista con preloading en hover
 // ─────────────────────────────────────────────────────────────
-function NavItem({ label, path, icon, active, navigate, onItemClick, preload }) {
-  // Dispara el preload del chunk la primera vez que el usuario
-  // hace hover sobre el ítem. Idempotente: si ya está cargado, no hace nada.
+function NavItem({
+  label,
+  path,
+  icon,
+  active,
+  navigate,
+  onItemClick,
+  preload,
+  isSuperAdmin,
+}) {
   const handleMouseEnter = useCallback(() => {
     if (preload && preloadRoutes[preload]) {
       preloadRoutes[preload]();
@@ -197,10 +422,12 @@ function NavItem({ label, path, icon, active, navigate, onItemClick, preload }) 
         sx={{
           borderRadius: 2,
           "&.Mui-selected": {
-            bgcolor: "primary.main",
+            bgcolor: isSuperAdmin ? "warning.main" : "primary.main",
             color: "white",
             "& .MuiListItemIcon-root": { color: "white" },
-            "&:hover": { bgcolor: "primary.dark" },
+            "&:hover": {
+              bgcolor: isSuperAdmin ? "warning.dark" : "primary.dark",
+            },
           },
         }}
       >
@@ -221,6 +448,144 @@ function NavItem({ label, path, icon, active, navigate, onItemClick, preload }) 
 }
 
 // ─────────────────────────────────────────────────────────────
+// SidebarUserButton — botón de usuario al fondo del sidebar
+// ─────────────────────────────────────────────────────────────
+function SidebarUserButton({
+  profile,
+  role,
+  onProfile,
+  onLogout,
+  isSuperAdmin,
+}) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef(null);
+
+  return (
+    <>
+      <Box
+        ref={anchorRef}
+        onClick={() => setOpen(true)}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          px: 1.5,
+          py: 1,
+          mx: 1,
+          mb: 1,
+          borderRadius: 2,
+          cursor: "pointer",
+          border: "1px solid",
+          borderColor: "divider",
+          transition: "all 0.15s ease",
+          "&:hover": {
+            bgcolor: "action.hover",
+            borderColor: isSuperAdmin ? "warning.main" : "primary.main",
+          },
+        }}
+      >
+        <Avatar
+          sx={{
+            width: 30,
+            height: 30,
+            bgcolor: isSuperAdmin ? "warning.main" : "primary.main",
+            fontSize: 11,
+            fontWeight: 700,
+            flexShrink: 0,
+          }}
+        >
+          {initials(profile?.full_name)}
+        </Avatar>
+        <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 600, fontSize: 12, lineHeight: 1.2 }}
+            noWrap
+          >
+            {profile?.full_name ?? ""}
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", fontSize: 10, lineHeight: 1 }}
+          >
+            {ROLE_LABEL[role] ?? role}
+          </Typography>
+        </Box>
+        <KeyboardArrowDownIcon
+          sx={{ fontSize: 16, color: "text.secondary", flexShrink: 0 }}
+        />
+      </Box>
+
+      <Popover
+        open={open}
+        anchorEl={anchorRef.current}
+        onClose={() => setOpen(false)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        transformOrigin={{ vertical: "bottom", horizontal: "center" }}
+        slotProps={{
+          paper: {
+            sx: {
+              mb: 0.5,
+              width: 196,
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              boxShadow: "0 -4px 20px rgba(0,0,0,0.12)",
+            },
+          },
+        }}
+      >
+        <List dense sx={{ py: 0.5 }}>
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                setOpen(false);
+                onProfile?.();
+              }}
+              sx={{ borderRadius: 1, mx: 0.5, px: 1.5 }}
+            >
+              <MenuItemIcon sx={{ minWidth: 32 }}>
+                <PersonIcon fontSize="small" />
+              </MenuItemIcon>
+              <ListItemText
+                primary="Mi perfil"
+                slotProps={{ primary: { sx: { fontSize: 13 } } }}
+              />
+            </ListItemButton>
+          </ListItem>
+          <Divider sx={{ my: 0.5 }} />
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                setOpen(false);
+                onLogout?.();
+              }}
+              sx={{
+                borderRadius: 1,
+                mx: 0.5,
+                px: 1.5,
+                color: "error.main",
+                "&:hover": { bgcolor: "error.50" },
+              }}
+            >
+              <MenuItemIcon sx={{ minWidth: 32, color: "error.main" }}>
+                <LogoutIcon fontSize="small" />
+              </MenuItemIcon>
+              <ListItemText
+                primary="Cerrar sesión"
+                slotProps={{
+                  primary: { sx: { fontSize: 13, color: "error.main" } },
+                }}
+              />
+            </ListItemButton>
+          </ListItem>
+        </List>
+      </Popover>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // SidebarContent
 // ─────────────────────────────────────────────────────────────
 function SidebarContent({
@@ -230,70 +595,80 @@ function SidebarContent({
   navigate,
   profile,
   role,
+  clinicName,
+  isSuperAdmin,
   onItemClick,
+  onProfile,
+  onLogout,
 }) {
-  const isActive = (path) => {
-    if (path === "/super-admin") return location.pathname === "/super-admin";
-    return location.pathname.startsWith(path);
+  const isActive = (item) => {
+    if (item.exact) return location.pathname === item.path;
+    return location.pathname.startsWith(item.path);
   };
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <Toolbar sx={{ px: 2, gap: 1.5, minHeight: { xs: 56, sm: 64 } }}>
-        <Avatar
-          sx={{ width: 28, height: 28, bgcolor: "primary.main", fontSize: 12 }}
-        >
-          {initials(profile?.full_name)}
-        </Avatar>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
-            {profile?.full_name ?? ""}
-          </Typography>
-          <Chip
-            label={ROLE_LABEL[role] ?? role}
-            size="small"
-            color={role === "SUPER_ADMIN" ? "warning" : "default"}
-            variant="outlined"
-            sx={{ height: 16, fontSize: 10, mt: 0.25 }}
-          />
-        </Box>
-      </Toolbar>
+      {/* Logo + Clínica */}
+      <Box
+        sx={{
+          px: 2,
+          py: 1.5,
+          display: "flex",
+          alignItems: "center",
+          minHeight: { xs: 56, sm: 64 },
+        }}
+      >
+        <AppLogo clinicName={clinicName} />
+      </Box>
       <Divider />
 
+      {/* Nav principal */}
       <List sx={{ px: 1, pt: 1, flexGrow: 1 }}>
-        {mainItems.map(({ label, path, icon, preload }) => (
+        {mainItems.map((item) => (
           <NavItem
-            key={path}
-            label={label}
-            path={path}
-            icon={icon}
-            preload={preload}
-            active={isActive(path)}
+            key={item.path}
+            {...item}
+            active={isActive(item)}
             navigate={navigate}
             onItemClick={onItemClick}
+            isSuperAdmin={isSuperAdmin}
           />
         ))}
       </List>
 
+      {/* Nav bottom (Settings, etc.) */}
       {bottomItems.length > 0 && (
         <>
           <Divider sx={{ mx: 1 }} />
-          <List sx={{ px: 1, pb: 1 }}>
-            {bottomItems.map(({ label, path, icon, preload }) => (
+          <List sx={{ px: 1, pt: 0.5 }}>
+            {bottomItems.map((item) => (
               <NavItem
-                key={path}
-                label={label}
-                path={path}
-                icon={icon}
-                preload={preload}
-                active={isActive(path)}
+                key={item.path}
+                {...item}
+                active={isActive(item)}
                 navigate={navigate}
                 onItemClick={onItemClick}
+                isSuperAdmin={isSuperAdmin}
               />
             ))}
           </List>
         </>
       )}
+
+      {/* Botón de usuario al fondo */}
+      <Divider sx={{ mx: 1, mb: 0.5, display: { xs: "flex", md: "none" } }} />
+      <Box sx={{ display: { xs: "block", md: "none" } }}>
+        <SidebarUserButton
+          profile={profile}
+          role={role}
+          isSuperAdmin={isSuperAdmin}
+          onProfile={() => {
+            onProfile?.();
+            onItemClick?.();
+          }}
+          onLogout={onLogout}
+        />
+      </Box>
     </Box>
   );
 }
@@ -306,14 +681,20 @@ export default function MainLayout() {
   const location = useLocation();
   const { signOut, profile, role, isSuperAdmin } = useAuthStore();
   const { darkMode, toggle } = useThemeStore();
+  const { settings } = useSettingsStore();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Nombre de clínica: SuperAdmin siempre ve "Sisodont Pro"
+  const clinicName = isSuperAdmin
+    ? "Sisodont Pro"
+    : (settings?.clinic_name ?? "");
+
   const sourceItems = isSuperAdmin
     ? SUPER_ADMIN_ITEMS
-    : NAV_ITEMS.filter((i) => i.roles.includes(role));
+    : NAV_ITEMS.filter((i) => i.roles?.includes(role));
 
   const mainItems = sourceItems.filter((i) => !i.isBottom);
   const bottomItems = sourceItems.filter((i) => i.isBottom);
@@ -321,7 +702,7 @@ export default function MainLayout() {
   const allItems = [...mainItems, ...bottomItems];
   const activeLabel =
     allItems.find((i) => {
-      if (i.path === "/super-admin") return location.pathname === "/super-admin";
+      if (i.exact) return location.pathname === i.path;
       return location.pathname.startsWith(i.path);
     })?.label ?? "Sisodont Pro";
 
@@ -330,18 +711,24 @@ export default function MainLayout() {
     navigate("/login", { replace: true });
   };
 
-  const drawerProps = {
+  const handleProfile = () => navigate("/profile");
+
+  const sidebarProps = {
     mainItems,
     bottomItems,
     location,
     navigate,
     profile,
     role,
+    clinicName,
+    isSuperAdmin,
+    onProfile: handleProfile,
+    onLogout: handleLogout,
   };
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
-      {/* AppBar ───────────────────────────────────────────── */}
+      {/* ── AppBar ─────────────────────────────────────────── */}
       <AppBar
         position="fixed"
         elevation={0}
@@ -358,52 +745,80 @@ export default function MainLayout() {
           sx={{
             justifyContent: "space-between",
             minHeight: { xs: 56, sm: 64 },
+            px: { xs: 1.5, sm: 2 },
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            {isMobile && (
+          {/* ── MOBILE: hamburger + título sección + tema ── */}
+          {isMobile ? (
+            <>
+              {/* Izquierda: hamburger */}
               <IconButton
                 onClick={() => setMobileOpen(true)}
                 size="small"
                 edge="start"
-                sx={{ mr: 0.5 }}
               >
                 <MenuIcon />
               </IconButton>
-            )}
-            <Typography variant="body1" noWrap>
-              {activeLabel}
-            </Typography>
-          </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{ display: { xs: "none", sm: "block" }, mr: 0.5 }}
-              noWrap
-            >
-              {profile?.full_name ?? ""}
-            </Typography>
-            <Tooltip title={darkMode ? "Modo claro" : "Modo oscuro"}>
-              <IconButton onClick={toggle} size="small">
-                {darkMode ? (
-                  <Brightness7Icon fontSize="small" />
-                ) : (
-                  <Brightness4Icon fontSize="small" />
-                )}
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Cerrar sesión">
-              <IconButton onClick={handleLogout} size="small">
-                <LogoutIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
+              {/* Centro: nombre de sección */}
+              <Typography
+                variant="body1"
+                fontWeight={600}
+                noWrap
+                sx={{
+                  position: "absolute",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                }}
+              >
+                {activeLabel}
+              </Typography>
+
+              {/* Derecha: icono de tema */}
+              <Tooltip title={darkMode ? "Modo claro" : "Modo oscuro"}>
+                <IconButton onClick={toggle} size="small" edge="end">
+                  {darkMode ? (
+                    <Brightness7Icon fontSize="small" />
+                  ) : (
+                    <Brightness4Icon fontSize="small" />
+                  )}
+                </IconButton>
+              </Tooltip>
+            </>
+          ) : (
+            /* ── DESKTOP: logo+clínica izq. / acciones der. ── */
+            <>
+              {/* Izquierda: logo + nombre de clínica */}
+              {/* <AppLogo clinicName={clinicName} /> */}
+              <Typography variant="body1" fontWeight={500} noWrap>
+                {activeLabel}
+              </Typography>
+
+              {/* Derecha: tema + perfil */}
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Tooltip title={darkMode ? "Modo claro" : "Modo oscuro"}>
+                  <IconButton onClick={toggle} size="small">
+                    {darkMode ? (
+                      <Brightness7Icon fontSize="small" />
+                    ) : (
+                      <Brightness4Icon fontSize="small" />
+                    )}
+                  </IconButton>
+                </Tooltip>
+
+                <UserMenu
+                  profile={profile}
+                  role={role}
+                  onProfile={handleProfile}
+                  onLogout={handleLogout}
+                />
+              </Box>
+            </>
+          )}
         </Toolbar>
       </AppBar>
 
-      {/* Drawer móvil ─────────────────────────────────────── */}
+      {/* ── Drawer móvil ──────────────────────────────────── */}
       <Drawer
         variant="temporary"
         open={mobileOpen}
@@ -420,12 +835,12 @@ export default function MainLayout() {
         }}
       >
         <SidebarContent
-          {...drawerProps}
+          {...sidebarProps}
           onItemClick={() => setMobileOpen(false)}
         />
       </Drawer>
 
-      {/* Drawer desktop ───────────────────────────────────── */}
+      {/* ── Drawer desktop ────────────────────────────────── */}
       <Drawer
         variant="permanent"
         sx={{
@@ -441,10 +856,10 @@ export default function MainLayout() {
         }}
         open
       >
-        <SidebarContent {...drawerProps} />
+        <SidebarContent {...sidebarProps} />
       </Drawer>
 
-      {/* Contenido principal ──────────────────────────────── */}
+      {/* ── Contenido principal ───────────────────────────── */}
       <Box
         component="main"
         sx={{
