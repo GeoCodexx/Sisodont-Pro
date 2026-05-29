@@ -10,12 +10,12 @@ import PageHeader           from "../../components/PageHeader";
 
 // ─────────────────────────────────────────────────────────────
 // Nota: useAuthStore ya NO se importa aquí.
-// updated_by lo resuelve updateMany internamente desde el store.
+// updated_by lo resuelve updateSettings internamente desde el store.
 // ─────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const { isMobile }                                    = useBreakpoint();
-  const { settings, loading, saving, fetchSettings, updateMany } =
+  const { settings, loading, saving, fetchSettings, updateSettings } =
     useSettingsStore();
 
   const [form, setForm] = useState({
@@ -53,7 +53,7 @@ export default function SettingsPage() {
       currency:                 form.currency,
       appointment_slot_minutes: parseInt(form.appointment_slot_minutes) || 30,
     };
-    const { error } = await updateMany(updates);
+    const { error } = await updateSettings(updates);
     if (error) setFeedback({ msg: error, type: "error" });
     else       setFeedback({ msg: "Configuración guardada correctamente.", type: "success" });
   };

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "../services/supabaseClient";
+import { useSettingsStore } from "./useSettingsStore";
 
 // ─────────────────────────────────────────────
 // Módulo-level guards para evitar duplicados
@@ -180,6 +181,7 @@ export const useAuthStore = create((set, get) => ({
   // la sesión en Supabase
   // ─────────────────────────────────────────
   signOut: async () => {
+    useSettingsStore.getState().clearSettings();
     await supabase.auth.signOut();
     fetchingProfile = false;
     authListener = null; // Permitir re-init si fuera necesario

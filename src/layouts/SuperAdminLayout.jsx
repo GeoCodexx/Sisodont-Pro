@@ -99,7 +99,7 @@ function AppLogo({ clinicName, compact = false }) {
               textTransform: "uppercase",
             }}
           >
-            Sisodont
+            Sisodont Pro
           </Typography>
           {clinicName && (
             <Typography

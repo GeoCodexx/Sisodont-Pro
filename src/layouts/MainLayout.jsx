@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
@@ -681,16 +681,30 @@ export default function MainLayout() {
   const location = useLocation();
   const { signOut, profile, role, isSuperAdmin } = useAuthStore();
   const { darkMode, toggle } = useThemeStore();
-  const { settings } = useSettingsStore();
+  const { settings, loading, fetchSettings, clearSettings } =
+    useSettingsStore();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  useEffect(() => {
+    if (profile?.id) {
+      fetchSettings();
+    } else {
+      clearSettings();
+    }
+  }, [profile?.id]);
+
   // Nombre de clínica: SuperAdmin siempre ve "Sisodont Pro"
+  /*const clinicName = isSuperAdmin
+    ? "Sisodont Pro"
+    : (settings?.clinic_name ?? "");*/
   const clinicName = isSuperAdmin
     ? "Sisodont Pro"
-    : (settings?.clinic_name ?? "");
+    : loading
+      ? "Cargando..."
+      : settings?.clinic_name || "Mi Clínica";
 
   const sourceItems = isSuperAdmin
     ? SUPER_ADMIN_ITEMS
