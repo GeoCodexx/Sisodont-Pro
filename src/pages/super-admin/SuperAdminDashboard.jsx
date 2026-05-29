@@ -1,40 +1,25 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Box,
-  Grid,
-  Card,
-  CardContent,
-  Typography,
-  CircularProgress,
-  Alert,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Chip,
-  IconButton,
-  Tooltip,
-  Avatar,
-  Button,
+  Box, Grid, Card, CardContent, Typography, CircularProgress,
+  Alert, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Paper, Chip, Avatar, Button,
 } from "@mui/material";
-import BusinessIcon from "@mui/icons-material/Business";
-import PeopleIcon from "@mui/icons-material/People";
+import BusinessIcon      from "@mui/icons-material/Business";
+import PeopleIcon        from "@mui/icons-material/People";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
-import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
-import TrendingUpIcon from "@mui/icons-material/TrendingUp";
-import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import FolderOpenIcon from "@mui/icons-material/FolderOpen";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import AddIcon from "@mui/icons-material/Add";
+import AttachMoneyIcon   from "@mui/icons-material/AttachMoney";
+import TrendingUpIcon    from "@mui/icons-material/TrendingUp";
+import WarningAmberIcon  from "@mui/icons-material/WarningAmber";
+import FolderOpenIcon    from "@mui/icons-material/FolderOpen";
+import ChevronRightIcon  from "@mui/icons-material/ChevronRight";
+import AddIcon           from "@mui/icons-material/Add";
 import CreateTenantDialog from "./CreateTenantDialog";
 import { useSuperAdminStore } from "../../stores/useSuperAdminStore";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 
-const fmtS = (n) =>
+// ── Formatters ────────────────────────────────────────────────
+const fmtS    = (n)   =>
   `S/ ${Number(n ?? 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })}`;
 const fmtDate = (iso) =>
   iso ? new Date(iso).toLocaleDateString("es-PE", { dateStyle: "short" }) : "—";
@@ -44,34 +29,19 @@ function KpiCard({ label, value, icon, color, sub }) {
   return (
     <Card variant="outlined">
       <CardContent sx={{ pb: "16px !important" }}>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            mb: 1,
-          }}
-        >
-          <Typography
-            variant="caption"
-            sx={{ color: "text.secondary", fontWeight: 500 }}
-          >
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+          <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 500 }}>
             {label.toUpperCase()}
           </Typography>
           <Box sx={{ color: color ?? "text.secondary", opacity: 0.7 }}>
             {icon}
           </Box>
         </Box>
-        <Typography
-          variant="h5"
-          sx={{ color: color ?? "text.primary", fontWeight: 700 }}
-        >
+        <Typography variant="h5" sx={{ color: color ?? "text.primary", fontWeight: 700 }}>
           {value}
         </Typography>
         {sub && (
-          <Typography variant="caption" color="text.secondary">
-            {sub}
-          </Typography>
+          <Typography variant="caption" color="text.secondary">{sub}</Typography>
         )}
       </CardContent>
     </Card>
@@ -84,23 +54,12 @@ function TenantRow({ t, onClick }) {
     <TableRow hover onClick={() => onClick(t.id)} sx={{ cursor: "pointer" }}>
       <TableCell>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <Avatar
-            sx={{
-              width: 32,
-              height: 32,
-              bgcolor: "primary.main",
-              fontSize: 13,
-            }}
-          >
+          <Avatar sx={{ width: 32, height: 32, bgcolor: "primary.main", fontSize: 13 }}>
             {t.name.slice(0, 2).toUpperCase()}
           </Avatar>
           <Box>
-            <Typography variant="body2" fontWeight={500}>
-              {t.name}
-            </Typography>
-            <Typography variant="caption" color="textSecondary">
-              {t.slug}
-            </Typography>
+            <Typography variant="body2" fontWeight={500}>{t.name}</Typography>
+            <Typography variant="caption" color="textSecondary">{t.slug}</Typography>
           </Box>
         </Box>
       </TableCell>
@@ -117,12 +76,27 @@ function TenantRow({ t, onClick }) {
       <TableCell align="center">
         <Typography variant="body2">{t.appts_count ?? 0}</Typography>
       </TableCell>
+      <TableCell align="center">
+        {/* active_cases viene calculado en fetchTenants desde treatment_cases */}
+        <Typography variant="body2">{t.active_cases ?? 0}</Typography>
+      </TableCell>
+      <TableCell>
+        <Typography variant="body2" sx={{ color: "success.main", fontWeight: 500 }}>
+          {fmtS(t.gross_revenue)}
+        </Typography>
+      </TableCell>
+      <TableCell>
+        {/* collected = suma ledger_entries del tenant (fuente de verdad) */}
+        <Typography variant="body2" color="text.secondary">
+          {fmtS(t.collected)}
+        </Typography>
+      </TableCell>
       <TableCell>
         <Typography
           variant="body2"
-          sx={{ color: "success.main", fontWeight: 500 }}
+          color={(t.pending_balance ?? 0) > 0 ? "error.main" : "text.secondary"}
         >
-          {fmtS(t.gross_revenue)}
+          {fmtS(t.pending_balance)}
         </Typography>
       </TableCell>
       <TableCell>
@@ -151,32 +125,14 @@ function TenantCard({ t, onClick }) {
       onClick={() => onClick(t.id)}
     >
       <CardContent sx={{ pb: "12px !important" }}>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            mb: 1,
-          }}
-        >
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <Avatar
-              sx={{
-                width: 36,
-                height: 36,
-                bgcolor: "primary.main",
-                fontSize: 13,
-              }}
-            >
+            <Avatar sx={{ width: 36, height: 36, bgcolor: "primary.main", fontSize: 13 }}>
               {t.name.slice(0, 2).toUpperCase()}
             </Avatar>
             <Box>
-              <Typography variant="body2" fontWeight={500}>
-                {t.name}
-              </Typography>
-              <Typography variant="caption" color="textSecondary">
-                {t.slug}
-              </Typography>
+              <Typography variant="body2" fontWeight={500}>{t.name}</Typography>
+              <Typography variant="caption" color="textSecondary">{t.slug}</Typography>
             </Box>
           </Box>
           <Chip
@@ -186,37 +142,37 @@ function TenantCard({ t, onClick }) {
           />
         </Box>
 
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 1,
-            mt: 1,
-          }}
-        >
+        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 1, mt: 1 }}>
           {[
-            ["Usuarios", t.users_count ?? 0],
-            ["Citas", t.appts_count ?? 0],
-            ["Facturado", fmtS(t.gross_revenue)],
+            ["Usuarios",   t.users_count ?? 0],
+            ["Citas",      t.appts_count ?? 0],
+            ["Facturado",  fmtS(t.gross_revenue)],
           ].map(([label, value]) => (
             <Box
               key={label}
-              sx={{
-                bgcolor: "action.hover",
-                borderRadius: 1,
-                p: 0.75,
-                textAlign: "center",
-              }}
+              sx={{ bgcolor: "action.hover", borderRadius: 1, p: 0.75, textAlign: "center" }}
             >
-              <Typography
-                variant="caption"
-                sx={{ color: "text.secondary", display: "block" }}
-              >
+              <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
                 {label}
               </Typography>
-              <Typography variant="body2" fontWeight={500}>
-                {value}
+              <Typography variant="body2" fontWeight={500}>{value}</Typography>
+            </Box>
+          ))}
+        </Box>
+
+        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, mt: 1 }}>
+          {[
+            ["Cobrado",    fmtS(t.collected)],
+            ["Por cobrar", fmtS(t.pending_balance)],
+          ].map(([label, value]) => (
+            <Box
+              key={label}
+              sx={{ bgcolor: "action.hover", borderRadius: 1, p: 0.75, textAlign: "center" }}
+            >
+              <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+                {label}
               </Typography>
+              <Typography variant="body2" fontWeight={500}>{value}</Typography>
             </Box>
           ))}
         </Box>
@@ -241,9 +197,7 @@ export default function SuperAdminDashboard() {
   const { tenants, kpis, loading, error, fetchTenants } = useSuperAdminStore();
   const [openCreate, setOpenCreate] = useState(false);
 
-  useEffect(() => {
-    fetchTenants();
-  }, []);
+  useEffect(() => { fetchTenants(); }, []);
 
   const handleTenantClick = (id) => navigate(`/super-admin/tenants/${id}`);
 
@@ -257,16 +211,11 @@ export default function SuperAdminDashboard() {
   return (
     <Box>
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
+        <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
       )}
 
       {/* KPIs globales */}
-      <Typography
-        variant="subtitle2"
-        sx={{ mb: 1.5, color: "text.secondary", fontWeight: 600 }}
-      >
+      <Typography variant="subtitle2" sx={{ mb: 1.5, color: "text.secondary", fontWeight: 600 }}>
         MÉTRICAS GLOBALES DEL SAAS
       </Typography>
       <Grid container spacing={{ xs: 1.5, sm: 2 }} sx={{ mb: 3 }}>
@@ -290,11 +239,14 @@ export default function SuperAdminDashboard() {
           },
           {
             label: "Facturado global",
+            // Suma: citas individuales (appointments.total, case_id IS NULL)
+            //       + casos (treatment_cases.total_cost)
             value: fmtS(kpis?.grossRevenue),
             icon: <AttachMoneyIcon />,
           },
           {
             label: "Cobrado global",
+            // Suma real desde ledger_entries (fuente de verdad de pagos)
             value: fmtS(kpis?.collected),
             icon: <TrendingUpIcon />,
             color: "success.main",
@@ -303,8 +255,7 @@ export default function SuperAdminDashboard() {
             label: "Por cobrar",
             value: fmtS(kpis?.pendingBalance),
             icon: <WarningAmberIcon />,
-            color:
-              (kpis?.pendingBalance ?? 0) > 0 ? "error.main" : "text.primary",
+            color: (kpis?.pendingBalance ?? 0) > 0 ? "error.main" : "text.primary",
           },
           {
             label: "Casos activos",
@@ -319,19 +270,9 @@ export default function SuperAdminDashboard() {
         ))}
       </Grid>
 
-      {/* Tabla de clínicas */}
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 1.5,
-        }}
-      >
-        <Typography
-          variant="subtitle2"
-          sx={{ color: "text.secondary", fontWeight: 600 }}
-        >
+      {/* Tabla / cards de clínicas */}
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+        <Typography variant="subtitle2" sx={{ color: "text.secondary", fontWeight: 600 }}>
           CLÍNICAS ({tenants.length})
         </Typography>
         <Button
@@ -349,9 +290,7 @@ export default function SuperAdminDashboard() {
           <CircularProgress size={28} />
         </Box>
       ) : tenants.length === 0 ? (
-        <Typography
-          sx={{ color: "text.secondary", textAlign: "center", mt: 4 }}
-        >
+        <Typography sx={{ color: "text.secondary", textAlign: "center", mt: 4 }}>
           No hay clínicas registradas.
         </Typography>
       ) : isMobile ? (
@@ -369,7 +308,10 @@ export default function SuperAdminDashboard() {
                 <TableCell>Estado</TableCell>
                 <TableCell align="center">Usuarios</TableCell>
                 <TableCell align="center">Citas</TableCell>
+                <TableCell align="center">Casos activos</TableCell>
                 <TableCell>Facturado</TableCell>
+                <TableCell>Cobrado</TableCell>
+                <TableCell>Por cobrar</TableCell>
                 <TableCell>Última actividad</TableCell>
                 <TableCell>Registrada</TableCell>
                 <TableCell />
@@ -383,6 +325,7 @@ export default function SuperAdminDashboard() {
           </Table>
         </TableContainer>
       )}
+
       <CreateTenantDialog
         open={openCreate}
         onClose={() => setOpenCreate(false)}
