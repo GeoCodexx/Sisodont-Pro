@@ -90,7 +90,12 @@ const UserCard = memo(function UserCard({ user, isSelf, onEdit, onToggle }) {
       <CardContent sx={{ pb: "12px !important" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
           <Avatar
-            sx={{ width: 36, height: 36, bgcolor: "primary.main", fontSize: 13 }}
+            sx={{
+              width: 36,
+              height: 36,
+              bgcolor: "primary.main",
+              fontSize: 13,
+            }}
           >
             {initials(user.full_name)}
           </Avatar>
@@ -108,7 +113,11 @@ const UserCard = memo(function UserCard({ user, isSelf, onEdit, onToggle }) {
                 />
               )}
             </Box>
-            <Typography variant="caption" sx={{ color: "text.secondary" }} noWrap>
+            <Typography
+              variant="caption"
+              sx={{ color: "text.secondary" }}
+              noWrap
+            >
               {user.email}
             </Typography>
           </Box>
@@ -196,8 +205,15 @@ const UserCard = memo(function UserCard({ user, isSelf, onEdit, onToggle }) {
 // ─────────────────────────────────────────────────────────────
 export default function UsersPage() {
   const { isMobile } = useBreakpoint();
-  const { users, loading, saving, fetchUsers, inviteUser, updateRole, toggleActive } =
-    useUsersStore();
+  const {
+    users,
+    loading,
+    saving,
+    fetchUsers,
+    inviteUser,
+    updateRole,
+    toggleActive,
+  } = useUsersStore();
   // Selector estable: solo re-suscribe a cambios de user.id
   const currentUserId = useAuthStore((s) => s.user?.id);
 
@@ -232,11 +248,24 @@ export default function UsersPage() {
 
   const handleCloseEdit = useCallback(() => setOpenEdit(false), []);
 
+  let mensajeTraducido =
+    "Ocurrió un error inesperado. Por favor, intenta de nuevo.";
+
   const handleInvite = useCallback(async () => {
     setActionError("");
+    if (invite?.password.length < 5) {
+      setActionError("La contraseña debe ser mayor o igual a 5 caracteres.");
+      return;
+    }
     const { error } = await inviteUser(invite);
     if (error) {
-      setActionError(error);
+      setActionError(
+        error.includes(
+          "A user with this email address has already been registered",
+        )
+          ? "Este correo electrónico ya está en uso. Intenta con otro."
+          : mensajeTraducido,
+      );
       return;
     }
     setActionSuccess("Usuario creado correctamente.");
@@ -451,12 +480,7 @@ export default function UsersPage() {
       </Dialog>
 
       {/* Modal: editar rol */}
-      <Dialog
-        open={openEdit}
-        onClose={handleCloseEdit}
-        maxWidth="xs"
-        fullWidth
-      >
+      <Dialog open={openEdit} onClose={handleCloseEdit} maxWidth="xs" fullWidth>
         <DialogTitle>Cambiar rol — {selected?.full_name}</DialogTitle>
         <DialogContent sx={{ pt: "16px !important" }}>
           <TextField
@@ -502,7 +526,12 @@ const UserRow = memo(function UserRow({ user, isSelf, onEdit, onToggle }) {
       <TableCell>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
           <Avatar
-            sx={{ width: 32, height: 32, fontSize: 12, bgcolor: "primary.main" }}
+            sx={{
+              width: 32,
+              height: 32,
+              fontSize: 12,
+              bgcolor: "primary.main",
+            }}
           >
             {initials(user.full_name)}
           </Avatar>
