@@ -131,7 +131,7 @@ export const useAuthStore = create((set, get) => ({
   // Único punto de fetch del perfil.
   // Incluye la validación de active.
   // ─────────────────────────────────────────
-  fetchProfile: async (userId) => {
+  /*fetchProfile: async (userId) => {
     if (fetchingProfile) return;
     fetchingProfile = true;
 
@@ -173,8 +173,69 @@ export const useAuthStore = create((set, get) => ({
     } finally {
       fetchingProfile = false;
     }
-  },
+  },*/
+  fetchProfile: async (userId) => {
+    if (fetchingProfile) return;
+    fetchingProfile = true;
+    const { setProfile, signOut } = get();
 
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(
+          `
+        *,
+        tenant:tenants(active)
+      `,
+        )
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("[Auth] Error fetching profile:", error);
+        setProfile(null);
+        return;
+      }
+
+      if (!data) {
+        console.warn("[Auth] Profile not found para user:", userId);
+        setProfile(null);
+        return;
+      }
+
+      // Validación 1 — Usuario inactivo
+      if (!data.active) {
+        console.warn("[Auth] Usuario inactivo, cerrando sesión");
+        await signOut();
+        return;
+      }
+
+      // Validación 2 — Tenant inactivo
+      // SUPER_ADMIN no tiene tenant_id, se omite la validación
+      if (data.role !== "SUPER_ADMIN") {
+        if (!data.tenant_id) {
+          console.warn("[Auth] Usuario sin tenant asignado");
+          await signOut();
+          return;
+        }
+
+        if (!data.tenant?.active) {
+          console.warn("[Auth] Tenant inactivo, cerrando sesión");
+          await signOut();
+          return;
+        }
+      }
+
+      // Separar el objeto tenant del perfil antes de guardarlo
+      const { tenant, ...profile } = data;
+      setProfile(profile);
+    } catch (err) {
+      console.error("[Auth] fetchProfile falló:", err);
+      setProfile(null);
+    } finally {
+      fetchingProfile = false;
+    }
+  },
   // ─────────────────────────────────────────
   // signOut
   // Limpia todo el estado local y cierra
