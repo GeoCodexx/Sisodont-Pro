@@ -101,7 +101,11 @@ export default function LoginPage() {
 
         navigate(getRoleHome(role), { replace: true });
       } catch (err) {
-        setError(err.message);
+        setError(
+          err.message.includes("Invalid login credentials")
+            ? "Credenciales inválidas"
+            : err.message,
+        );
       } finally {
         setLoading(false);
       }
@@ -203,7 +207,10 @@ export default function LoginPage() {
               <MedicalServicesIcon
                 sx={{ fontSize: 48, color: "primary.main", mb: 1 }}
               />
-              <Typography variant="h5" sx={{ fontWeight: 600, color: "primary" }}>
+              <Typography
+                variant="h5"
+                sx={{ fontWeight: 600, color: "primary" }}
+              >
                 Sisodont Pro
               </Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
