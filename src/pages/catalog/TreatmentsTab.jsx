@@ -28,6 +28,9 @@ import {
   FormControlLabel,
   Switch,
   InputAdornment,
+  Select,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -36,8 +39,14 @@ import LockIcon from "@mui/icons-material/Lock";
 import ToggleOnIcon from "@mui/icons-material/ToggleOn";
 import ToggleOffIcon from "@mui/icons-material/ToggleOff";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
+import SearchIcon from "@mui/icons-material/Search";
 import { useCatalogStore } from "../../stores/useCatalogStore";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
+import TablePagination from "../../components/TablePagination";
+import FilterDrawer from "../../components/FilterDrawer";
+import FilterButton from "../../components/FilterButton";
+import ExportMenu from "../../components/ExportMenu";
+import { useTreatmentsExport } from "../../hooks/useTreatmentsExport";
 
 const EMPTY = {
   name: "",
@@ -189,6 +198,7 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
     treatments, // solo se usa para el selector de citas, no aquí
     specialties,
     saving,
+    loading,
     createTreatment,
     updateTreatment,
     deleteTreatment,
@@ -197,11 +207,16 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
     upsertTreatmentConfig,
   } = useCatalogStore();
 
+  const { handlePdf, handleExcel } = useTreatmentsExport(treatmentsCatalog);
+
   /*const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null);*/
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState(null);
+
+  //Drawer
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const { control, handleSubmit, reset, watch, setValue } = useForm({
     defaultValues: EMPTY,
@@ -216,8 +231,11 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
     value: "",
   });
 
-  /*const setField = (f) => (e) =>
-    setForm((p) => ({ ...p, [f]: e.target.value }));*/
+  // Filtros y paginación
+  const [search, setSearch] = useState("");
+  const [origin, setOrigin] = useState("all"); // "all" | "global" | "own"
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const openCreate = () => {
     //setForm(EMPTY);
@@ -226,17 +244,6 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
     setOpen(true);
   };
   const openEdit = (t) => {
-    /*setForm({
-      name: t.name,
-      specialty_id: t.specialty_id ?? "",
-      price: t.effective_price ?? t.base_price ?? "", // ← usa effective_price
-      unit_price: t.unit_price
-        ? (t.custom_price ?? t.unit_price) // ← precio custom si existe
-        : "",
-      duration_min: t.duration_min ?? 30,
-      description: t.description ?? "",
-      is_multisession: t.is_multisession ?? false,
-    });*/
     reset({
       name: t.name,
       specialty_id: t.specialty_id ?? "",
@@ -249,42 +256,6 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
     setEditId(t.id);
     setOpen(true);
   };
-
-  /*const handleSave = async () => {
-    if (!form.name.trim()) {
-      onNotify("El nombre es requerido.", "error");
-      return;
-    }
-    if (!form.is_multisession && !form.unit_price && !form.price) {
-      onNotify("Ingresa un precio.", "error");
-      return;
-    }
-    const payload = {
-      name: form.name.trim(),
-      specialty_id: form.specialty_id || null,
-      description: form.description || null,
-      duration_min: Number(form.duration_min) || 30,
-      is_multisession: form.is_multisession,
-      price: form.is_multisession ? 0 : Number(form.price) || 0,
-      unit_price: form.unit_price ? Number(form.unit_price) : null,
-    };
-    // SUPER_ADMIN escribe en treatments global
-    // ADMIN escribe en treatments con su tenant_id (RLS lo asigna automáticamente)
-    const fn = isSuperAdmin
-      ? editId
-        ? updateTreatment(editId, payload)
-        : createTreatment(payload)
-      : editId
-        ? updateTenantTreatment(editId, payload)
-        : createTenantTreatment(payload);
-    const { error } = await fn;
-    if (error) {
-      onNotify(error, "error");
-      return;
-    }
-    onNotify(editId ? "Tratamiento actualizado." : "Tratamiento creado.");
-    setOpen(false);
-  };*/
 
   const onSubmit = async (data) => {
     if (!data.is_multisession && !data.unit_price && !data.price) {
@@ -369,6 +340,21 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
     }
   };
 
+  // ── Lista filtrada ────────────────────────────────────────────
+  const filtered = treatmentsCatalog.filter((t) => {
+    const matchSearch = t.name.toLowerCase().includes(search.toLowerCase());
+    const matchOrigin =
+      origin === "all"
+        ? true
+        : origin === "global"
+          ? !t.is_tenant_own
+          : t.is_tenant_own;
+    return matchSearch && matchOrigin;
+  });
+
+  // ── Paginación ────────────────────────────────────────────────
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+
   return (
     <Box>
       {/* Banner para ADMIN */}
@@ -383,7 +369,7 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
         </Alert>
       )}
 
-      {canManage && (
+      {/* {canManage && (
         <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
           <Button
             variant="contained"
@@ -394,176 +380,333 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
             {isMobile ? "Nuevo" : "Nuevo tratamiento"}
           </Button>
         </Box>
+      )} */}
+
+      {/* Barra superior: filtros + botón nuevo */}
+      {/* ── Barra superior desktop ── */}
+      {!isMobile && (
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1.5,
+            mb: 2,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          {/* Búsqueda */}
+          <TextField
+            size="small"
+            placeholder="Buscar tratamiento..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            sx={{ flex: 1, maxWidth: 300 }}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+
+          {/* Filtro origen — solo ADMIN */}
+          {isAdmin && (
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Origen</InputLabel>
+              <Select
+                value={origin}
+                label="Origen"
+                onChange={(e) => {
+                  setOrigin(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <MenuItem value="all">Todos</MenuItem>
+                <MenuItem value="global">Globales</MenuItem>
+                <MenuItem value="own">Propios</MenuItem>
+              </Select>
+            </FormControl>
+          )}
+
+          <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
+            <ExportMenu
+              onPdfExport={handlePdf}
+              onExcelExport={handleExcel}
+              totalRows={
+                Array.isArray(treatmentsCatalog) ? treatmentsCatalog.length : 0
+              }
+              disabled={loading}
+            />
+            {canManage && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={openCreate}
+              >
+                Nuevo tratamiento
+              </Button>
+            )}
+          </Box>
+        </Box>
+      )}
+
+      {/* ── Barra superior móvil ── */}
+      {isMobile && (
+        <>
+          <Box sx={{ display: "flex", gap: 1, mb: 1, alignItems: "center" }}>
+            <ExportMenu
+              onPdfExport={handlePdf}
+              onExcelExport={handleExcel}
+              totalRows={
+                Array.isArray(treatmentsCatalog) ? treatmentsCatalog.length : 0
+              }
+              disabled={loading}
+            />
+            {canManage && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={openCreate}
+                size="small"
+              >
+                Nuevo
+              </Button>
+            )}
+          </Box>
+          <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
+            <TextField
+              size="small"
+              placeholder="Buscar tratamiento..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              sx={{ flex: 1 }}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon fontSize="small" />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+            {/* Filtro solo si es ADMIN (tiene el select de origen) */}
+            {isAdmin && (
+              <FilterButton
+                onClick={() => setFilterOpen(true)}
+                activeCount={origin !== "all" ? 1 : 0}
+              />
+            )}
+          </Box>
+        </>
       )}
 
       {/* Vista móvil */}
       {isMobile ? (
         <Box>
-          {treatmentsCatalog.length === 0 ? (
+          {paginated.length === 0 ? (
             <Typography color="textSecondary" textAlign="center" mt={4}>
-              No hay tratamientos registrados
+              {search || origin !== "all"
+                ? "Sin resultados para los filtros aplicados."
+                : "No hay tratamientos registrados."}
             </Typography>
           ) : (
-            treatmentsCatalog.map((t) => (
+            paginated.map((t) => (
               <TreatmentCard
                 key={t.id}
                 t={t}
-                canEdit={isSuperAdmin}
+                canEdit={isSuperAdmin || t.is_tenant_own}
                 onEdit={openEdit}
                 onDelete={handleDelete}
               />
             ))
           )}
+          <TablePagination
+            total={filtered.length}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(s) => {
+              setPageSize(s);
+              setPage(1);
+            }}
+          />
         </Box>
       ) : (
         /* Vista desktop */
-        <TableContainer component={Paper} variant="outlined">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Nombre</TableCell>
-                <TableCell>Especialidad</TableCell>
-                <TableCell>Tipo</TableCell>
-                <TableCell>Precio</TableCell>
-                <TableCell>Duración</TableCell>
-                <TableCell>Estado</TableCell>
-                {canManage && <TableCell align="right">Acciones</TableCell>}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {treatmentsCatalog.length === 0 && (
+        <>
+          <TableContainer component={Paper} variant="outlined">
+            <Table size="small">
+              <TableHead>
                 <TableRow>
-                  <TableCell
-                    colSpan={isSuperAdmin ? 6 : 5}
-                    align="center"
-                    sx={{ py: 4, color: "text.secondary" }}
-                  >
-                    No hay tratamientos registrados
-                  </TableCell>
+                  <TableCell>Nombre</TableCell>
+                  <TableCell>Especialidad</TableCell>
+                  <TableCell>Tipo</TableCell>
+                  <TableCell>Precio</TableCell>
+                  <TableCell>Duración</TableCell>
+                  <TableCell>Estado</TableCell>
+                  {canManage && <TableCell align="right">Acciones</TableCell>}
                 </TableRow>
-              )}
-              {treatmentsCatalog.map((t) => (
-                <TableRow key={t.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight={500}>
-                      {t.name}
-                    </Typography>
-                    {t.description && (
+              </TableHead>
+              <TableBody>
+                {paginated.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={canManage ? 7 : 6}
+                      align="center"
+                      sx={{ py: 4, color: "text.secondary" }}
+                    >
+                      {search || origin !== "all"
+                        ? "Sin resultados para los filtros aplicados."
+                        : "No hay tratamientos registrados."}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {paginated.map((t) => (
+                  <TableRow key={t.id} hover>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={500}>
+                        {t.name}
+                      </Typography>
+                      {t.description && (
+                        <Typography
+                          variant="caption"
+                          color="textSecondary"
+                          sx={{
+                            display: "block",
+                            maxWidth: 220,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {t.description}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {t.specialty ? (
+                        <Chip
+                          label={t.specialty.name}
+                          size="small"
+                          variant="outlined"
+                          sx={{
+                            bgcolor: t.specialty.color + "22",
+                            color: t.specialty.color,
+                            borderColor: t.specialty.color,
+                          }}
+                        />
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <TreatmentTypeChip
+                        isMultisession={t.is_multisession}
+                        unitPrice={t.unit_price}
+                      />
+                    </TableCell>
+                    <TableCell>
                       <Typography
-                        variant="caption"
-                        color="textSecondary"
+                        variant="body2"
+                        fontWeight={500}
                         sx={{
-                          display: "block",
-                          maxWidth: 220,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          color: t.is_multisession
+                            ? "text.secondary"
+                            : t.unit_price
+                              ? "warning.dark"
+                              : "success.main",
                         }}
                       >
-                        {t.description}
+                        {t.unit_price
+                          ? `S/ ${Number(t.effective_price).toFixed(2)}/ud.`
+                          : t.is_multisession
+                            ? "Pactado por caso"
+                            : `S/ ${Number(t.effective_price).toFixed(2)}`}
                       </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {t.specialty ? (
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="textSecondary">
+                        {t.duration_min} min
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
                       <Chip
-                        label={t.specialty.name}
+                        label={t.effective_active ? "Activo" : "Inactivo"}
                         size="small"
+                        color={t.effective_active ? "success" : "default"}
                         variant="outlined"
-                        sx={{
-                          bgcolor: t.specialty.color + "22",
-                          color: t.specialty.color,
-                          borderColor: t.specialty.color,
-                        }}
+                        sx={{ fontSize: 10, height: 20 }}
                       />
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <TreatmentTypeChip
-                      isMultisession={t.is_multisession}
-                      unitPrice={t.unit_price}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Typography
-                      variant="body2"
-                      fontWeight={500}
-                      sx={{
-                        color: t.is_multisession
-                          ? "text.secondary"
-                          : t.unit_price
-                            ? "warning.dark"
-                            : "success.main",
-                      }}
-                    >
-                      {t.unit_price
-                        ? `S/ ${Number(t.effective_price).toFixed(2)}/ud.`
-                        : t.is_multisession
-                          ? "Pactado por caso"
-                          : `S/ ${Number(t.effective_price).toFixed(2)}`}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="textSecondary">
-                      {t.duration_min} min
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={t.effective_active ? "Activo" : "Inactivo"}
-                      size="small"
-                      color={t.effective_active ? "success" : "default"}
-                      variant="outlined"
-                      sx={{ fontSize: 10, height: 20 }}
-                    />
-                  </TableCell>
-                  {canManage && (
-                    <TableCell align="right">
-                      {/* Editar: SUPER_ADMIN edita cualquiera, ADMIN solo los suyos */}
-                      {(isSuperAdmin || t.is_tenant_own) && (
-                        <Tooltip title="Editar">
-                          <IconButton size="small" onClick={() => openEdit(t)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
+                    </TableCell>
+                    {canManage && (
+                      <TableCell align="right">
+                        {/* Editar: SUPER_ADMIN edita cualquiera, ADMIN solo los suyos */}
+                        {(isSuperAdmin || t.is_tenant_own) && (
+                          <Tooltip title="Editar">
+                            <IconButton
+                              size="small"
+                              onClick={() => openEdit(t)}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
 
-                      {/* Precio custom: solo ADMIN sobre tratamientos globales */}
-                      {isAdmin && !t.is_tenant_own && (
-                        <Tooltip title="Ajustar precio">
+                        {/* Precio custom: solo ADMIN sobre tratamientos globales */}
+                        {isAdmin && !t.is_tenant_own && (
+                          <Tooltip title="Ajustar precio">
+                            <IconButton
+                              size="small"
+                              onClick={() => openPriceDialog(t)}
+                            >
+                              <AttachMoneyIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+
+                        {/* Activar/desactivar */}
+                        <Tooltip
+                          title={t.effective_active ? "Desactivar" : "Activar"}
+                        >
                           <IconButton
                             size="small"
-                            onClick={() => openPriceDialog(t)}
+                            onClick={() => handleToggleActive(t)}
                           >
-                            <AttachMoneyIcon fontSize="small" />
+                            {t.effective_active ? (
+                              <ToggleOffIcon fontSize="small" color="error" />
+                            ) : (
+                              <ToggleOnIcon fontSize="small" color="success" />
+                            )}
                           </IconButton>
                         </Tooltip>
-                      )}
-
-                      {/* Activar/desactivar */}
-                      <Tooltip
-                        title={t.effective_active ? "Desactivar" : "Activar"}
-                      >
-                        <IconButton
-                          size="small"
-                          onClick={() => handleToggleActive(t)}
-                        >
-                          {t.effective_active ? (
-                            <ToggleOffIcon fontSize="small" color="error" />
-                          ) : (
-                            <ToggleOnIcon fontSize="small" color="success" />
-                          )}
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination
+            total={filtered.length}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(s) => {
+              setPageSize(s);
+              setPage(1);
+            }}
+          />
+        </>
       )}
 
       {/* Modal — solo si SUPER_ADMIN o ADMIN */}
@@ -890,6 +1033,36 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* Drawer filtros móvil — solo ADMIN */}
+      {isAdmin && (
+        <FilterDrawer
+          open={filterOpen}
+          onClose={() => setFilterOpen(false)}
+          onApply={() => setFilterOpen(false)}
+          onClear={() => {
+            setOrigin("all");
+            setPage(1);
+            setFilterOpen(false);
+          }}
+          activeCount={origin !== "all" ? 1 : 0}
+        >
+          <FormControl size="small" fullWidth>
+            <InputLabel>Origen</InputLabel>
+            <Select
+              value={origin}
+              label="Origen"
+              onChange={(e) => {
+                setOrigin(e.target.value);
+                setPage(1);
+              }}
+            >
+              <MenuItem value="all">Todos</MenuItem>
+              <MenuItem value="global">Globales</MenuItem>
+              <MenuItem value="own">Propios</MenuItem>
+            </Select>
+          </FormControl>
+        </FilterDrawer>
+      )}
     </Box>
   );
 }
