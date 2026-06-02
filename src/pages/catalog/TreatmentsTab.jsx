@@ -32,6 +32,9 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import LockIcon from "@mui/icons-material/Lock";
+import ToggleOnIcon from "@mui/icons-material/ToggleOn";
+import ToggleOffIcon from "@mui/icons-material/ToggleOff";
+import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import { useCatalogStore } from "../../stores/useCatalogStore";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 
@@ -160,7 +163,7 @@ function TreatmentCard({ t, onEdit, onDelete, canEdit }) {
               ? `S/ ${Number(t.unit_price).toFixed(2)}/unidad`
               : t.is_multisession
                 ? "Pactado por caso"
-                : `S/ ${Number(t.price).toFixed(2)}`}
+                : `S/ ${Number(t.effective_price).toFixed(2)}`}
           </Typography>
           <Typography variant="caption" color="textSecondary">
             {t.duration_min} min
@@ -177,20 +180,31 @@ function TreatmentCard({ t, onEdit, onDelete, canEdit }) {
 // isSuperAdmin = true  → CRUD completo
 // isSuperAdmin = false → solo lectura + banner informativo
 // ─────────────────────────────────────────────────────────────
-export default function TreatmentsTab({ onNotify, isSuperAdmin }) {
+export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
+  const canManage = isSuperAdmin || isAdmin;
   const { isMobile } = useBreakpoint();
   const {
-    treatments,
+    treatmentsCatalog,
+    treatments, // solo se usa para el selector de citas, no aquí
     specialties,
     saving,
     createTreatment,
     updateTreatment,
     deleteTreatment,
+    createTenantTreatment,
+    updateTenantTreatment,
+    upsertTreatmentConfig,
   } = useCatalogStore();
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null);
+
+  const [priceDialog, setPriceDialog] = useState({
+    open: false,
+    treatment: null,
+    value: "",
+  });
 
   const setField = (f) => (e) =>
     setForm((p) => ({ ...p, [f]: e.target.value }));
@@ -232,9 +246,15 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin }) {
       price: form.is_multisession ? 0 : Number(form.price) || 0,
       unit_price: form.unit_price ? Number(form.unit_price) : null,
     };
-    const fn = editId
-      ? updateTreatment(editId, payload)
-      : createTreatment(payload);
+    // SUPER_ADMIN escribe en treatments global
+    // ADMIN escribe en treatments con su tenant_id (RLS lo asigna automáticamente)
+    const fn = isSuperAdmin
+      ? editId
+        ? updateTreatment(editId, payload)
+        : createTreatment(payload)
+      : editId
+        ? updateTenantTreatment(editId, payload)
+        : createTenantTreatment(payload);
     const { error } = await fn;
     if (error) {
       onNotify(error, "error");
@@ -244,6 +264,29 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin }) {
     setOpen(false);
   };
 
+  const handleToggleActive = async (t) => {
+    const newActive = !t.effective_active;
+    const action = newActive ? "activar" : "desactivar";
+    if (
+      !window.confirm(
+        `¿${action.charAt(0).toUpperCase() + action.slice(1)} este tratamiento?`,
+      )
+    )
+      return;
+
+    let error;
+    if (t.is_tenant_own) {
+      // Tratamiento propio del tenant → edita directo en treatments
+      ({ error } = await updateTenantTreatment(t.id, { active: newActive }));
+    } else {
+      // Tratamiento global → upsert en tenant_treatment_config
+      ({ error } = await upsertTreatmentConfig(t.id, { is_active: newActive }));
+    }
+    if (error) onNotify(error, "error");
+    else onNotify(`Tratamiento ${newActive ? "activado" : "desactivado"}.`);
+  };
+
+  // SOLO PARA EL SUPER ADMIN
   const handleDelete = async (id) => {
     if (!window.confirm("¿Desactivar este tratamiento?")) return;
     const { error } = await deleteTreatment(id);
@@ -251,21 +294,39 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin }) {
     else onNotify("Tratamiento desactivado.");
   };
 
+  const openPriceDialog = (t) =>
+    setPriceDialog({
+      open: true,
+      treatment: t,
+      value: t.custom_price ?? t.base_price ?? "",
+    });
+
+  const handleSavePrice = async () => {
+    const { error } = await upsertTreatmentConfig(priceDialog.treatment.id, {
+      custom_price: Number(priceDialog.value),
+    });
+    if (error) onNotify(error, "error");
+    else {
+      onNotify("Precio actualizado.");
+      setPriceDialog({ open: false, treatment: null, value: "" });
+    }
+  };
+
   return (
     <Box>
       {/* Banner para ADMIN */}
-      {!isSuperAdmin && (
+      {!canManage && (
         <Alert
           severity="info"
           icon={<LockIcon fontSize="small" />}
           sx={{ mb: 2 }}
         >
-          La lista de tratamientos son administrados globalmente por el area de soporte.
-          Puedes consultarlos pero no modificarlos.
+          La lista de tratamientos son administrados globalmente por el area de
+          soporte. Puedes consultarlos pero no modificarlos.
         </Alert>
       )}
 
-      {isSuperAdmin && (
+      {canManage && (
         <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
           <Button
             variant="contained"
@@ -281,12 +342,12 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin }) {
       {/* Vista móvil */}
       {isMobile ? (
         <Box>
-          {treatments.length === 0 ? (
+          {treatmentsCatalog.length === 0 ? (
             <Typography color="textSecondary" textAlign="center" mt={4}>
               No hay tratamientos registrados
             </Typography>
           ) : (
-            treatments.map((t) => (
+            treatmentsCatalog.map((t) => (
               <TreatmentCard
                 key={t.id}
                 t={t}
@@ -308,11 +369,12 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin }) {
                 <TableCell>Tipo</TableCell>
                 <TableCell>Precio</TableCell>
                 <TableCell>Duración</TableCell>
-                {isSuperAdmin && <TableCell align="right">Acciones</TableCell>}
+                <TableCell>Estado</TableCell>
+                {canManage && <TableCell align="right">Acciones</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
-              {treatments.length === 0 && (
+              {treatmentsCatalog.length === 0 && (
                 <TableRow>
                   <TableCell
                     colSpan={isSuperAdmin ? 6 : 5}
@@ -323,7 +385,7 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin }) {
                   </TableCell>
                 </TableRow>
               )}
-              {treatments.map((t) => (
+              {treatmentsCatalog.map((t) => (
                 <TableRow key={t.id} hover>
                   <TableCell>
                     <Typography variant="body2" fontWeight={500}>
@@ -383,7 +445,7 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin }) {
                         ? `S/ ${Number(t.unit_price).toFixed(2)}/ud.`
                         : t.is_multisession
                           ? "Por caso"
-                          : `S/ ${Number(t.price).toFixed(2)}`}
+                          : `S/ ${Number(t.effective_price).toFixed(2)}`}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -391,19 +453,51 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin }) {
                       {t.duration_min} min
                     </Typography>
                   </TableCell>
-                  {isSuperAdmin && (
+                  <TableCell>
+                    <Chip
+                      label={t.effective_active ? "Activo" : "Inactivo"}
+                      size="small"
+                      color={t.effective_active ? "success" : "default"}
+                      variant="outlined"
+                      sx={{ fontSize: 10, height: 20 }}
+                    />
+                  </TableCell>
+                  {canManage && (
                     <TableCell align="right">
-                      <Tooltip title="Editar">
-                        <IconButton size="small" onClick={() => openEdit(t)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Desactivar">
+                      {/* Editar: SUPER_ADMIN edita cualquiera, ADMIN solo los suyos */}
+                      {(isSuperAdmin || t.is_tenant_own) && (
+                        <Tooltip title="Editar">
+                          <IconButton size="small" onClick={() => openEdit(t)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+
+                      {/* Precio custom: solo ADMIN sobre tratamientos globales */}
+                      {isAdmin && !t.is_tenant_own && (
+                        <Tooltip title="Ajustar precio">
+                          <IconButton
+                            size="small"
+                            onClick={() => openPriceDialog(t)}
+                          >
+                            <AttachMoneyIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+
+                      {/* Activar/desactivar */}
+                      <Tooltip
+                        title={t.effective_active ? "Desactivar" : "Activar"}
+                      >
                         <IconButton
                           size="small"
-                          onClick={() => handleDelete(t.id)}
+                          onClick={() => handleToggleActive(t)}
                         >
-                          <DeleteIcon fontSize="small" color="error" />
+                          {t.effective_active ? (
+                            <ToggleOffIcon fontSize="small" color="error" />
+                          ) : (
+                            <ToggleOnIcon fontSize="small" color="success" />
+                          )}
                         </IconButton>
                       </Tooltip>
                     </TableCell>
@@ -415,8 +509,8 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin }) {
         </TableContainer>
       )}
 
-      {/* Modal — solo si SUPER_ADMIN */}
-      {isSuperAdmin && (
+      {/* Modal — solo si SUPER_ADMIN o ADMIN */}
+      {canManage && (
         <Dialog
           open={open}
           onClose={() => setOpen(false)}
@@ -636,6 +730,49 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin }) {
           </DialogActions>
         </Dialog>
       )}
+
+      <Dialog
+        open={priceDialog.open}
+        onClose={() => setPriceDialog((p) => ({ ...p, open: false }))}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Precio para {priceDialog.treatment?.name}</DialogTitle>
+        <DialogContent sx={{ pt: "16px !important" }}>
+          <TextField
+            label="Precio personalizado"
+            type="number"
+            value={priceDialog.value}
+            onChange={(e) =>
+              setPriceDialog((p) => ({ ...p, value: e.target.value }))
+            }
+            size="small"
+            fullWidth
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">S/</InputAdornment>
+                ),
+              },
+            }}
+            helperText={`Precio base global: S/ ${Number(priceDialog.treatment?.base_price ?? 0).toFixed(2)}`}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setPriceDialog((p) => ({ ...p, open: false }))}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSavePrice}
+            disabled={saving}
+          >
+            Guardar precio
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
