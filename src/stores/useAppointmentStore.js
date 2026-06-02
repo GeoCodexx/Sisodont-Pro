@@ -1,13 +1,13 @@
-import { create }     from "zustand";
-import { supabase }   from "../services/supabaseClient";
+import { create } from "zustand";
+import { supabase } from "../services/supabaseClient";
 import { useAuthStore } from "./useAuthStore";
 
 export const useAppointmentStore = create((set, get) => ({
   appointments: [],
-  selected:     null,
-  loading:      false,
-  saving:       false,
-  error:        null,
+  selected: null,
+  loading: false,
+  saving: false,
+  error: null,
 
   // ── Fetch para el calendario (rango de fechas) ────────────
   fetchByRange: async (start, end) => {
@@ -20,7 +20,7 @@ export const useAppointmentStore = create((set, get) => ({
       .order("date");
 
     if (error) set({ error: error.message });
-    else       set({ appointments: data ?? [] });
+    else set({ appointments: data ?? [] });
     set({ loading: false });
   },
 
@@ -64,7 +64,10 @@ export const useAppointmentStore = create((set, get) => ({
       .single();
 
     set({ saving: false });
-    if (error) { set({ error: error.message }); return { error: error.message }; }
+    if (error) {
+      set({ error: error.message });
+      return { error: error.message };
+    }
 
     // Refrescar con la vista full para tener todos los campos join
     const { data: full } = await supabase
@@ -99,7 +102,7 @@ export const useAppointmentStore = create((set, get) => ({
     if (full) {
       set((s) => ({
         appointments: s.appointments.map((a) => (a.id === id ? full : a)),
-        selected:     s.selected?.id === id ? full : s.selected,
+        selected: s.selected?.id === id ? full : s.selected,
       }));
     }
     return { error: null };
@@ -110,20 +113,37 @@ export const useAppointmentStore = create((set, get) => ({
 
   // ── Eliminar ──────────────────────────────────────────────
   deleteAppointment: async (id) => {
-    const { error } = await supabase
-      .from("appointments")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("appointments").delete().eq("id", id);
 
     if (!error) {
       set((s) => ({
         appointments: s.appointments.filter((a) => a.id !== id),
-        selected:     s.selected?.id === id ? null : s.selected,
+        selected: s.selected?.id === id ? null : s.selected,
       }));
     }
     return { error: error?.message ?? null };
   },
 
-  setSelected:   (appt) => set({ selected: appt }),
-  clearSelected: ()     => set({ selected: null }),
+  setSelected: (appt) => set({ selected: appt }),
+  clearSelected: () => set({ selected: null }),
+
+  checkOverlap: async (doctorId, start, end, excludeId = null) => {
+    let query = supabase
+      .from("appointments")
+      .select("id, date, end_date")
+      .eq("doctor_id", doctorId)
+      .neq("status", "cancelado") // canceladas no bloquean
+      .lt("date", end) // empieza antes que termine la nueva
+      .gt("end_date", start); // termina después que empiece la nueva
+
+    if (excludeId) query = query.neq("id", excludeId);
+
+    const { data, error } = await query;
+    if (error) return { overlap: false, error: error.message };
+    return {
+      overlap: (data?.length ?? 0) > 0,
+      conflicting: data ?? [],
+      error: null,
+    };
+  },
 }));

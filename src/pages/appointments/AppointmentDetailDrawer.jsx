@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, memo } from "react";
+import { useForm, Controller } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../services/supabaseClient";
 import {
@@ -19,6 +20,7 @@ import {
   useMediaQuery,
   MenuItem,
   Grid,
+  Autocomplete,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -59,7 +61,10 @@ const METHODS = ["efectivo", "yape", "plin", "transferencia", "tarjeta"];
 const Row = memo(function Row({ label, value }) {
   return (
     <Box sx={{ mb: 1.5 }}>
-      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+      <Typography
+        variant="caption"
+        sx={{ color: "text.secondary", display: "block" }}
+      >
         {label}
       </Typography>
       <Typography variant="body2">{value || "—"}</Typography>
@@ -75,12 +80,12 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
   const { findOpenCase, createCase } = useTreatmentCaseStore();
   const { updateAppointment } = useAppointmentStore();
 
-  const [form, setForm] = useState({
+  /*const [form, setForm] = useState({
     treatment_id: selected.treatment_id ?? "",
     doctor_id: selected.doctor_id ?? "",
     total: String(selected.total ?? "0"),
     notes: selected.notes ?? "",
-  });
+  });*/
   const [totalCost, setTotalCost] = useState("");
   const [totalSessions, setTotalSessions] = useState("");
   const [caseNotes, setCaseNotes] = useState("");
@@ -91,12 +96,24 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
   const [teethCount, setTeethCount] = useState("");
   const [unitPrice, setUnitPrice] = useState("50");
 
-  const set = useCallback(
+  /* const set = useCallback(
     (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value })),
     [],
-  );
+  );*/
 
-  const selectedTreatment = useMemo(
+  const { control, handleSubmit, setValue, watch } = useForm({
+    defaultValues: {
+      treatment_id: selected.treatment_id ?? "",
+      doctor_id: selected.doctor_id ?? "",
+      total: String(selected.total ?? "0"),
+      notes: selected.notes ?? "",
+    },
+  });
+
+  const watchTreatmentId = watch("treatment_id");
+  const watchTotal = watch("total");
+
+  /*const selectedTreatment = useMemo(
     () => treatments.find((t) => t.id === form.treatment_id) ?? null,
     [treatments, form.treatment_id],
   );
@@ -112,11 +129,69 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
         ? doctors.filter((d) => d.specialty_id === selectedTreatment.specialty_id)
         : doctors,
     [doctors, selectedTreatment?.specialty_id],
+  );*/
+
+  const selectedTreatment = useMemo(
+    () => treatments.find((t) => t.id === watchTreatmentId) ?? null,
+    [treatments, watchTreatmentId],
   );
 
-  useEffect(() => { fetchAll(); }, []);
+  const isMultisession = selectedTreatment?.is_multisession === true;
+
+  const isObturacion = useMemo(
+    () =>
+      !!selectedTreatment?.unit_price &&
+      (selectedTreatment?.name?.toUpperCase().includes("OBTURACIÓN") ?? false),
+    [selectedTreatment],
+  );
+
+  const isUnitPrice = useMemo(
+    () => !!selectedTreatment?.unit_price && !isObturacion,
+    [selectedTreatment, isObturacion],
+  );
+
+  const filteredDoctors = useMemo(
+    () =>
+      selectedTreatment?.specialty_id
+        ? doctors.filter(
+            (d) => d.specialty_id === selectedTreatment.specialty_id,
+          )
+        : doctors,
+    [doctors, selectedTreatment?.specialty_id],
+  );
 
   useEffect(() => {
+    fetchAll();
+  }, []);
+
+  // Efecto 1 — obturación
+  useEffect(() => {
+    if (!selectedTreatment || !isObturacion) return;
+    setTeethCount("");
+    setValue("total", "");
+    if (selectedTreatment.unit_price)
+      setUnitPrice(String(selectedTreatment.unit_price));
+  }, [watchTreatmentId, isObturacion]);
+
+  // Efecto 2 — sesión única y por unidad: autoprecio con effective_price
+  useEffect(() => {
+    if (!selectedTreatment || isObturacion || isMultisession) return;
+    setValue("total", String(selectedTreatment.effective_price ?? "0"));
+  }, [watchTreatmentId, isObturacion, isMultisession]);
+
+  // Efecto 3 — multisesión: verificar caso abierto
+  useEffect(() => {
+    if (!selectedTreatment || !isMultisession) return;
+    setTotalCost(String(selectedTreatment.effective_price ?? ""));
+    setCheckingCase(true);
+    findOpenCase(selected.patient_id, watchTreatmentId).then((found) => {
+      setOpenCase(found);
+      setCheckingCase(false);
+      setValue("total", "0");
+    });
+  }, [watchTreatmentId, isMultisession]);
+
+  /*useEffect(() => {
     if (!selectedTreatment) return;
 
     if (isObturacion) {
@@ -141,11 +216,14 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
       setCheckingCase(false);
       setForm((f) => ({ ...f, total: "0" }));
     });
-  }, [form.treatment_id]);
+  }, [form.treatment_id]);*/
 
-  const handleSave = useCallback(async () => {
+  /*const handleSave = useCallback(async () => {
     setError("");
-    if (!form.doctor_id) { setError("Selecciona un doctor."); return; }
+    if (!form.doctor_id) {
+      setError("Selecciona un doctor.");
+      return;
+    }
 
     setSaving(true);
     let caseId = selected.case_id ?? null;
@@ -187,13 +265,100 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
     });
 
     setSaving(false);
-    if (updateError) { setError(updateError); return; }
+    if (updateError) {
+      setError(updateError);
+      return;
+    }
     onSaved();
   }, [
-    form, isMultisession, isObturacion, openCase, totalCost, caseNotes,
-    totalSessions, teethCount, unitPrice, selected, createCase,
-    updateAppointment, onSaved,
-  ]);
+    form,
+    isMultisession,
+    isObturacion,
+    openCase,
+    totalCost,
+    caseNotes,
+    totalSessions,
+    teethCount,
+    unitPrice,
+    selected,
+    createCase,
+    updateAppointment,
+    onSaved,
+  ]);*/
+
+  const onSubmit = useCallback(
+    async (data) => {
+      setError("");
+      if (!data.doctor_id) {
+        setError("Selecciona un doctor.");
+        return;
+      }
+
+      setSaving(true);
+      let caseId = selected.case_id ?? null;
+
+      if (isMultisession) {
+        if (openCase) {
+          caseId = openCase.id;
+        } else {
+          if (!totalCost) {
+            setError("Ingresa el costo total pactado.");
+            setSaving(false);
+            return;
+          }
+          const { data: newCase, error: caseError } = await createCase({
+            patient_id: selected.patient_id,
+            treatment_id: data.treatment_id,
+            doctor_id: data.doctor_id,
+            notes: caseNotes || null,
+            total_sessions: totalSessions ? parseInt(totalSessions) : null,
+            total_cost: parseFloat(totalCost),
+          });
+          if (caseError) {
+            setError("Error al crear el caso: " + caseError);
+            setSaving(false);
+            return;
+          }
+          caseId = newCase.id;
+        }
+      }
+
+      const total = isObturacion
+        ? (parseFloat(unitPrice) || 0) * (parseInt(teethCount) || 0)
+        : parseFloat(data.total) || 0;
+
+      const { error: updateError } = await updateAppointment(selected.id, {
+        treatment_id: data.treatment_id || null,
+        doctor_id: data.doctor_id,
+        total,
+        notes: data.notes || null,
+        case_id: caseId,
+        teeth_count: isObturacion ? parseInt(teethCount) || null : null,
+        unit_price: isObturacion ? parseFloat(unitPrice) || null : null,
+      });
+
+      setSaving(false);
+      if (updateError) {
+        setError(updateError);
+        return;
+      }
+      onSaved();
+    },
+    [
+      isMultisession,
+      isObturacion,
+      openCase,
+      totalCost,
+      caseNotes,
+      totalSessions,
+      teethCount,
+      unitPrice,
+      selected,
+      createCase,
+      updateAppointment,
+      onSaved,
+    ],
+  );
 
   return (
     <Box
@@ -205,7 +370,10 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
         p: 2,
       }}
     >
-      <Typography variant="body2" sx={{ fontWeight: 500, color: "primary.main", mb: 2 }}>
+      <Typography
+        variant="body2"
+        sx={{ fontWeight: 500, color: "primary.main", mb: 2 }}
+      >
         ✏️ Editar cita
       </Typography>
 
@@ -218,7 +386,7 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
       <Grid container spacing={1.5}>
         {/* Tratamiento */}
         <Grid size={{ xs: 12 }}>
-          <TextField
+          {/* <TextField
             select
             label="Tratamiento"
             value={form.treatment_id}
@@ -229,8 +397,17 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
             <MenuItem value="">Sin especificar</MenuItem>
             {treatments.map((t) => (
               <MenuItem key={t.id} value={t.id}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
-                  <Typography variant="body2" noWrap sx={{ flex: 1 }}>{t.name}</Typography>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    width: "100%",
+                  }}
+                >
+                  <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                    {t.name}
+                  </Typography>
                   {t.is_multisession && (
                     <Chip
                       label="Multisesión"
@@ -241,19 +418,84 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
                     />
                   )}
                   {!t.is_multisession && !t.unit_price && (
-                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.secondary" }}
+                    >
                       S/ {Number(t.price).toFixed(2)}
                     </Typography>
                   )}
                 </Box>
               </MenuItem>
             ))}
-          </TextField>
+          </TextField> */}
+          <Controller
+            name="treatment_id"
+            control={control}
+            render={({ field }) => (
+              <Autocomplete
+                options={[{ id: "", name: "Sin especificar" }, ...treatments]}
+                getOptionLabel={(t) => t.name ?? ""}
+                isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                value={
+                  treatments.find((t) => t.id === field.value) ?? {
+                    id: "",
+                    name: "Sin especificar",
+                  }
+                }
+                onChange={(_, val) => field.onChange(val?.id ?? "")}
+                renderOption={(props, t) => (
+                  <Box component="li" {...props} key={t.id}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        width: "100%",
+                      }}
+                    >
+                      <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                        {t.name}
+                      </Typography>
+                      {t.is_multisession && (
+                        <Chip
+                          label="Multisesión"
+                          size="small"
+                          color="primary"
+                          variant="outlined"
+                          sx={{ fontSize: 10, height: 18, flexShrink: 0 }}
+                        />
+                      )}
+                      {!t.is_multisession && !t.unit_price && t.id && (
+                        <Typography
+                          variant="caption"
+                          sx={{ flexShrink: 0, color: "text.secondary" }}
+                        >
+                          S/ {Number(t.effective_price).toFixed(2)}
+                        </Typography>
+                      )}
+                      {t.unit_price && (
+                        <Typography
+                          variant="caption"
+                          sx={{ flexShrink: 0, color: "warning.dark" }}
+                        >
+                          S/ {Number(t.effective_price).toFixed(2)}/ud.
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                )}
+                renderInput={(params) => (
+                  <TextField {...params} label="Tratamiento" size="small" />
+                )}
+              />
+            )}
+          />
         </Grid>
 
         {/* Doctor */}
         <Grid size={{ xs: 12 }}>
-          <TextField
+          {/* <TextField
             select
             label="Doctor *"
             value={form.doctor_id}
@@ -269,7 +511,29 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
                 {d.profile?.full_name ?? d.id}
               </MenuItem>
             ))}
-          </TextField>
+          </TextField> */}
+          <Controller
+            name="doctor_id"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                select
+                label="Doctor *"
+                size="small"
+                fullWidth
+              >
+                {filteredDoctors.length === 0 && (
+                  <MenuItem disabled>Sin doctores disponibles</MenuItem>
+                )}
+                {filteredDoctors.map((d) => (
+                  <MenuItem key={d.id} value={d.id}>
+                    {d.profile?.full_name ?? d.id}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+          />
         </Grid>
 
         {/* Multisesión */}
@@ -303,7 +567,12 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
               >
                 <Typography
                   variant="caption"
-                  sx={{ color: "primary.main", fontWeight: 500, display: "block", mb: 1 }}
+                  sx={{
+                    color: "primary.main",
+                    fontWeight: 500,
+                    display: "block",
+                    mb: 1,
+                  }}
                 >
                   Nuevo caso de tratamiento
                 </Typography>
@@ -365,7 +634,10 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
                 p: 2,
               }}
             >
-              <Typography variant="body2" sx={{ fontWeight: 500, color: "warning.dark", mb: 1.5 }}>
+              <Typography
+                variant="body2"
+                sx={{ fontWeight: 500, color: "warning.dark", mb: 1.5 }}
+              >
                 🦷 Obturación dental — cálculo por diente
               </Typography>
               <Grid container spacing={1.5} sx={{ alignItems: "center" }}>
@@ -376,9 +648,10 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
                     value={teethCount}
                     onChange={(e) => {
                       setTeethCount(e.target.value);
-                      const total =
-                        (parseFloat(unitPrice) || 0) * (parseInt(e.target.value) || 0);
-                      setForm((f) => ({ ...f, total: total > 0 ? String(total) : "" }));
+                      const t =
+                        (parseFloat(unitPrice) || 0) *
+                        (parseInt(e.target.value) || 0);
+                      setValue("total", t > 0 ? String(t) : "");
                     }}
                     size="small"
                     fullWidth
@@ -393,9 +666,10 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
                     value={unitPrice}
                     onChange={(e) => {
                       setUnitPrice(e.target.value);
-                      const total =
-                        (parseFloat(e.target.value) || 0) * (parseInt(teethCount) || 0);
-                      setForm((f) => ({ ...f, total: total > 0 ? String(total) : "" }));
+                      const t =
+                        (parseFloat(e.target.value) || 0) *
+                        (parseInt(teethCount) || 0);
+                      setValue("total", t > 0 ? String(t) : "");
                     }}
                     size="small"
                     fullWidth
@@ -417,18 +691,20 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
                       textAlign: "center",
                     }}
                   >
-                    <Typography variant="caption" sx={{ display: "block" }}>
+                    <Typography variant="caption" display="block">
                       Total calculado
                     </Typography>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>
                       S/{" "}
                       {(
-                        (parseFloat(unitPrice) || 0) * (parseInt(teethCount) || 0)
+                        (parseFloat(unitPrice) || 0) *
+                        (parseInt(teethCount) || 0)
                       ).toFixed(2)}
                     </Typography>
                     {parseInt(teethCount) > 0 && (
                       <Typography variant="caption">
-                        {teethCount} × S/ {parseFloat(unitPrice || 0).toFixed(2)}
+                        {teethCount} × S/{" "}
+                        {parseFloat(unitPrice || 0).toFixed(2)}
                       </Typography>
                     )}
                   </Box>
@@ -441,7 +717,27 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
         {/* Total — solo sesión única */}
         {!isMultisession && !isObturacion && (
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
+            <Controller
+              name="total"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label="Total"
+                  type="number"
+                  size="small"
+                  fullWidth
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">S/</InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+              )}
+            />
+            {/* <TextField
               label="Total"
               type="number"
               value={form.total}
@@ -455,13 +751,13 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
                   ),
                 },
               }}
-            />
+            /> */}
           </Grid>
         )}
 
         {/* Notas */}
         <Grid size={{ xs: 12 }}>
-          <TextField
+          {/* <TextField
             label="Notas de la cita"
             value={form.notes}
             onChange={set("notes")}
@@ -469,6 +765,20 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
             fullWidth
             multiline
             rows={2}
+          /> */}
+          <Controller
+            name="notes"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Notas de la cita"
+                size="small"
+                fullWidth
+                multiline
+                rows={2}
+              />
+            )}
           />
         </Grid>
 
@@ -484,7 +794,7 @@ const EditSection = memo(function EditSection({ selected, onSaved, onCancel }) {
                   <SaveIcon />
                 )
               }
-              onClick={handleSave}
+              onClick={handleSubmit(onSubmit)}
               disabled={saving}
               sx={{ flex: 1 }}
             >
@@ -513,7 +823,11 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
     useAppointmentStore();
   const { register } = useLedgerStore();
 
-  const [form, setForm] = useState({ amount: "", method: "efectivo", notes: "" });
+  const [form, setForm] = useState({
+    amount: "",
+    method: "efectivo",
+    notes: "",
+  });
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
   const [caseFinancials, setCaseFinancials] = useState(null);
   const [loadingCase, setLoadingCase] = useState(false);
@@ -645,7 +959,10 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
       notes: form.notes || null,
     });
 
-    if (error) { setFeedback({ msg: error, type: "error" }); return; }
+    if (error) {
+      setFeedback({ msg: error, type: "error" });
+      return;
+    }
 
     setFeedback({ msg: "Pago registrado.", type: "success" });
     setForm({ amount: "", method: "efectivo", notes: "" });
@@ -657,7 +974,10 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
     if (!window.confirm("¿Eliminar esta cita?")) return;
     const { error } = await deleteAppointment(selected.id);
     if (error) setFeedback({ msg: error, type: "error" });
-    else { onClose(); onUpdate(); }
+    else {
+      onClose();
+      onUpdate();
+    }
   }, [deleteAppointment, selected?.id, onClose, onUpdate]);
 
   const handleEditSaved = useCallback(async () => {
@@ -678,7 +998,8 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
   const handleNavToPatient = useCallback(() => {
     onClose();
     setTimeout(
-      () => navigate(`/patients/${selected.patient_id}?case=${selected.case_id}`),
+      () =>
+        navigate(`/patients/${selected.patient_id}?case=${selected.case_id}`),
       150,
     );
   }, [onClose, navigate, selected?.patient_id, selected?.case_id]);
@@ -704,7 +1025,9 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
     >
       {isMobile && (
         <Box sx={{ display: "flex", justifyContent: "center", pt: 1, pb: 0.5 }}>
-          <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: "divider" }} />
+          <Box
+            sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: "divider" }}
+          />
         </Box>
       )}
 
@@ -723,9 +1046,19 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
               {isCaseAppointment ? "Sesión de tratamiento" : "Detalle de cita"}
             </Typography>
             <Box sx={{ display: "flex", gap: 0.75, mt: 0.5, flexWrap: "wrap" }}>
-              <Chip icon={meta.icon} label={meta.label} color={meta.color} size="small" />
+              <Chip
+                icon={meta.icon}
+                label={meta.label}
+                color={meta.color}
+                size="small"
+              />
               {isCaseAppointment && (
-                <Chip label="Multisesión" color="primary" variant="outlined" size="small" />
+                <Chip
+                  label="Multisesión"
+                  color="primary"
+                  variant="outlined"
+                  size="small"
+                />
               )}
             </Box>
           </Box>
@@ -744,7 +1077,11 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
         </Box>
 
         {feedback.msg && (
-          <Alert severity={feedback.type} sx={{ mb: 2 }} onClose={handleCloseFeedback}>
+          <Alert
+            severity={feedback.type}
+            sx={{ mb: 2 }}
+            onClose={handleCloseFeedback}
+          >
             {feedback.msg}
           </Alert>
         )}
@@ -761,7 +1098,12 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
           <>
             {/* Info de la cita */}
             <Box
-              sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, mb: 0 }}
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 0,
+                mb: 0,
+              }}
             >
               <Row label="Paciente" value={selected.patient_name} />
               <Row label="Doctor" value={selected.doctor_name} />
@@ -785,7 +1127,9 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
 
             {/* Resumen financiero */}
             <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1.5 }}>
-              {isCaseAppointment ? "Resumen financiero del tratamiento" : "Pagos"}
+              {isCaseAppointment
+                ? "Resumen financiero del tratamiento"
+                : "Pagos"}
             </Typography>
 
             <Box
@@ -834,7 +1178,8 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
             {isCaseAppointment ? (
               <>
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  Los pagos de este tratamiento se gestionan desde la ficha del paciente.
+                  Los pagos de este tratamiento se gestionan desde la ficha del
+                  paciente.
                 </Alert>
                 <Button
                   fullWidth
@@ -874,7 +1219,9 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
                             htmlInput: { min: 0.01, step: "0.01" },
                             input: {
                               startAdornment: (
-                                <InputAdornment position="start">S/</InputAdornment>
+                                <InputAdornment position="start">
+                                  S/
+                                </InputAdornment>
                               ),
                             },
                           }}
@@ -890,7 +1237,11 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
                           size="small"
                         >
                           {METHODS.map((m) => (
-                            <MenuItem key={m} value={m} sx={{ textTransform: "capitalize" }}>
+                            <MenuItem
+                              key={m}
+                              value={m}
+                              sx={{ textTransform: "capitalize" }}
+                            >
                               {m}
                             </MenuItem>
                           ))}
@@ -937,7 +1288,10 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
             {/* Cambiar estado */}
             {can(["ADMIN", "DOCTOR", "ASSISTANT"]) && (
               <>
-                <Typography variant="subtitle2" sx={{ fontWeight: 500, mb: 1.5 }}>
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontWeight: 500, mb: 1.5 }}
+                >
                   Cambiar estado
                 </Typography>
                 <Stack direction="row" spacing={1} sx={{ mb: 2 }}>

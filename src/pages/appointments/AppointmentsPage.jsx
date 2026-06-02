@@ -134,7 +134,10 @@ const AppointmentItem = memo(function AppointmentItem({ appt, onSelect }) {
 // AppointmentList — memo evita re-render cuando el padre
 // cambia estado no relacionado (feedback, modals, etc.)
 // ─────────────────────────────────────────────────────────────
-const AppointmentList = memo(function AppointmentList({ appointments, onSelect }) {
+const AppointmentList = memo(function AppointmentList({
+  appointments,
+  onSelect,
+}) {
   // useMemo: el agrupado por fecha sólo recalcula cuando cambia appointments
   const groups = useMemo(() => {
     const g = {};
@@ -202,6 +205,25 @@ const CALENDAR_SX = {
     mb: 1,
   },
   "& .fc-toolbar-chunk": { display: "flex", alignItems: "center", gap: 1 },
+
+  // ── Vista mes: compactar eventos en una línea con elipsis ──
+  "& .fc-daygrid-event .fc-event-title": {
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis",
+    fontSize: "0.7rem",
+  },
+  "& .fc-daygrid-event .fc-event-time": {
+    fontSize: "0.7rem",
+    fontWeight: 600,
+    flexShrink: 0,
+  },
+  "& .fc-daygrid-event": {
+    display: "flex",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+
   "@media (max-width:600px)": {
     "& .fc-header-toolbar": {
       flexDirection: "column",
@@ -217,6 +239,12 @@ const CALENDAR_SX = {
     },
     "& .fc-toolbar-title": { fontSize: "1rem", textAlign: "center" },
   },
+};
+
+const handleEventDidMount = ({ el, event }) => {
+  const appt = event.extendedProps;
+  const time = new Date(appt.date).toLocaleTimeString("es-PE", { timeStyle: "short" });
+  el.title = `${time} · ${appt.patient_name} · ${appt.treatment_name ?? "Sin tratamiento"}`;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -299,7 +327,8 @@ export default function AppointmentsPage() {
       setPrefillDate(null);
       if (saved) {
         setFeedback("Cita guardada correctamente.");
-        if (currentRange.start) fetchByRange(currentRange.start, currentRange.end);
+        if (currentRange.start)
+          fetchByRange(currentRange.start, currentRange.end);
       }
     },
     [currentRange, fetchByRange],
@@ -432,6 +461,7 @@ export default function AppointmentsPage() {
             dateClick={handleDateClick}
             eventClick={handleEventClick}
             eventDisplay="block"
+            eventDidMount={handleEventDidMount}   // ← tooltip nativo en hover
             height={isMobile ? 420 : "auto"}
             editable={false}
             selectable={can(["ADMIN", "ASSISTANT"])}
