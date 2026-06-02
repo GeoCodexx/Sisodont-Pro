@@ -105,7 +105,7 @@ export const useCatalogStore = create((set, get) => ({
 
   // ── TRATAMIENTOS — solo SUPER_ADMIN ──────────────────────
 
-  createTreatment: async (payload) => {
+  /*createTreatment: async (payload) => {
     set({ saving: true });
     const { data, error } = await supabase
       .from("treatments")
@@ -116,9 +116,36 @@ export const useCatalogStore = create((set, get) => ({
     if (!error) set((s) => ({ treatments: [...s.treatments, data] }));
     set({ saving: false });
     return { data, error: error?.message ?? null };
+  },*/
+  createTreatment: async (payload) => {
+    set({ saving: true });
+    const { data, error } = await supabase
+      .from("treatments")
+      .insert(payload)
+      .select("*, specialty:specialties(id, name, color)")
+      .single();
+
+    if (!error) {
+      const entry = {
+        ...data,
+        is_tenant_own: false,
+        base_price: data.price,
+        custom_price: null,
+        effective_price: data.unit_price ? data.unit_price : data.price,
+        effective_active: data.active,
+      };
+
+      set((s) => ({
+        treatmentsCatalog: [...s.treatmentsCatalog, entry],
+        treatments: data.active ? [...s.treatments, entry] : s.treatments,
+      }));
+    }
+
+    set({ saving: false });
+    return { data, error: error?.message ?? null };
   },
 
-  updateTreatment: async (id, payload) => {
+  /*updateTreatment: async (id, payload) => {
     set({ saving: true });
     const { data, error } = await supabase
       .from("treatments")
@@ -131,6 +158,38 @@ export const useCatalogStore = create((set, get) => ({
       set((s) => ({
         treatments: s.treatments.map((x) => (x.id === id ? data : x)),
       }));
+    set({ saving: false });
+    return { error: error?.message ?? null };
+  },*/
+  updateTreatment: async (id, payload) => {
+    set({ saving: true });
+    const { data, error } = await supabase
+      .from("treatments")
+      .update(payload)
+      .eq("id", id)
+      .select("*, specialty:specialties(id, name, color)")
+      .single();
+
+    if (!error) {
+      const entry = {
+        ...data,
+        is_tenant_own: false,
+        base_price: data.price,
+        custom_price: null,
+        effective_price: data.unit_price ? data.unit_price : data.price,
+        effective_active: data.active,
+      };
+
+      set((s) => ({
+        // Actualizar o remover de treatmentsCatalog según active
+        treatmentsCatalog: data.active
+          ? s.treatmentsCatalog.map((t) => (t.id === id ? entry : t))
+          : s.treatmentsCatalog.filter((t) => t.id !== id), // inactivo: desaparece para tenants
+        treatments: s.treatments
+          .filter((t) => t.id !== id)
+          .concat(data.active ? [entry] : []),
+      }));
+    }
     set({ saving: false });
     return { error: error?.message ?? null };
   },
@@ -272,7 +331,9 @@ export const useCatalogStore = create((set, get) => ({
       // Agrega a ambas listas
       const entry = {
         ...data,
-        effective_price: data.price,
+        effective_price: data.unit_price
+          ? data.unit_price // si es por unidad, el precio efectivo es unit_price
+          : data.price, // si es por sesión, es price
         effective_active: data.active,
         is_tenant_own: true,
       };
@@ -297,7 +358,7 @@ export const useCatalogStore = create((set, get) => ({
     if (!error) {
       const entry = {
         ...data,
-        effective_price: data.price,
+        effective_price: data.unit_price ? data.unit_price : data.price,
         effective_active: data.active,
         is_tenant_own: true,
       };
@@ -319,21 +380,50 @@ export const useCatalogStore = create((set, get) => ({
     // patch puede ser { custom_price }, { is_active } o ambos
     const userId = useAuthStore.getState().user?.id ?? null;
 
-    const { error } = await supabase.from("tenant_treatment_config").upsert(
-      {
-        treatment_id: treatmentId,
-        ...patch,
-        updated_by: userId,
-      },
-      { onConflict: "tenant_id,treatment_id" },
-    );
+    const { data, error, status, statusText } = await supabase
+      .from("tenant_treatment_config")
+      .upsert(
+        {
+          treatment_id: treatmentId,
+          ...patch,
+          updated_by: userId,
+        },
+        { onConflict: "tenant_id,treatment_id" },
+      )
+      .select();
+
+    console.log("upsert result:", { data, error, status, statusText });
 
     if (!error) {
+      set((s) => {
+        // 1. Construir el catálogo actualizado primero
+        const updatedCatalog = s.treatmentsCatalog.map((t) => {
+          if (t.id !== treatmentId) return t;
+          const newActive = patch.is_active ?? t.effective_active; // ← aplica para globales Y propios
+          const newPrice = patch.custom_price ?? t.custom_price;
+          return {
+            ...t,
+            custom_price: newPrice,
+            effective_active: newActive,
+            effective_price: newPrice ?? t.base_price,
+          };
+        });
+
+        return {
+          treatmentsCatalog: updatedCatalog,
+          treatments: updatedCatalog.filter((t) => t.effective_active), // ← desde updatedCatalog, no s.treatmentsCatalog
+        };
+      });
+    }
+
+    /*if (!error) {
       // Actualizar treatmentsCatalog en memoria
       set((s) => ({
         treatmentsCatalog: s.treatmentsCatalog.map((t) => {
           if (t.id !== treatmentId) return t;
-          const newActive = patch.is_active ?? t.effective_active;
+          const newActive = t.is_tenant_own
+            ? (patch.is_active ?? t.effective_active) // propio: el tenant controla
+            : t.effective_active; // global: no cambia en memoria (t.active manda)
           const newPrice = patch.custom_price ?? t.custom_price;
           return {
             ...t,
@@ -354,7 +444,7 @@ export const useCatalogStore = create((set, get) => ({
           )
           .filter((t) => t.effective_active),
       }));
-    }
+    }*/
     return { error: error?.message ?? null };
   },
 }));

@@ -56,7 +56,11 @@ const EMPTY = {
 // QuickPatientForm — memo: no re-renderiza por cambios del padre
 // que no afectan sus props (saving, onCreated, onCancel).
 // ─────────────────────────────────────────────────────────────
-const QuickPatientForm = memo(function QuickPatientForm({ onCreated, onCancel, saving }) {
+const QuickPatientForm = memo(function QuickPatientForm({
+  onCreated,
+  onCancel,
+  saving,
+}) {
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
 
@@ -74,7 +78,10 @@ const QuickPatientForm = memo(function QuickPatientForm({ onCreated, onCancel, s
   const valid = payload.first_name.length > 0 && payload.last_name.length > 0;
 
   // useCallback: referencia estable para el botón
-  const handleCreate = useCallback(() => onCreated(payload), [onCreated, payload]);
+  const handleCreate = useCallback(
+    () => onCreated(payload),
+    [onCreated, payload],
+  );
 
   return (
     <Paper
@@ -98,7 +105,10 @@ const QuickPatientForm = memo(function QuickPatientForm({ onCreated, onCancel, s
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <PersonAddIcon fontSize="small" color="primary" />
-          <Typography variant="body2" sx={{ fontWeight: 500, color: "primary.main" }}>
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 500, color: "primary.main" }}
+          >
             Nuevo paciente rápido
           </Typography>
         </Box>
@@ -131,7 +141,11 @@ const QuickPatientForm = memo(function QuickPatientForm({ onCreated, onCancel, s
             variant="contained"
             size="small"
             startIcon={
-              saving ? <CircularProgress size={14} color="inherit" /> : <AddIcon />
+              saving ? (
+                <CircularProgress size={14} color="inherit" />
+              ) : (
+                <AddIcon />
+              )
             }
             onClick={handleCreate}
             disabled={!valid || saving}
@@ -399,7 +413,8 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
   );
   const isMultisession = selectedTreatment?.is_multisession === true;
   const isObturacion = useMemo(
-    () => selectedTreatment?.name?.toUpperCase().includes("OBTURACIÓN") ?? false,
+    () =>
+      selectedTreatment?.name?.toUpperCase().includes("OBTURACIÓN") ?? false,
     [selectedTreatment],
   );
   const showTotalField = !isObturacion && !isMultisession;
@@ -408,7 +423,9 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
   const filteredDoctors = useMemo(
     () =>
       selectedTreatment?.specialty_id
-        ? doctors.filter((d) => d.specialty_id === selectedTreatment.specialty_id)
+        ? doctors.filter(
+            (d) => d.specialty_id === selectedTreatment.specialty_id,
+          )
         : doctors,
     [doctors, selectedTreatment?.specialty_id],
   );
@@ -418,7 +435,10 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     if (!open) return;
     fetchAll();
     fetchPatients({ page: 1, pageSize: 200 });
-    setForm({ ...EMPTY, date: prefillDate ? toDatetimeLocal(prefillDate) : "" });
+    setForm({
+      ...EMPTY,
+      date: prefillDate ? toDatetimeLocal(prefillDate) : "",
+    });
     setSelectedPatient(null);
     setShowQuickForm(false);
     setOpenCase(null);
@@ -524,9 +544,18 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       e.preventDefault();
       setError("");
 
-      if (!form.patient_id) { setError("Selecciona o crea un paciente."); return; }
-      if (!form.doctor_id) { setError("Selecciona un doctor."); return; }
-      if (!form.date) { setError("Ingresa la fecha y hora."); return; }
+      if (!form.patient_id) {
+        setError("Selecciona o crea un paciente.");
+        return;
+      }
+      if (!form.doctor_id) {
+        setError("Selecciona un doctor.");
+        return;
+      }
+      if (!form.date) {
+        setError("Ingresa la fecha y hora.");
+        return;
+      }
       if (isObturacion && (!teethCount || parseInt(teethCount) < 1)) {
         setError("Ingresa la cantidad de dientes a curar.");
         return;
@@ -557,7 +586,10 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             total_sessions: totalSessions ? parseInt(totalSessions) : null,
             total_cost: totalCost ? parseFloat(totalCost) : null,
           });
-          if (caseError) { setError("Error al crear el caso: " + caseError); return; }
+          if (caseError) {
+            setError("Error al crear el caso: " + caseError);
+            return;
+          }
           caseId = newCase.id;
         }
       }
@@ -575,13 +607,27 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
         unit_price: isObturacion ? parseFloat(unitPrice) : null,
       });
 
-      if (apptError) { setError(apptError); return; }
+      if (apptError) {
+        setError(apptError);
+        return;
+      }
       onClose(true);
     },
     [
-      form, isObturacion, isMultisession, teethCount, unitPrice, totalCost,
-      openCase, caseOption, caseNotes, totalSessions, selectedTreatment,
-      createCase, createAppointment, onClose,
+      form,
+      isObturacion,
+      isMultisession,
+      teethCount,
+      unitPrice,
+      totalCost,
+      openCase,
+      caseOption,
+      caseNotes,
+      totalSessions,
+      selectedTreatment,
+      createCase,
+      createAppointment,
+      onClose,
     ],
   );
 
@@ -594,11 +640,20 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
   const noOptionsText = useMemo(
     () => (
       <Box
-        sx={{ display: "flex", alignItems: "center", gap: 1, cursor: "pointer", py: 0.5 }}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          cursor: "pointer",
+          py: 0.5,
+        }}
         onClick={handleShowQuickForm}
       >
         <PersonAddIcon fontSize="small" color="primary" />
-        <Typography variant="body2" sx={{ color: "primary.main", fontWeight: 500 }}>
+        <Typography
+          variant="body2"
+          sx={{ color: "primary.main", fontWeight: 500 }}
+        >
           Crear paciente rápido
         </Typography>
       </Box>
@@ -637,7 +692,9 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                   label="Paciente *"
                   size="small"
                   helperText={
-                    selectedPatient ? "" : "Escribe para buscar o crea uno nuevo"
+                    selectedPatient
+                      ? ""
+                      : "Escribe para buscar o crea uno nuevo"
                   }
                 />
               )}
@@ -683,9 +740,18 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
               <MenuItem value="">Sin especificar</MenuItem>
               {treatments.map((t) => (
                 <MenuItem key={t.id} value={t.id}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                      width: "100%",
+                    }}
+                  >
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="body2" noWrap>{t.name}</Typography>
+                      <Typography variant="body2" noWrap>
+                        {t.name}
+                      </Typography>
                     </Box>
                     {t.is_multisession && (
                       <Chip
@@ -697,13 +763,19 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                       />
                     )}
                     {!t.is_multisession && !t.unit_price && (
-                      <Typography variant="caption" sx={{ flexShrink: 0, color: "text.secondary" }}>
-                        S/ {Number(t.price).toFixed(2)}
+                      <Typography
+                        variant="caption"
+                        sx={{ flexShrink: 0, color: "text.secondary" }}
+                      >
+                        S/ {Number(t.effective_price).toFixed(2)}
                       </Typography>
                     )}
                     {t.unit_price && (
-                      <Typography variant="caption" sx={{ flexShrink: 0, color: "warning.dark" }}>
-                        S/ {Number(t.unit_price).toFixed(2)}/d
+                      <Typography
+                        variant="caption"
+                        sx={{ flexShrink: 0, color: "warning.dark" }}
+                      >
+                        S/ {Number(t.effective_price).toFixed(2)}/d
                       </Typography>
                     )}
                   </Box>
@@ -846,7 +918,11 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
           onClick={handleSubmit}
           disabled={saving || quickSaving || checkingCase}
         >
-          {saving ? <CircularProgress size={20} color="inherit" /> : "Crear cita"}
+          {saving ? (
+            <CircularProgress size={20} color="inherit" />
+          ) : (
+            "Crear cita"
+          )}
         </Button>
       </DialogActions>
     </Dialog>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useForm, Controller } from "react-hook-form";
 import {
   Box,
   Button,
@@ -160,7 +161,7 @@ function TreatmentCard({ t, onEdit, onDelete, canEdit }) {
             }}
           >
             {t.unit_price
-              ? `S/ ${Number(t.unit_price).toFixed(2)}/unidad`
+              ? `S/ ${Number(t.effective_price).toFixed(2)}/unidad`
               : t.is_multisession
                 ? "Pactado por caso"
                 : `S/ ${Number(t.effective_price).toFixed(2)}`}
@@ -196,9 +197,18 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
     upsertTreatmentConfig,
   } = useCatalogStore();
 
-  const [open, setOpen] = useState(false);
+  /*const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
+  const [editId, setEditId] = useState(null);*/
+  const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState(null);
+
+  const { control, handleSubmit, reset, watch, setValue } = useForm({
+    defaultValues: EMPTY,
+  });
+
+  const isMultisession = watch("is_multisession");
+  const unitPrice = watch("unit_price");
 
   const [priceDialog, setPriceDialog] = useState({
     open: false,
@@ -206,29 +216,41 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
     value: "",
   });
 
-  const setField = (f) => (e) =>
-    setForm((p) => ({ ...p, [f]: e.target.value }));
+  /*const setField = (f) => (e) =>
+    setForm((p) => ({ ...p, [f]: e.target.value }));*/
 
   const openCreate = () => {
-    setForm(EMPTY);
+    //setForm(EMPTY);
+    reset(EMPTY);
     setEditId(null);
     setOpen(true);
   };
   const openEdit = (t) => {
-    setForm({
+    /*setForm({
       name: t.name,
       specialty_id: t.specialty_id ?? "",
-      price: t.price ?? "",
+      price: t.effective_price ?? t.base_price ?? "", // ← usa effective_price
+      unit_price: t.unit_price
+        ? (t.custom_price ?? t.unit_price) // ← precio custom si existe
+        : "",
       duration_min: t.duration_min ?? 30,
       description: t.description ?? "",
       is_multisession: t.is_multisession ?? false,
-      unit_price: t.unit_price ?? "",
+    });*/
+    reset({
+      name: t.name,
+      specialty_id: t.specialty_id ?? "",
+      price: t.effective_price ?? t.base_price ?? "",
+      unit_price: t.unit_price ? (t.custom_price ?? t.unit_price) : "",
+      duration_min: t.duration_min ?? 30,
+      description: t.description ?? "",
+      is_multisession: t.is_multisession ?? false,
     });
     setEditId(t.id);
     setOpen(true);
   };
 
-  const handleSave = async () => {
+  /*const handleSave = async () => {
     if (!form.name.trim()) {
       onNotify("El nombre es requerido.", "error");
       return;
@@ -262,6 +284,38 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
     }
     onNotify(editId ? "Tratamiento actualizado." : "Tratamiento creado.");
     setOpen(false);
+  };*/
+
+  const onSubmit = async (data) => {
+    if (!data.is_multisession && !data.unit_price && !data.price) {
+      onNotify("Ingresa un precio.", "error");
+      return;
+    }
+    const payload = {
+      name: data.name.trim(),
+      specialty_id: data.specialty_id || null,
+      description: data.description || null,
+      duration_min: Number(data.duration_min) || 30,
+      is_multisession: data.is_multisession,
+      price: data.is_multisession ? 0 : Number(data.price) || 0,
+      unit_price: data.unit_price ? Number(data.unit_price) : null,
+    };
+
+    const fn = isSuperAdmin
+      ? editId
+        ? updateTreatment(editId, payload)
+        : createTreatment(payload)
+      : editId
+        ? updateTenantTreatment(editId, payload)
+        : createTenantTreatment(payload);
+
+    const { error } = await fn;
+    if (error) {
+      onNotify(error, "error");
+      return;
+    }
+    onNotify(editId ? "Tratamiento actualizado." : "Tratamiento creado.");
+    setOpen(false);
   };
 
   const handleToggleActive = async (t) => {
@@ -275,11 +329,14 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
       return;
 
     let error;
-    if (t.is_tenant_own) {
-      // Tratamiento propio del tenant → edita directo en treatments
+    if (isSuperAdmin) {
+      // SUPER_ADMIN siempre edita directo en treatments
+      ({ error } = await updateTreatment(t.id, { active: newActive }));
+    } else if (t.is_tenant_own) {
+      // ADMIN sobre su propio tratamiento
       ({ error } = await updateTenantTreatment(t.id, { active: newActive }));
     } else {
-      // Tratamiento global → upsert en tenant_treatment_config
+      // ADMIN sobre tratamiento global → config por tenant
       ({ error } = await upsertTreatmentConfig(t.id, { is_active: newActive }));
     }
     if (error) onNotify(error, "error");
@@ -442,9 +499,9 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
                       }}
                     >
                       {t.unit_price
-                        ? `S/ ${Number(t.unit_price).toFixed(2)}/ud.`
+                        ? `S/ ${Number(t.effective_price).toFixed(2)}/ud.`
                         : t.is_multisession
-                          ? "Por caso"
+                          ? "Pactado por caso"
                           : `S/ ${Number(t.effective_price).toFixed(2)}`}
                     </Typography>
                   </TableCell>
@@ -521,34 +578,50 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
           <DialogTitle>
             {editId ? "Editar tratamiento" : "Nuevo tratamiento"}
           </DialogTitle>
+
           <DialogContent sx={{ pt: "16px !important" }}>
             <Grid container spacing={2}>
+              {/* Nombre */}
               <Grid size={{ xs: 12 }}>
-                <TextField
-                  label="Nombre del tratamiento *"
-                  value={form.name}
-                  onChange={setField("name")}
-                  size="small"
-                  fullWidth
+                <Controller
+                  name="name"
+                  control={control}
+                  rules={{ required: "El nombre es requerido." }}
+                  render={({ field, fieldState }) => (
+                    <TextField
+                      {...field}
+                      label="Nombre del tratamiento *"
+                      size="small"
+                      fullWidth
+                      error={!!fieldState.error}
+                      helperText={fieldState.error?.message}
+                    />
+                  )}
                 />
               </Grid>
 
+              {/* Especialidad */}
               <Grid size={{ xs: 12 }}>
-                <TextField
-                  select
-                  label="Especialidad"
-                  value={form.specialty_id}
-                  onChange={setField("specialty_id")}
-                  size="small"
-                  fullWidth
-                >
-                  <MenuItem value="">Sin especialidad</MenuItem>
-                  {specialties.map((s) => (
-                    <MenuItem key={s.id} value={s.id}>
-                      {s.name}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                <Controller
+                  name="specialty_id"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      select
+                      label="Especialidad"
+                      size="small"
+                      fullWidth
+                    >
+                      <MenuItem value="">Sin especialidad</MenuItem>
+                      {specialties.map((s) => (
+                        <MenuItem key={s.id} value={s.id}>
+                          {s.name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  )}
+                />
               </Grid>
 
               {/* Tipo de tratamiento */}
@@ -564,65 +637,77 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
                   <Typography variant="body2" fontWeight={500} sx={{ mb: 1.5 }}>
                     Tipo de tratamiento
                   </Typography>
-                  <FormControlLabel
-                    sx={{ mb: 1, alignItems: "flex-start" }}
-                    control={
-                      <Switch
-                        checked={form.is_multisession}
-                        color="primary"
-                        onChange={(e) =>
-                          setForm((p) => ({
-                            ...p,
-                            is_multisession: e.target.checked,
-                            unit_price: e.target.checked ? "" : p.unit_price,
-                          }))
+
+                  {/* Switch multisesión */}
+                  <Controller
+                    name="is_multisession"
+                    control={control}
+                    render={({ field }) => (
+                      <FormControlLabel
+                        sx={{ mb: 1, alignItems: "flex-start" }}
+                        control={
+                          <Switch
+                            checked={field.value}
+                            color="primary"
+                            onChange={(e) => {
+                              field.onChange(e.target.checked);
+                              if (e.target.checked) setValue("unit_price", "");
+                            }}
+                          />
+                        }
+                        label={
+                          <Box sx={{ pt: 0.5 }}>
+                            <Typography variant="body2" fontWeight={500}>
+                              Tratamiento multisesión
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary">
+                              Se cita al paciente varias veces. El costo total
+                              se pacta al crear el caso.
+                            </Typography>
+                          </Box>
                         }
                       />
-                    }
-                    label={
-                      <Box sx={{ pt: 0.5 }}>
-                        <Typography variant="body2" fontWeight={500}>
-                          Tratamiento multisesión
-                        </Typography>
-                        <Typography variant="caption" color="textSecondary">
-                          Se cita al paciente varias veces. El costo total se
-                          pacta al crear el caso.
-                        </Typography>
-                      </Box>
-                    }
+                    )}
                   />
 
-                  {!form.is_multisession && (
-                    <FormControlLabel
-                      sx={{ alignItems: "flex-start" }}
-                      control={
-                        <Switch
-                          checked={!!form.unit_price}
-                          color="warning"
-                          onChange={(e) =>
-                            setForm((p) => ({
-                              ...p,
-                              unit_price: e.target.checked ? "50" : "",
-                              price: e.target.checked ? "0" : p.price,
-                            }))
+                  {/* Switch precio por unidad — solo si no es multisesión */}
+                  {!isMultisession && (
+                    <Controller
+                      name="unit_price"
+                      control={control}
+                      render={({ field }) => (
+                        <FormControlLabel
+                          sx={{ alignItems: "flex-start" }}
+                          control={
+                            <Switch
+                              checked={!!field.value}
+                              color="warning"
+                              onChange={(e) => {
+                                field.onChange(e.target.checked ? "50" : "");
+                                if (e.target.checked) setValue("price", "0");
+                              }}
+                            />
+                          }
+                          label={
+                            <Box sx={{ pt: 0.5 }}>
+                              <Typography variant="body2" fontWeight={500}>
+                                Precio por unidad
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="textSecondary"
+                              >
+                                El total se calcula por cantidad (ej: por diente
+                                tratado).
+                              </Typography>
+                            </Box>
                           }
                         />
-                      }
-                      label={
-                        <Box sx={{ pt: 0.5 }}>
-                          <Typography variant="body2" fontWeight={500}>
-                            Precio por unidad
-                          </Typography>
-                          <Typography variant="caption" color="textSecondary">
-                            El total se calcula por cantidad (ej: por diente
-                            tratado).
-                          </Typography>
-                        </Box>
-                      }
+                      )}
                     />
                   )}
 
-                  {form.is_multisession && (
+                  {isMultisession && (
                     <Alert severity="info" sx={{ mt: 1.5 }} icon={false}>
                       <Typography variant="caption">
                         El precio se acuerda con el paciente al abrir el caso de
@@ -630,7 +715,7 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
                       </Typography>
                     </Alert>
                   )}
-                  {!form.is_multisession && form.unit_price && (
+                  {!isMultisession && unitPrice && (
                     <Alert severity="warning" sx={{ mt: 1.5 }} icon={false}>
                       <Typography variant="caption">
                         Al crear una cita se pedirá la cantidad de unidades y el
@@ -642,83 +727,115 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
               </Grid>
 
               {/* Precio por sesión */}
-              {!form.is_multisession && !form.unit_price && (
+              {!isMultisession && !unitPrice && (
                 <Grid size={{ xs: 6 }}>
-                  <TextField
-                    label="Precio por sesión *"
-                    type="number"
-                    value={form.price}
-                    onChange={setField("price")}
-                    size="small"
-                    fullWidth
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">S/</InputAdornment>
-                        ),
-                      },
-                    }}
+                  <Controller
+                    name="price"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Precio por sesión *"
+                        type="number"
+                        size="small"
+                        fullWidth
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                S/
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
+                      />
+                    )}
                   />
                 </Grid>
               )}
 
               {/* Precio por unidad */}
-              {!form.is_multisession && !!form.unit_price && (
+              {!isMultisession && !!unitPrice && (
                 <Grid size={{ xs: 6 }}>
-                  <TextField
-                    label="Precio por unidad *"
-                    type="number"
-                    value={form.unit_price}
-                    onChange={setField("unit_price")}
-                    size="small"
-                    fullWidth
-                    helperText="Por diente / pieza"
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">S/</InputAdornment>
-                        ),
-                      },
-                    }}
+                  <Controller
+                    name="unit_price"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Precio por unidad *"
+                        type="number"
+                        size="small"
+                        fullWidth
+                        helperText="Por diente / pieza"
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                S/
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
+                      />
+                    )}
                   />
                 </Grid>
               )}
 
+              {/* Duración */}
               <Grid size={{ xs: 6 }}>
-                <TextField
-                  label="Duración por sesión"
-                  type="number"
-                  value={form.duration_min}
-                  onChange={setField("duration_min")}
-                  size="small"
-                  fullWidth
-                  slotProps={{
-                    input: {
-                      endAdornment: (
-                        <InputAdornment position="end">min</InputAdornment>
-                      ),
-                    },
-                  }}
+                <Controller
+                  name="duration_min"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Duración por sesión"
+                      type="number"
+                      size="small"
+                      fullWidth
+                      slotProps={{
+                        input: {
+                          endAdornment: (
+                            <InputAdornment position="end">min</InputAdornment>
+                          ),
+                        },
+                      }}
+                    />
+                  )}
                 />
               </Grid>
 
+              {/* Descripción */}
               <Grid size={{ xs: 12 }}>
-                <TextField
-                  label="Descripción"
-                  value={form.description}
-                  onChange={setField("description")}
-                  size="small"
-                  fullWidth
-                  multiline
-                  rows={3}
-                  placeholder="Descripción del tratamiento, indicaciones..."
+                <Controller
+                  name="description"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Descripción"
+                      size="small"
+                      fullWidth
+                      multiline
+                      rows={3}
+                      placeholder="Descripción del tratamiento, indicaciones..."
+                    />
+                  )}
                 />
               </Grid>
             </Grid>
           </DialogContent>
+
           <DialogActions sx={{ px: 3, pb: 2 }}>
             <Button onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button variant="contained" onClick={handleSave} disabled={saving}>
+            {/* handleSubmit de RHF valida primero, luego llama onSubmit */}
+            <Button
+              variant="contained"
+              onClick={handleSubmit(onSubmit)}
+              disabled={saving}
+            >
               {saving ? (
                 <CircularProgress size={20} color="inherit" />
               ) : editId ? (
