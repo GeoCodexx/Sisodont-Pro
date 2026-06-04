@@ -406,6 +406,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
   const [teethCount, setTeethCount] = useState("");
   const [unitPrice, setUnitPrice] = useState("50");
   const [calcTotal, setCalcTotal] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     control,
@@ -486,6 +487,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     setCalcTotal("");
     setError("");
     setQuickError("");
+    setIsSubmitting(false);
   }, [open]);
 
   useEffect(() => {
@@ -579,7 +581,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     [selectedTreatment, setValue],
   );
 
-  const onSubmit = useCallback(
+  /*const onSubmit = useCallback(
     async (data) => {
       setError("");
 
@@ -684,8 +686,122 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       createAppointment,
       onClose,
     ],
-  );
+  );*/
+  const onSubmit = useCallback(
+    async (data) => {
+      setError("");
+      setIsSubmitting(true);
 
+      try {
+        if (!data.patient_id) {
+          setError("Selecciona o crea un paciente.");
+          return;
+        }
+        if (!data.doctor_id) {
+          setError("Selecciona un doctor.");
+          return;
+        }
+        if (!data.date) {
+          setError("Ingresa la fecha y hora.");
+          return;
+        }
+        if (isObturacion && (!teethCount || parseInt(teethCount) < 1)) {
+          setError("Ingresa la cantidad de dientes a curar.");
+          return;
+        }
+        if (
+          isMultisession &&
+          (!openCase || caseOption === "new") &&
+          !totalCost
+        ) {
+          setError("Ingresa el costo total pactado del tratamiento.");
+          return;
+        }
+
+        const startDate = new Date(data.date);
+        const endDate = new Date(
+          startDate.getTime() + (selectedTreatment?.duration_min ?? 30) * 60000,
+        );
+        const total = isObturacion
+          ? (parseFloat(unitPrice) || 0) * (parseInt(teethCount) || 0)
+          : parseFloat(data.total) || 0;
+
+        let caseId = null;
+        if (isMultisession) {
+          if (openCase && caseOption === "existing") {
+            caseId = openCase.id;
+          } else {
+            const { data: newCase, error: caseError } = await createCase({
+              patient_id: data.patient_id,
+              treatment_id: data.treatment_id,
+              doctor_id: data.doctor_id,
+              notes: caseNotes || null,
+              total_sessions: totalSessions ? parseInt(totalSessions) : null,
+              total_cost: totalCost ? parseFloat(totalCost) : null,
+            });
+            if (caseError) {
+              setError("Error al crear el caso: " + caseError);
+              return;
+            }
+            caseId = newCase.id;
+          }
+        }
+
+        // Validar solapamiento
+        const { overlap, error: overlapError } = await checkOverlap(
+          data.doctor_id,
+          startDate.toISOString(),
+          endDate.toISOString(),
+        );
+        if (overlapError) {
+          setError("Error al verificar disponibilidad.");
+          return;
+        }
+        if (overlap) {
+          setError(
+            "El doctor ya tiene una cita en ese horario. Elige otra hora.",
+          );
+          return;
+        }
+
+        const { error: apptError } = await createAppointment({
+          patient_id: data.patient_id,
+          doctor_id: data.doctor_id,
+          treatment_id: data.treatment_id || null,
+          date: startDate.toISOString(),
+          end_date: endDate.toISOString(),
+          total,
+          notes: data.notes || null,
+          case_id: caseId,
+          teeth_count: isObturacion ? parseInt(teethCount) : null,
+          unit_price: isObturacion ? parseFloat(unitPrice) : null,
+        });
+
+        if (apptError) {
+          setError(apptError);
+          return;
+        }
+        onClose(true);
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [
+      isObturacion,
+      isMultisession,
+      teethCount,
+      unitPrice,
+      totalCost,
+      openCase,
+      caseOption,
+      caseNotes,
+      totalSessions,
+      selectedTreatment,
+      createCase,
+      createAppointment,
+      onClose,
+    ],
+  );
   // useMemo: opciones de Autocomplete no cambian si patients no cambia
   const autocompleteGetLabel = useCallback(
     (p) => `${p.full_name}${p.dni ? " — " + p.dni : ""}`,
@@ -1078,9 +1194,9 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
         <Button
           variant="contained"
           onClick={rhfHandleSubmit(onSubmit)}
-          disabled={saving || quickSaving || checkingCase}
+          disabled={isSubmitting || saving || quickSaving || checkingCase}
         >
-          {saving ? (
+          {isSubmitting || saving ? (
             <CircularProgress size={20} color="inherit" />
           ) : (
             "Crear cita"

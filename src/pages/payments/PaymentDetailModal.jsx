@@ -1,17 +1,34 @@
 import { useEffect, useState, useCallback, useMemo, memo } from "react";
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, Typography, Box, Divider,
-  Table, TableBody, TableCell, TableHead, TableRow,
-  TextField, MenuItem, InputAdornment, Alert,
-  CircularProgress, Chip, IconButton, Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+  Box,
+  Divider,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TextField,
+  MenuItem,
+  InputAdornment,
+  Alert,
+  CircularProgress,
+  Chip,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
-import DeleteIcon     from "@mui/icons-material/Delete";
+import DeleteIcon from "@mui/icons-material/Delete";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
-import ReceiptIcon    from "@mui/icons-material/Receipt";
+import ReceiptIcon from "@mui/icons-material/Receipt";
+import SouthIcon from "@mui/icons-material/South"; // egreso / devolución
 import { useLedgerStore } from "../../stores/useLedgerStore";
-import { useRole }        from "../../hooks/useRole";
-import { supabase }       from "../../services/supabaseClient";
+import { useRole } from "../../hooks/useRole";
+import { supabase } from "../../services/supabaseClient";
 
 // ─────────────────────────────────────────────────────────────
 // Constantes fuera del componente
@@ -19,26 +36,38 @@ import { supabase }       from "../../services/supabaseClient";
 const METHODS = ["efectivo", "tarjeta", "transferencia", "yape", "plin"];
 
 const METHOD_COLORS = {
-  efectivo:      "default",
-  tarjeta:       "success",
+  efectivo: "default",
+  tarjeta: "success",
   transferencia: "info",
-  yape:          "primary",
-  plin:          "secondary",
+  yape: "primary",
+  plin: "secondary",
+};
+
+const DIRECTION_COLOR = {
+  ingreso: "success",
+  egreso: "error",
 };
 
 const EMPTY = { amount: "", method: "efectivo", notes: "" };
 
 // Formatters — instancias únicas, no recrear por render
-const dtFormatter   = new Intl.DateTimeFormat("es-PE", { dateStyle: "short", timeStyle: "short" });
-const solesFormatter = new Intl.NumberFormat("es-PE", { minimumFractionDigits: 2 });
+const dtFormatter = new Intl.DateTimeFormat("es-PE", {
+  dateStyle: "short",
+  timeStyle: "short",
+});
+const solesFormatter = new Intl.NumberFormat("es-PE", {
+  minimumFractionDigits: 2,
+});
 
 const fmtDT = (iso) => (iso ? dtFormatter.format(new Date(iso)) : "—");
-const fmtS  = (n)   => `S/ ${solesFormatter.format(Number(n ?? 0))}`;
+const fmtS = (n) => `S/ ${solesFormatter.format(Number(n ?? 0))}`;
 
 // slotProps estables
 const AMOUNT_SLOT = {
   htmlInput: { min: 0.01, step: "0.01" },
-  input:     { startAdornment: <InputAdornment position="start">S/</InputAdornment> },
+  input: {
+    startAdornment: <InputAdornment position="start">S/</InputAdornment>,
+  },
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -61,13 +90,28 @@ async function reloadFromSummary(refType, refId) {
 // ─────────────────────────────────────────────────────────────
 const FinancialSummaryGrid = memo(function FinancialSummaryGrid({ rows }) {
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, mb: 2 }}>
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3,1fr)",
+        gap: 1,
+        mb: 2,
+      }}
+    >
       {rows.map(([label, value, color]) => (
         <Box
           key={label}
-          sx={{ bgcolor: "action.hover", borderRadius: 2, p: 1.5, textAlign: "center" }}
+          sx={{
+            bgcolor: "action.hover",
+            borderRadius: 2,
+            p: 1.5,
+            textAlign: "center",
+          }}
         >
-          <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", display: "block" }}
+          >
             {label}
           </Typography>
           <Typography variant="body2" sx={{ fontWeight: 600, color }}>
@@ -83,10 +127,14 @@ const FinancialSummaryGrid = memo(function FinancialSummaryGrid({ rows }) {
 // PaymentTableRow — fila memoizada para la tabla de pagos
 // Extraída del map inline para que memo sea efectivo
 // ─────────────────────────────────────────────────────────────
-const PaymentTableRow = memo(function PaymentTableRow({ p, onDelete, canAdmin }) {
-  const amount    = useMemo(() => fmtS(p.amount),      [p.amount]);
+const PaymentTableRow = memo(function PaymentTableRow({
+  p,
+  onDelete,
+  canAdmin,
+}) {
+  const amount = useMemo(() => fmtS(p.amount), [p.amount]);
   const createdAt = useMemo(() => fmtDT(p.created_at), [p.created_at]);
-  const handleDel = useCallback(() => onDelete(p.id),  [onDelete, p.id]);
+  const handleDel = useCallback(() => onDelete(p.id), [onDelete, p.id]);
 
   return (
     <TableRow>
@@ -94,18 +142,41 @@ const PaymentTableRow = memo(function PaymentTableRow({ p, onDelete, canAdmin })
         <Typography variant="body2">{createdAt}</Typography>
       </TableCell>
       <TableCell>
-        <Typography variant="body2" fontWeight={500} color="success.main">
-          {amount}
+        <Typography
+          variant="body2"
+          fontWeight={500}
+          color={p.direction === "egreso" ? "error.main" : "success.main"}
+        >
+          {p.direction === "egreso" ? `−${amount}` : amount}
         </Typography>
       </TableCell>
+
       <TableCell>
-        <Chip
-          label={p.method}
-          size="small"
-          variant="outlined"
-          color={METHOD_COLORS[p.method] ?? "default"}
-          sx={{ textTransform: "capitalize" }}
-        />
+        <Box
+          sx={{
+            display: "flex",
+            gap: 0.5,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <Chip
+            label={p.method}
+            size="small"
+            variant="outlined"
+            color={METHOD_COLORS[p.method] ?? "default"}
+            sx={{ textTransform: "capitalize" }}
+          />
+          {p.direction === "egreso" && (
+            <Chip
+              label="Devolución"
+              size="small"
+              color="error"
+              variant="filled"
+              sx={{ fontSize: 10, height: 18 }}
+            />
+          )}
+        </Box>
       </TableCell>
       <TableCell>
         <Typography variant="body2" color="text.secondary">
@@ -131,14 +202,23 @@ const PaymentTableRow = memo(function PaymentTableRow({ p, onDelete, canAdmin })
 // por cada campo en cada render.
 // ─────────────────────────────────────────────────────────────
 const PaymentForm = memo(function PaymentForm({
-  form, onChange, onRegister, saving, balanceLabel,
+  form,
+  onChange,
+  onRegister,
+  saving,
+  balanceLabel,
 }) {
   return (
     <>
       <Divider sx={{ mb: 1.5 }} />
       <Typography
         variant="caption"
-        sx={{ color: "text.secondary", fontWeight: 500, display: "block", mb: 1 }}
+        sx={{
+          color: "text.secondary",
+          fontWeight: 500,
+          display: "block",
+          mb: 1,
+        }}
       >
         {balanceLabel}
       </Typography>
@@ -182,7 +262,11 @@ const PaymentForm = memo(function PaymentForm({
           disabled={saving || !form.amount}
           sx={{ alignSelf: "center" }}
         >
-          {saving ? <CircularProgress size={18} color="inherit" /> : "Registrar"}
+          {saving ? (
+            <CircularProgress size={18} color="inherit" />
+          ) : (
+            "Registrar"
+          )}
         </Button>
       </Box>
     </>
@@ -226,21 +310,22 @@ const SessionRow = memo(function SessionRow({ s, index, isLast }) {
 // CasePaymentView
 // ─────────────────────────────────────────────────────────────
 function CasePaymentView({ row }) {
-  const { entriesByRef, saving, fetchByRef, register, remove } = useLedgerStore();
+  const { entriesByRef, saving, fetchByRef, register, remove } =
+    useLedgerStore();
   const { can } = useRole();
 
   const payments = entriesByRef[row.ref_id] ?? [];
-  const [form,     setForm]     = useState(EMPTY);
+  const [form, setForm] = useState(EMPTY);
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
-  const [rowData,  setRowData]  = useState(row);
+  const [rowData, setRowData] = useState(row);
   const [sessions, setSessions] = useState([]);
 
-  const totalBilled  = Number(rowData.billed   ?? 0);
-  const totalPaid    = Number(rowData.collected ?? 0);
-  const totalBalance = Number(rowData.balance   ?? 0);
+  const totalBilled = Number(rowData.billed ?? 0);
+  const totalPaid = Number(rowData.collected ?? 0);
+  const totalBalance = Number(rowData.balance ?? 0);
 
-  const canAdmin = useMemo(() => can(["ADMIN"]),            [can]);
-  const canPay   = useMemo(() => can(["ADMIN", "ASSISTANT"]), [can]);
+  const canAdmin = useMemo(() => can(["ADMIN"]), [can]);
+  const canPay = useMemo(() => can(["ADMIN", "ASSISTANT"]), [can]);
 
   useEffect(() => {
     fetchByRef("case", row.ref_id);
@@ -259,7 +344,8 @@ function CasePaymentView({ row }) {
   }, [row.ref_id, fetchByRef]);
 
   const clearFeedback = useCallback(
-    () => setFeedback({ msg: "", type: "success" }), [],
+    () => setFeedback({ msg: "", type: "success" }),
+    [],
   );
 
   // Handler unificado — evita la factory `set(f)` que recrea closures
@@ -271,14 +357,22 @@ function CasePaymentView({ row }) {
   const handleRegister = useCallback(async () => {
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) {
-      setFeedback({ msg: "Monto inválido.", type: "error" }); return;
+      setFeedback({ msg: "Monto inválido.", type: "error" });
+      return;
     }
     if (totalBilled > 0 && amount > totalBalance + 0.01) {
-      setFeedback({ msg: `Supera el saldo (${fmtS(totalBalance)}).`, type: "error" }); return;
+      setFeedback({
+        msg: `Supera el saldo (${fmtS(totalBalance)}).`,
+        type: "error",
+      });
+      return;
     }
     const { error } = await register({
-      refType: "case", refId: row.ref_id,
-      amount, method: form.method, notes: form.notes,
+      refType: "case",
+      refId: row.ref_id,
+      amount,
+      method: form.method,
+      notes: form.notes,
     });
     if (error) setFeedback({ msg: error, type: "error" });
     else {
@@ -288,26 +382,39 @@ function CasePaymentView({ row }) {
     }
   }, [form, totalBilled, totalBalance, row.ref_id, register, reloadCase]);
 
-  const handleDelete = useCallback(async (entryId) => {
-    if (!window.confirm("¿Eliminar este pago?")) return;
-    const { error } = await remove(entryId, row.ref_id);
-    if (error) setFeedback({ msg: error, type: "error" });
-    else {
-      setFeedback({ msg: "Pago eliminado.", type: "success" });
-      reloadCase();
-    }
-  }, [row.ref_id, remove, reloadCase]);
+  const handleDelete = useCallback(
+    async (entryId) => {
+      if (!window.confirm("¿Eliminar este pago?")) return;
+      const { error } = await remove(entryId, row.ref_id);
+      if (error) setFeedback({ msg: error, type: "error" });
+      else {
+        setFeedback({ msg: "Pago eliminado.", type: "success" });
+        reloadCase();
+      }
+    },
+    [row.ref_id, remove, reloadCase],
+  );
 
   // summaryRows memoizado para que FinancialSummaryGrid no re-renderice
   // cuando el componente padre re-renderiza por feedback o form
-  const summaryRows = useMemo(() => [
-    ["Costo total",  fmtS(totalBilled),  "text.primary"],
-    ["Total pagado", fmtS(totalPaid),    "success.main"],
-    ["Saldo",        fmtS(totalBalance), totalBalance > 0 ? "error.main" : "text.secondary"],
-  ], [totalBilled, totalPaid, totalBalance]);
+  const summaryRows = useMemo(
+    () => [
+      ["Costo total", fmtS(totalBilled), "text.primary"],
+      ["Total pagado", fmtS(totalPaid), "success.main"],
+      [
+        "Saldo",
+        fmtS(totalBalance),
+        totalBalance > 0 ? "error.main" : "text.secondary",
+      ],
+    ],
+    [totalBilled, totalPaid, totalBalance],
+  );
 
   const balanceLabel = useMemo(
-    () => totalBilled > 0 ? `REGISTRAR PAGO — Saldo: ${fmtS(totalBalance)}` : "REGISTRAR PAGO",
+    () =>
+      totalBilled > 0
+        ? `REGISTRAR PAGO — Saldo: ${fmtS(totalBalance)}`
+        : "REGISTRAR PAGO",
     [totalBilled, totalBalance],
   );
 
@@ -315,7 +422,10 @@ function CasePaymentView({ row }) {
     <>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
         <FolderOpenIcon color="primary" fontSize="small" />
-        <Typography variant="body2" sx={{ color: "primary.main", fontWeight: 500 }}>
+        <Typography
+          variant="body2"
+          sx={{ color: "primary.main", fontWeight: 500 }}
+        >
           Caso multisesión
         </Typography>
         <Chip
@@ -332,7 +442,12 @@ function CasePaymentView({ row }) {
         <>
           <Typography
             variant="caption"
-            sx={{ color: "text.secondary", fontWeight: 500, display: "block", mb: 0.75 }}
+            sx={{
+              color: "text.secondary",
+              fontWeight: 500,
+              display: "block",
+              mb: 0.75,
+            }}
           >
             SESIONES ({sessions.length})
           </Typography>
@@ -352,13 +467,22 @@ function CasePaymentView({ row }) {
       <Divider sx={{ mb: 2 }} />
       <Typography
         variant="caption"
-        sx={{ color: "text.secondary", fontWeight: 500, display: "block", mb: 0.75 }}
+        sx={{
+          color: "text.secondary",
+          fontWeight: 500,
+          display: "block",
+          mb: 0.75,
+        }}
       >
         PAGOS REGISTRADOS
       </Typography>
 
       {feedback.msg && (
-        <Alert severity={feedback.type} sx={{ mb: 1.5 }} onClose={clearFeedback}>
+        <Alert
+          severity={feedback.type}
+          sx={{ mb: 1.5 }}
+          onClose={clearFeedback}
+        >
           {feedback.msg}
         </Alert>
       )}
@@ -414,18 +538,19 @@ function CasePaymentView({ row }) {
 // AppointmentPaymentView
 // ─────────────────────────────────────────────────────────────
 function AppointmentPaymentView({ row }) {
-  const { entriesByRef, saving, fetchByRef, register, remove } = useLedgerStore();
+  const { entriesByRef, saving, fetchByRef, register, remove } =
+    useLedgerStore();
   const { can } = useRole();
 
   const payments = entriesByRef[row.ref_id] ?? [];
-  const [form,     setForm]     = useState(EMPTY);
+  const [form, setForm] = useState(EMPTY);
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
-  const [rowData,  setRowData]  = useState(row);
+  const [rowData, setRowData] = useState(row);
 
   const balance = Number(rowData.balance ?? 0);
 
-  const canAdmin = useMemo(() => can(["ADMIN"]),             [can]);
-  const canPay   = useMemo(() => can(["ADMIN", "ASSISTANT"]), [can]);
+  const canAdmin = useMemo(() => can(["ADMIN"]), [can]);
+  const canPay = useMemo(() => can(["ADMIN", "ASSISTANT"]), [can]);
 
   useEffect(() => {
     fetchByRef("appointment", row.ref_id);
@@ -438,7 +563,8 @@ function AppointmentPaymentView({ row }) {
   }, [row.ref_id, fetchByRef]);
 
   const clearFeedback = useCallback(
-    () => setFeedback({ msg: "", type: "success" }), [],
+    () => setFeedback({ msg: "", type: "success" }),
+    [],
   );
 
   const handleFormChange = useCallback((e) => {
@@ -449,14 +575,22 @@ function AppointmentPaymentView({ row }) {
   const handleRegister = useCallback(async () => {
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) {
-      setFeedback({ msg: "Monto inválido.", type: "error" }); return;
+      setFeedback({ msg: "Monto inválido.", type: "error" });
+      return;
     }
     if (amount > balance + 0.01) {
-      setFeedback({ msg: `Supera el saldo (${fmtS(balance)}).`, type: "error" }); return;
+      setFeedback({
+        msg: `Supera el saldo (${fmtS(balance)}).`,
+        type: "error",
+      });
+      return;
     }
     const { error } = await register({
-      refType: "appointment", refId: row.ref_id,
-      amount, method: form.method, notes: form.notes,
+      refType: "appointment",
+      refId: row.ref_id,
+      amount,
+      method: form.method,
+      notes: form.notes,
     });
     if (error) setFeedback({ msg: error, type: "error" });
     else {
@@ -466,32 +600,43 @@ function AppointmentPaymentView({ row }) {
     }
   }, [form, balance, row.ref_id, register, reloadRow]);
 
-  const handleDelete = useCallback(async (entryId) => {
-    if (!window.confirm("¿Eliminar este pago?")) return;
-    const { error } = await remove(entryId, row.ref_id);
-    if (error) setFeedback({ msg: error, type: "error" });
-    else {
-      setFeedback({ msg: "Pago eliminado.", type: "success" });
-      reloadRow();
-    }
-  }, [row.ref_id, remove, reloadRow]);
+  const handleDelete = useCallback(
+    async (entryId) => {
+      if (!window.confirm("¿Eliminar este pago?")) return;
+      const { error } = await remove(entryId, row.ref_id);
+      if (error) setFeedback({ msg: error, type: "error" });
+      else {
+        setFeedback({ msg: "Pago eliminado.", type: "success" });
+        reloadRow();
+      }
+    },
+    [row.ref_id, remove, reloadRow],
+  );
 
-  const summaryRows = useMemo(() => [
-    ["Total",  fmtS(rowData.billed),    "text.primary"],
-    ["Pagado", fmtS(rowData.collected), "success.main"],
-    ["Saldo",  fmtS(balance),           balance > 0 ? "error.main" : "text.secondary"],
-  ], [rowData.billed, rowData.collected, balance]);
+  const summaryRows = useMemo(
+    () => [
+      ["Total", fmtS(rowData.billed), "text.primary"],
+      ["Pagado", fmtS(rowData.collected), "success.main"],
+      ["Saldo", fmtS(balance), balance > 0 ? "error.main" : "text.secondary"],
+    ],
+    [rowData.billed, rowData.collected, balance],
+  );
 
   const apptStatusColor =
-    rowData.status === "atendido" ? "success"
-    : rowData.status === "cancelado" ? "error"
-    : "warning";
+    rowData.status === "atendido"
+      ? "success"
+      : rowData.status === "cancelado"
+        ? "error"
+        : "warning";
 
   return (
     <>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
         <ReceiptIcon fontSize="small" color="action" />
-        <Typography variant="body2" sx={{ color: "text.secondary", fontWeight: 500 }}>
+        <Typography
+          variant="body2"
+          sx={{ color: "text.secondary", fontWeight: 500 }}
+        >
           Cita individual
         </Typography>
         <Chip
@@ -505,7 +650,11 @@ function AppointmentPaymentView({ row }) {
       <FinancialSummaryGrid rows={summaryRows} />
 
       {feedback.msg && (
-        <Alert severity={feedback.type} sx={{ mb: 1.5 }} onClose={clearFeedback}>
+        <Alert
+          severity={feedback.type}
+          sx={{ mb: 1.5 }}
+          onClose={clearFeedback}
+        >
           {feedback.msg}
         </Alert>
       )}
@@ -561,7 +710,13 @@ export default function PaymentDetailModal({ open, row, onClose }) {
   const isCase = row.ref_type === "case";
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth scroll="paper">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
+      fullWidth
+      scroll="paper"
+    >
       <DialogTitle>
         {isCase ? "Detalle del caso multisesión" : "Detalle de pago"}
       </DialogTitle>
@@ -578,9 +733,11 @@ export default function PaymentDetailModal({ open, row, onClose }) {
           </Typography>
         </Box>
         <Divider sx={{ mb: 2 }} />
-        {isCase
-          ? <CasePaymentView row={row} />
-          : <AppointmentPaymentView row={row} />}
+        {isCase ? (
+          <CasePaymentView row={row} />
+        ) : (
+          <AppointmentPaymentView row={row} />
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cerrar</Button>
