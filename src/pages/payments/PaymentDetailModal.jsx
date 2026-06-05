@@ -489,7 +489,13 @@ function CasePaymentView({ row, onDirty }) {
           Caso multisesión
         </Typography>
         <Chip
-          label={rowData.case_status ?? "en_curso"}
+          label={
+            rowData.case_status
+              ? rowData.case_status === "en_curso"
+                ? "En Curso"
+                : rowData.case_status
+              : "En curso"
+          }
           size="small"
           color={rowData.case_status === "completado" ? "success" : "primary"}
           sx={{ textTransform: "capitalize" }}

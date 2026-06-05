@@ -1,50 +1,74 @@
-import { useEffect, useState, useCallback, useMemo, memo } from "react";
+import { useEffect, useState, useCallback, useMemo, memo, useRef } from "react";
 import {
-  Box, TextField, MenuItem, Grid,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, IconButton, Tooltip, Chip, CircularProgress, Alert,
-  Card, CardContent, Typography, InputAdornment,
+  Box,
+  TextField,
+  MenuItem,
+  Grid,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  IconButton,
+  Tooltip,
+  Chip,
+  CircularProgress,
+  Alert,
+  Card,
+  CardContent,
+  Typography,
+  InputAdornment,
 } from "@mui/material";
-import SearchIcon     from "@mui/icons-material/Search";
-import ReceiptIcon    from "@mui/icons-material/Receipt";
+import SearchIcon from "@mui/icons-material/Search";
+import ReceiptIcon from "@mui/icons-material/Receipt";
+import CloseIcon from "@mui/icons-material/Close";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import { usePaymentsPageStore } from "../../stores/usePaymentsPageStore";
-import { useBreakpoint }        from "../../hooks/useBreakpoint";
-import PaymentDetailModal       from "./PaymentDetailModal";
-import FilterDrawer             from "../../components/FilterDrawer";
-import FilterButton             from "../../components/FilterButton";
-import PageHeader               from "../../components/PageHeader";
-import TablePagination          from "../../components/TablePagination";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
+import PaymentDetailModal from "./PaymentDetailModal";
+import FilterDrawer from "../../components/FilterDrawer";
+import FilterButton from "../../components/FilterButton";
+import PageHeader from "../../components/PageHeader";
+import TablePagination from "../../components/TablePagination";
+import { useDebounce } from "../../hooks/useDebounce";
 
 // ─────────────────────────────────────────────────────────────
 // Constantes fuera del componente
 // ─────────────────────────────────────────────────────────────
 const STATUS_COLOR = {
-  pendiente:  "warning",
-  atendido:   "success",
-  cancelado:  "error",
-  en_curso:   "primary",
+  pendiente: "warning",
+  atendido: "success",
+  cancelado: "error",
+  en_curso: "primary",
   completado: "success",
   abandonado: "default",
 };
 
 const FILTERS_EMPTY = {
-  status: "all", balance: "all", search: "",
-  dateFrom: "", dateTo: "", refType: "all",
+  status: "all",
+  balance: "all",
+  search: "",
+  dateFrom: "",
+  dateTo: "",
+  refType: "all",
 };
 
 // Formatter instanciado una sola vez
 const dateFormatter = new Intl.DateTimeFormat("es-PE", { dateStyle: "short" });
-const solesFormatter = new Intl.NumberFormat("es-PE", { minimumFractionDigits: 2 });
+const solesFormatter = new Intl.NumberFormat("es-PE", {
+  minimumFractionDigits: 2,
+});
 
-const fmt   = (iso) => (iso ? dateFormatter.format(new Date(iso)) : "—");
-const fmtS  = (n)   => `S/ ${solesFormatter.format(Number(n ?? 0))}`;
+const fmt = (iso) => (iso ? dateFormatter.format(new Date(iso)) : "—");
+const fmtS = (n) => `S/ ${solesFormatter.format(Number(n ?? 0))}`;
 
 // Función pura — no necesita estar en el componente
 const balanceColor = (b) => (Number(b) > 0 ? "error.main" : "success.main");
 
 // slotProps estables — evitan recrear objetos en cada render de TextField
-const SEARCH_SLOT = {
+/*const SEARCH_SLOT = {
   input: {
     startAdornment: (
       <InputAdornment position="start">
@@ -52,11 +76,13 @@ const SEARCH_SLOT = {
       </InputAdornment>
     ),
   },
-};
+};*/
 const DATE_FROM_SLOT = { inputLabel: { shrink: true } };
 const AMOUNT_SLOT = {
   htmlInput: { min: 0.01, step: "0.01" },
-  input: { startAdornment: <InputAdornment position="start">S/</InputAdornment> },
+  input: {
+    startAdornment: <InputAdornment position="start">S/</InputAdornment>,
+  },
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -109,12 +135,12 @@ const TypeChip = memo(function TypeChip({ type }) {
 // PaymentCard (móvil) — memo + valores derivados memoizados
 // ─────────────────────────────────────────────────────────────
 const PaymentCard = memo(function PaymentCard({ row, onDetail }) {
-  const balance  = useMemo(() => Number(row.balance),           [row.balance]);
-  const billed   = useMemo(() => fmtS(row.billed),             [row.billed]);
-  const collected = useMemo(() => fmtS(row.collected),          [row.collected]);
-  const balFmt   = useMemo(() => fmtS(balance),                [balance]);
-  const date     = useMemo(() => fmt(row.date),                 [row.date]);
-  const bColor   = useMemo(() => balanceColor(balance),         [balance]);
+  const balance = useMemo(() => Number(row.balance), [row.balance]);
+  const billed = useMemo(() => fmtS(row.billed), [row.billed]);
+  const collected = useMemo(() => fmtS(row.collected), [row.collected]);
+  const balFmt = useMemo(() => fmtS(balance), [balance]);
+  const date = useMemo(() => fmt(row.date), [row.date]);
+  const bColor = useMemo(() => balanceColor(balance), [balance]);
   const costLabel = row.ref_type === "case" ? "Costo total" : "Total";
 
   const handleDetail = useCallback(() => onDetail(row), [onDetail, row]);
@@ -122,7 +148,14 @@ const PaymentCard = memo(function PaymentCard({ row, onDetail }) {
   return (
     <Card variant="outlined" sx={{ mb: 1.5 }}>
       <CardContent sx={{ pb: "12px !important" }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 0.5 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            mb: 0.5,
+          }}
+        >
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="body2" fontWeight={500} noWrap>
               {row.patient_name}
@@ -136,7 +169,7 @@ const PaymentCard = memo(function PaymentCard({ row, onDetail }) {
           <Box sx={{ display: "flex", gap: 0.5, ml: 1, flexShrink: 0 }}>
             <TypeChip type={row.ref_type} />
             <Chip
-              label={row.status}
+              label={row?.status? row.status==="en_curso"?"en curso":row.status:"Desconocido"}
               color={STATUS_COLOR[row.status] ?? "default"}
               size="small"
               sx={{ textTransform: "capitalize" }}
@@ -144,29 +177,55 @@ const PaymentCard = memo(function PaymentCard({ row, onDetail }) {
           </Box>
         </Box>
 
-        <Typography variant="caption" sx={{ display: "block", mb: 1, color: "text.secondary" }}>
+        <Typography
+          variant="caption"
+          sx={{ display: "block", mb: 1, color: "text.secondary" }}
+        >
           {row.treatment_name ?? "—"} · {row.doctor_name ?? "—"} · {date}
         </Typography>
 
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <Box sx={{ display: "flex", gap: 2 }}>
             <Box>
-              <Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>
+              <Typography
+                variant="caption"
+                sx={{ display: "block", color: "text.secondary" }}
+              >
                 {costLabel}
               </Typography>
-              <Typography variant="body2" fontWeight={500}>{billed}</Typography>
+              <Typography variant="body2" fontWeight={500}>
+                {billed}
+              </Typography>
             </Box>
             <Box>
-              <Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>
+              <Typography
+                variant="caption"
+                sx={{ display: "block", color: "text.secondary" }}
+              >
                 Pagado
               </Typography>
-              <Typography variant="body2" sx={{ color: "success.main" }}>{collected}</Typography>
+              <Typography variant="body2" sx={{ color: "success.main" }}>
+                {collected}
+              </Typography>
             </Box>
             <Box>
-              <Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>
+              <Typography
+                variant="caption"
+                sx={{ display: "block", color: "text.secondary" }}
+              >
                 Saldo
               </Typography>
-              <Typography variant="body2" fontWeight={500} sx={{ color: bColor }}>
+              <Typography
+                variant="body2"
+                fontWeight={500}
+                sx={{ color: bColor }}
+              >
                 {balFmt}
               </Typography>
             </Box>
@@ -174,9 +233,11 @@ const PaymentCard = memo(function PaymentCard({ row, onDetail }) {
 
           <Tooltip title="Ver detalle de pagos">
             <IconButton size="small" onClick={handleDetail}>
-              {row.ref_type === "case"
-                ? <FolderOpenIcon fontSize="small" />
-                : <ReceiptIcon fontSize="small" />}
+              {row.ref_type === "case" ? (
+                <FolderOpenIcon fontSize="small" />
+              ) : (
+                <ReceiptIcon fontSize="small" />
+              )}
             </IconButton>
           </Tooltip>
         </Box>
@@ -190,16 +251,16 @@ const PaymentCard = memo(function PaymentCard({ row, onDetail }) {
 // Extraída del map inline para que memo sea efectivo
 // ─────────────────────────────────────────────────────────────
 const PaymentRow = memo(function PaymentRow({ row, onDetail }) {
-  const date      = useMemo(() => fmt(row.date),          [row.date]);
-  const billed    = useMemo(() => fmtS(row.billed),       [row.billed]);
-  const collected = useMemo(() => fmtS(row.collected),    [row.collected]);
-  const balance   = useMemo(() => fmtS(row.balance),      [row.balance]);
-  const bColor    = useMemo(() => balanceColor(row.balance), [row.balance]);
+  const date = useMemo(() => fmt(row.date), [row.date]);
+  const billed = useMemo(() => fmtS(row.billed), [row.billed]);
+  const collected = useMemo(() => fmtS(row.collected), [row.collected]);
+  const balance = useMemo(() => fmtS(row.balance), [row.balance]);
+  const bColor = useMemo(() => balanceColor(row.balance), [row.balance]);
 
   // Determinar si es caso o cita — estable si row.payment_type no cambia
-  const isCase       = row.payment_type === "case";
-  const rowBgColor   = isCase ? "primary.main08" : "inherit";
-  const detailTitle  = isCase ? "Ver pagos del caso" : "Ver pagos de la cita";
+  const isCase = row.payment_type === "case";
+  const rowBgColor = isCase ? "primary.main08" : "inherit";
+  const detailTitle = isCase ? "Ver pagos del caso" : "Ver pagos de la cita";
 
   const handleDetail = useCallback(() => onDetail(row), [onDetail, row]);
 
@@ -208,9 +269,13 @@ const PaymentRow = memo(function PaymentRow({ row, onDetail }) {
       hover
       sx={{ bgcolor: isCase ? "rgba(25,118,210,0.03)" : "inherit" }}
     >
-      <TableCell><TypeChip type={row.ref_type} /></TableCell>
       <TableCell>
-        <Typography variant="body2" fontWeight={500}>{row.patient_name}</Typography>
+        <TypeChip type={row.ref_type} />
+      </TableCell>
+      <TableCell>
+        <Typography variant="body2" fontWeight={500}>
+          {row.patient_name}
+        </Typography>
         {row.patient_dni && (
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
             {row.patient_dni}
@@ -230,7 +295,9 @@ const PaymentRow = memo(function PaymentRow({ row, onDetail }) {
         <Typography variant="body2">{billed}</Typography>
       </TableCell>
       <TableCell>
-        <Typography variant="body2" sx={{ color: "success.main" }}>{collected}</Typography>
+        <Typography variant="body2" sx={{ color: "success.main" }}>
+          {collected}
+        </Typography>
       </TableCell>
       <TableCell>
         <Typography variant="body2" fontWeight={500} sx={{ color: bColor }}>
@@ -239,7 +306,7 @@ const PaymentRow = memo(function PaymentRow({ row, onDetail }) {
       </TableCell>
       <TableCell>
         <Chip
-          label={row.status}
+          label={row?.status? row.status==="en_curso"?"en curso":row.status:"Desconocido"}
           color={STATUS_COLOR[row.status] ?? "default"}
           size="small"
           sx={{ textTransform: "capitalize" }}
@@ -248,9 +315,11 @@ const PaymentRow = memo(function PaymentRow({ row, onDetail }) {
       <TableCell align="right">
         <Tooltip title={detailTitle}>
           <IconButton size="small" onClick={handleDetail}>
-            {isCase
-              ? <FolderOpenIcon fontSize="small" color="primary" />
-              : <ReceiptIcon fontSize="small" />}
+            {isCase ? (
+              <FolderOpenIcon fontSize="small" color="primary" />
+            ) : (
+              <ReceiptIcon fontSize="small" />
+            )}
           </IconButton>
         </Tooltip>
       </TableCell>
@@ -269,15 +338,6 @@ const PaymentRow = memo(function PaymentRow({ row, onDetail }) {
 const FilterFields = memo(function FilterFields({ filters, onChange }) {
   return (
     <>
-      <TextField
-        label="Buscar paciente o DNI"
-        name="search"
-        size="small"
-        fullWidth
-        value={filters.search}
-        onChange={onChange}
-        slotProps={SEARCH_SLOT}
-      />
       <TextField
         select
         label="Tipo"
@@ -352,28 +412,63 @@ export default function PaymentsPage() {
   const { rows, total, loading, error, filters, setFilter, fetchPayments } =
     usePaymentsPageStore();
 
-  const [selected,     setSelected]     = useState(null);
-  const [filterOpen,   setFilterOpen]   = useState(false);
-  const [page,         setPage]         = useState(1);
-  const [pageSize,     setPageSize]     = useState(20);
+  const [selected, setSelected] = useState(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [localFilters, setLocalFilters] = useState({ ...filters });
+
+  // ── Búsqueda con debounce ─────────────────────────────────
+  // searchInput: lo que escribe el usuario (respuesta inmediata en UI)
+  // debouncedSearch: dispara el filtro real tras 400ms y mínimo 3 chars
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const debouncedSearch = useDebounce(searchInput, 400);
+
+  useEffect(() => {
+    // Solo aplica si tiene 3+ chars o está vacío (para limpiar)
+    if (debouncedSearch.length >= 3 || debouncedSearch === "") {
+      setFilter("search", debouncedSearch);
+      setPage(1);
+    }
+  }, [debouncedSearch, setFilter]);
+
+  // ── Sticky filtros ────────────────────────────────────────
+  const [isSticky, setIsSticky] = useState(false);
+  const filterBarRef = useRef(null);
+  const appBarHeight = isMobile ? 56 : 64;
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!filterBarRef.current) return;
+      setIsSticky(
+        window.scrollY >= filterBarRef.current.offsetTop - appBarHeight,
+      );
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll(); // ejecutar al montar
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [appBarHeight]);
 
   // ── Fetch central ─────────────────────────────────────────
   const load = useCallback(() => {
     fetchPayments({ page, pageSize });
   }, [page, pageSize, filters, fetchPayments]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   // Reset página cuando cambian los filtros globales
-  useEffect(() => { setPage(1); }, [filters]);
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
 
   // ── KPIs derivados — memoizados para no reducir en cada render
   const kpis = useMemo(() => {
-    const bruto     = rows.reduce((s, r) => s + Number(r.billed),    0);
-    const cobrado   = rows.reduce((s, r) => s + Number(r.collected), 0);
-    const pendiente = rows.reduce((s, r) => s + Number(r.balance),   0);
-    const conDeuda  = rows.filter((r)    => Number(r.balance) > 0).length;
+    const bruto = rows.reduce((s, r) => s + Number(r.billed), 0);
+    const cobrado = rows.reduce((s, r) => s + Number(r.collected), 0);
+    const pendiente = rows.reduce((s, r) => s + Number(r.balance), 0);
+    const conDeuda = rows.filter((r) => Number(r.balance) > 0).length;
     return { bruto, cobrado, pendiente, conDeuda };
   }, [rows]);
 
@@ -392,14 +487,53 @@ export default function PaymentsPage() {
   );
 
   // ── Handlers memoizados ───────────────────────────────────
+  // Limpia la búsqueda (botón X o tecla Esc)
+  const handleClearSearch = useCallback(() => setSearchInput(""), []);
+
+  const handleSearchKeyDown = useCallback(
+    (e) => {
+      if (e.key === "Escape") handleClearSearch();
+    },
+    [handleClearSearch],
+  );
+
+  // slotProps dinámico — adornment X solo cuando hay texto
+  const searchSlotProps = useMemo(
+    () => ({
+      input: {
+        startAdornment: (
+          <InputAdornment position="start">
+            <SearchIcon fontSize="small" />
+          </InputAdornment>
+        ),
+        endAdornment: searchInput ? (
+          <InputAdornment position="end">
+            <IconButton size="small" onClick={handleClearSearch} edge="end">
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </InputAdornment>
+        ) : null,
+      },
+    }),
+    [searchInput, handleClearSearch],
+  );
 
   // Handler genérico para filtros desktop — un handler por evento
   // en lugar de una closure inline por cada TextField
-  const handleDesktopFilter = useCallback((e) => {
-    const { name, value } = e.target;
-    setFilter(name, value);
-    setPage(1);
-  }, [setFilter]);
+  const handleDesktopFilter = useCallback(
+    (e) => {
+      const { name, value } = e.target;
+      if (name === "search") return; // lo maneja handleSearchInput
+      setFilter(name, value);
+      setPage(1);
+    },
+    [setFilter],
+  );
+
+  // Handler del input de búsqueda (compartido desktop + móvil)
+  const handleSearchInput = useCallback((e) => {
+    setSearchInput(e.target.value);
+  }, []);
 
   // Handler para filtros del drawer móvil (localFilters)
   const handleLocalFilter = useCallback((e) => {
@@ -422,16 +556,24 @@ export default function PaymentsPage() {
   const clearFilters = useCallback(() => {
     setLocalFilters(FILTERS_EMPTY);
     Object.entries(FILTERS_EMPTY).forEach(([k, v]) => setFilter(k, v));
+    setPage(1);
+    setFilterOpen(false);
   }, [setFilter]);
 
-  const handleDetail    = useCallback((row) => setSelected(row), []);
- const handleCloseDetail = useCallback((didChange) => {
-  setSelected(null);
-  if (didChange) load();
-}, [load]);
+  const handleDetail = useCallback((row) => setSelected(row), []);
+  const handleCloseDetail = useCallback(
+    (didChange) => {
+      setSelected(null);
+      if (didChange) load();
+    },
+    [load],
+  );
 
-  const handlePageChange     = useCallback((p)  => setPage(p),                     []);
-  const handlePageSizeChange = useCallback((ps) => { setPageSize(ps); setPage(1); }, []);
+  const handlePageChange = useCallback((p) => setPage(p), []);
+  const handlePageSizeChange = useCallback((ps) => {
+    setPageSize(ps);
+    setPage(1);
+  }, []);
 
   // ── Subtitle memoizado ────────────────────────────────────
   const subtitle = useMemo(
@@ -446,10 +588,14 @@ export default function PaymentsPage() {
       {/* KPIs */}
       <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <KpiCard label="Facturado"  value={fmtS(kpis.bruto)} />
+          <KpiCard label="Facturado" value={fmtS(kpis.bruto)} />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <KpiCard label="Cobrado"    value={fmtS(kpis.cobrado)}   color="success.main" />
+          <KpiCard
+            label="Cobrado"
+            value={fmtS(kpis.cobrado)}
+            color="success.main"
+          />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
           <KpiCard
@@ -459,109 +605,160 @@ export default function PaymentsPage() {
           />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
-          <KpiCard label="Con deuda" value={kpis.conDeuda + " en esta página"} />
+          <KpiCard
+            label="Con deuda"
+            value={kpis.conDeuda + " en esta página"}
+          />
         </Grid>
       </Grid>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-
-      {/* Filtros desktop */}
-      {!isMobile && (
-        <Card variant="outlined" sx={{ mb: 1.5 }}>
-          <CardContent>
-            <Grid container spacing={1.5}>
-              <Grid size={{ xs: 12, sm: 3 }}>
-                <TextField
-                  size="small"
-                  fullWidth
-                  placeholder="Buscar paciente o DNI..."
-                  name="search"
-                  value={filters.search}
-                  onChange={handleDesktopFilter}
-                  slotProps={SEARCH_SLOT}
-                />
-              </Grid>
-              <Grid size={{ xs: 6, sm: 2 }}>
-                <TextField
-                  select
-                  label="Tipo"
-                  name="refType"
-                  size="small"
-                  fullWidth
-                  value={filters.refType}
-                  onChange={handleDesktopFilter}
-                >
-                  <MenuItem value="all">Todos</MenuItem>
-                  <MenuItem value="appointment">Cita única</MenuItem>
-                  <MenuItem value="case">Multisesión</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid size={{ xs: 6, sm: 2 }}>
-                <TextField
-                  select
-                  label="Estado"
-                  name="status"
-                  size="small"
-                  fullWidth
-                  value={filters.status}
-                  onChange={handleDesktopFilter}
-                >
-                  <MenuItem value="all">Todos</MenuItem>
-                  <MenuItem value="pendiente">Pendiente</MenuItem>
-                  <MenuItem value="atendido">Atendido</MenuItem>
-                  <MenuItem value="en_curso">En curso</MenuItem>
-                  <MenuItem value="completado">Completado</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid size={{ xs: 6, sm: 1.5 }}>
-                <TextField
-                  select
-                  label="Saldo"
-                  name="balance"
-                  size="small"
-                  fullWidth
-                  value={filters.balance}
-                  onChange={handleDesktopFilter}
-                >
-                  <MenuItem value="all">Todos</MenuItem>
-                  <MenuItem value="pending">Con deuda</MenuItem>
-                  <MenuItem value="paid">Pagado</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid size={{ xs: 6, sm: 1.75 }}>
-                <TextField
-                  label="Desde"
-                  type="date"
-                  name="dateFrom"
-                  size="small"
-                  fullWidth
-                  slotProps={DATE_FROM_SLOT}
-                  value={filters.dateFrom}
-                  onChange={handleDesktopFilter}
-                />
-              </Grid>
-              <Grid size={{ xs: 6, sm: 1.75 }}>
-                <TextField
-                  label="Hasta"
-                  type="date"
-                  name="dateTo"
-                  size="small"
-                  fullWidth
-                  slotProps={DATE_FROM_SLOT}
-                  value={filters.dateTo}
-                  onChange={handleDesktopFilter}
-                />
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
       )}
 
-      {isMobile && (
-        <Box sx={{ mb: 2 }}>
-          <FilterButton onClick={handleOpenFilter} activeCount={activeFilterCount} />
-        </Box>
-      )}
+      {/* ── Barra de filtros sticky ───────────────────────── */}
+      <Box
+        ref={filterBarRef}
+        sx={{
+          position: "sticky",
+          top: `${appBarHeight}px`,
+          zIndex: (theme) => theme.zIndex.appBar - 1,
+          // Expande al ancho completo solo cuando está sticky
+          mx: isSticky ? { xs: -2, sm: -3 } : 0,
+          px: isSticky ? { xs: 2, sm: 3 } : 0,
+          bgcolor: "background.default",
+          pb: 1.5,
+          pt: isSticky ? 1 : 0,
+          transition:
+            "box-shadow 0.2s ease, margin 0.2s ease, padding 0.2s ease",
+          boxShadow: isSticky ? 2 : 0,
+        }}
+      >
+        {/* Desktop */}
+        {!isMobile && (
+          <Card variant="outlined">
+            <CardContent>
+              <Grid container spacing={1.5}>
+                <Grid size={{ xs: 12, sm: 3 }}>
+                  <TextField
+                    size="small"
+                    fullWidth
+                    placeholder="Buscar paciente o DNI…"
+                    name="search"
+                    value={searchInput}
+                    onChange={handleSearchInput}
+                    onKeyDown={handleSearchKeyDown} /* ← Esc limpia */
+                    slotProps={searchSlotProps} /* ← X aparece con texto */
+                    helperText={
+                      searchInput.length > 0 && searchInput.length < 3
+                        ? "Escribe al menos 3 caracteres"
+                        : undefined
+                    }
+                  />
+                </Grid>
+                <Grid size={{ xs: 6, sm: 2 }}>
+                  <TextField
+                    select
+                    label="Tipo"
+                    name="refType"
+                    size="small"
+                    fullWidth
+                    value={filters.refType}
+                    onChange={handleDesktopFilter}
+                  >
+                    <MenuItem value="all">Todos</MenuItem>
+                    <MenuItem value="appointment">Cita única</MenuItem>
+                    <MenuItem value="case">Multisesión</MenuItem>
+                  </TextField>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 2 }}>
+                  <TextField
+                    select
+                    label="Estado"
+                    name="status"
+                    size="small"
+                    fullWidth
+                    value={filters.status}
+                    onChange={handleDesktopFilter}
+                  >
+                    <MenuItem value="all">Todos</MenuItem>
+                    <MenuItem value="pendiente">Pendiente</MenuItem>
+                    <MenuItem value="atendido">Atendido</MenuItem>
+                    <MenuItem value="en_curso">En curso</MenuItem>
+                    <MenuItem value="completado">Completado</MenuItem>
+                  </TextField>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 1.5 }}>
+                  <TextField
+                    select
+                    label="Saldo"
+                    name="balance"
+                    size="small"
+                    fullWidth
+                    value={filters.balance}
+                    onChange={handleDesktopFilter}
+                  >
+                    <MenuItem value="all">Todos</MenuItem>
+                    <MenuItem value="pending">Con deuda</MenuItem>
+                    <MenuItem value="paid">Pagado</MenuItem>
+                  </TextField>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 1.75 }}>
+                  <TextField
+                    label="Desde"
+                    type="date"
+                    name="dateFrom"
+                    size="small"
+                    fullWidth
+                    slotProps={DATE_FROM_SLOT}
+                    value={filters.dateFrom}
+                    onChange={handleDesktopFilter}
+                  />
+                </Grid>
+                <Grid size={{ xs: 6, sm: 1.75 }}>
+                  <TextField
+                    label="Hasta"
+                    type="date"
+                    name="dateTo"
+                    size="small"
+                    fullWidth
+                    slotProps={DATE_FROM_SLOT}
+                    value={filters.dateTo}
+                    onChange={handleDesktopFilter}
+                  />
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Móvil — búsqueda + botón filtro en fila */}
+        {isMobile && (
+          <Box sx={{ display: "flex", gap: 1 /*, alignItems: "flex-start"*/ }}>
+            <TextField
+              size="small"
+              placeholder="Buscar paciente o DNI…"
+              name="search"
+              value={searchInput}
+              onChange={handleSearchInput}
+              onKeyDown={handleSearchKeyDown}
+              slotProps={searchSlotProps}
+              helperText={
+                searchInput.length > 0 && searchInput.length < 3
+                  ? "Mín. 3 caracteres"
+                  : undefined
+              }
+              sx={{ flex: 1 }}
+            />
+            <FilterButton
+              onClick={handleOpenFilter}
+              activeCount={activeFilterCount}
+            />
+          </Box>
+        )}
+      </Box>
 
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
@@ -572,7 +769,9 @@ export default function PaymentsPage() {
           {isMobile ? (
             <Box>
               {rows.length === 0 ? (
-                <Typography textAlign="center" sx={{ mt: 4, color: "text.secondary" }}>
+                <Typography
+                  sx={{ mt: 4, color: "text.secondary", textAlign: "center" }}
+                >
                   No se encontraron registros
                 </Typography>
               ) : (
@@ -601,13 +800,21 @@ export default function PaymentsPage() {
                 <TableBody>
                   {rows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                      <TableCell
+                        colSpan={10}
+                        align="center"
+                        sx={{ py: 4, color: "text.secondary" }}
+                      >
                         No se encontraron registros
                       </TableCell>
                     </TableRow>
                   ) : (
                     rows.map((r) => (
-                      <PaymentRow key={r.ref_id} row={r} onDetail={handleDetail} />
+                      <PaymentRow
+                        key={r.ref_id}
+                        row={r}
+                        onDetail={handleDetail}
+                      />
                     ))
                   )}
                 </TableBody>

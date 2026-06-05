@@ -29,26 +29,29 @@ export const usePatientStore = create((set, get) => ({
   error: null,
 
   // ── Listado paginado con búsqueda ─────────────────────────
-  fetchPatients: async ({ search = "", page = 1, pageSize = 20 } = {}) => {
-    set({ loading: true, error: null });
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
+  fetchPatients: async ({ search = "", activeStatus = "all", page = 1, pageSize = 20 } = {}) => {
+  set({ loading: true, error: null });
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
 
-    let query = supabase
-      .from("patients")
-      .select("*", { count: "exact" })
-      .eq("active", true)
-      .order("full_name")
-      .range(from, to);
+  let query = supabase
+    .from("patients")
+    .select("*", { count: "exact" })
+    .order("full_name")
+    .range(from, to);
 
-    if (search.trim())
-      query = query.or(`full_name.ilike.%${search}%,dni.ilike.%${search}%`);
+  if (search.trim())
+    query = query.or(`full_name.ilike.%${search}%,dni.ilike.%${search}%`);
 
-    const { data, error, count } = await query;
-    if (error) set({ error: error.message });
-    else set({ patients: data ?? [], total: count ?? 0 });
-    set({ loading: false });
-  },
+  // Filtro activo/inactivo — solo aplica si no es "all"
+  if (activeStatus === "active")   query = query.eq("active", true);
+  if (activeStatus === "inactive") query = query.eq("active", false);
+
+  const { data, error, count } = await query;
+  if (error) set({ error: error.message });
+  else set({ patients: data ?? [], total: count ?? 0 });
+  set({ loading: false });
+},
 
   // ── Detalle de paciente ───────────────────────────────────
   fetchPatientById: async (id) => {
@@ -266,4 +269,25 @@ export const usePatientStore = create((set, get) => ({
     set({ saving: false });
     return { error: error?.message ?? null };
   },
+
+  togglePatientActive: async (patientId, currentActive) => {
+  set({ saving: true });
+
+  const { error } = await supabase
+    .from("patients")
+    .update({ active: !currentActive })
+    .eq("id", patientId);
+
+  if (!error) {
+    // Actualiza la lista en memoria sin refetch
+    set((s) => ({
+      patients: s.patients.map((p) =>
+        p.id === patientId ? { ...p, active: !currentActive } : p
+      ),
+    }));
+  }
+
+  set({ saving: false });
+  return { error: error?.message ?? null };
+},
 }));
