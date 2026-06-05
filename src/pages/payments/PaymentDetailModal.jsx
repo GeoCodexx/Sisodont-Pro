@@ -22,7 +22,6 @@ import {
   IconButton,
   Tooltip,
 } from "@mui/material";
-import DeleteIcon from "@mui/icons-material/Delete";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import ReceiptIcon from "@mui/icons-material/Receipt";
 import SouthIcon from "@mui/icons-material/South"; // egreso / devolución
@@ -127,14 +126,9 @@ const FinancialSummaryGrid = memo(function FinancialSummaryGrid({ rows }) {
 // PaymentTableRow — fila memoizada para la tabla de pagos
 // Extraída del map inline para que memo sea efectivo
 // ─────────────────────────────────────────────────────────────
-const PaymentTableRow = memo(function PaymentTableRow({
-  p,
-  onDelete,
-  canAdmin,
-}) {
+const PaymentTableRow = memo(function PaymentTableRow({ p, canAdmin }) {
   const amount = useMemo(() => fmtS(p.amount), [p.amount]);
   const createdAt = useMemo(() => fmtDT(p.created_at), [p.created_at]);
-  const handleDel = useCallback(() => onDelete(p.id), [onDelete, p.id]);
 
   return (
     <TableRow>
@@ -144,8 +138,10 @@ const PaymentTableRow = memo(function PaymentTableRow({
       <TableCell>
         <Typography
           variant="body2"
-          fontWeight={500}
-          color={p.direction === "egreso" ? "error.main" : "success.main"}
+          sx={{
+            fontWeight: 500,
+            color: p.direction === "egreso" ? "error.main" : "success.main",
+          }}
         >
           {p.direction === "egreso" ? `−${amount}` : amount}
         </Typography>
@@ -179,19 +175,26 @@ const PaymentTableRow = memo(function PaymentTableRow({
         </Box>
       </TableCell>
       <TableCell>
+        <Tooltip title={p.notes || ""} arrow>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              maxWidth: 180,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {p.notes || "—"}
+          </Typography>
+        </Tooltip>
+      </TableCell>
+      <TableCell>
         <Typography variant="body2" color="text.secondary">
           {p.created_by_profile?.full_name ?? "—"}
         </Typography>
       </TableCell>
-      {canAdmin && (
-        <TableCell align="right">
-          <Tooltip title="Eliminar pago">
-            <IconButton size="small" onClick={handleDel}>
-              <DeleteIcon fontSize="small" color="error" />
-            </IconButton>
-          </Tooltip>
-        </TableCell>
-      )}
     </TableRow>
   );
 });
@@ -309,8 +312,8 @@ const SessionRow = memo(function SessionRow({ s, index, isLast }) {
 // ─────────────────────────────────────────────────────────────
 // CasePaymentView
 // ─────────────────────────────────────────────────────────────
-function CasePaymentView({ row }) {
-  const { entriesByRef, saving, fetchByRef, register, remove } =
+function CasePaymentView({ row, onDirty }) {
+  const { entriesByRef, saving, fetchByRef, register, registerRefund, remove } =
     useLedgerStore();
   const { can } = useRole();
 
@@ -319,6 +322,12 @@ function CasePaymentView({ row }) {
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
   const [rowData, setRowData] = useState(row);
   const [sessions, setSessions] = useState([]);
+  const [refundForm, setRefundForm] = useState({
+    open: false,
+    amount: "",
+    method: "efectivo",
+    reason: "",
+  });
 
   const totalBilled = Number(rowData.billed ?? 0);
   const totalPaid = Number(rowData.collected ?? 0);
@@ -336,6 +345,17 @@ function CasePaymentView({ row }) {
       .order("date")
       .then(({ data }) => setSessions(data ?? []));
   }, [row.ref_id, fetchByRef]);
+
+  const resetRefundForm = useCallback(
+    () =>
+      setRefundForm({
+        open: false,
+        amount: "",
+        method: "efectivo",
+        reason: "",
+      }),
+    [],
+  );
 
   const reloadCase = useCallback(async () => {
     const data = await reloadFromSummary("case", row.ref_id);
@@ -377,23 +397,63 @@ function CasePaymentView({ row }) {
     if (error) setFeedback({ msg: error, type: "error" });
     else {
       setFeedback({ msg: "Pago registrado.", type: "success" });
+      onDirty();
       setForm(EMPTY);
       reloadCase();
     }
   }, [form, totalBilled, totalBalance, row.ref_id, register, reloadCase]);
 
-  const handleDelete = useCallback(
-    async (entryId) => {
-      if (!window.confirm("¿Eliminar este pago?")) return;
-      const { error } = await remove(entryId, row.ref_id);
-      if (error) setFeedback({ msg: error, type: "error" });
-      else {
-        setFeedback({ msg: "Pago eliminado.", type: "success" });
-        reloadCase();
-      }
-    },
-    [row.ref_id, remove, reloadCase],
+  const netPaidFromEntries = useMemo(
+    () =>
+      payments.reduce((acc, p) => {
+        const signed =
+          p.direction === "egreso"
+            ? -Number(p.amount ?? 0)
+            : Number(p.amount ?? 0);
+        return acc + signed;
+      }, 0),
+    [payments],
   );
+
+  const handleRefund = useCallback(async () => {
+    const amount = parseFloat(refundForm.amount);
+    if (!amount || amount <= 0) {
+      setFeedback({ msg: "Ingresa un monto válido.", type: "error" });
+      return;
+    }
+    if (amount > netPaidFromEntries + 0.001) {
+      setFeedback({
+        msg: `No puedes reembolsar más de lo cobrado neto (${fmtS(netPaidFromEntries)}).`,
+        type: "error",
+      });
+      return;
+    }
+    const { error } = await registerRefund({
+      refType: "case",
+      refId: row.ref_id,
+      amount,
+      method: refundForm.method,
+      refundReason: refundForm.reason || `Reembolso manual del caso`,
+      currentNetPaid: netPaidFromEntries,
+    });
+    if (error) setFeedback({ msg: error, type: "error" });
+    else {
+      setFeedback({
+        msg: "Reembolso registrado correctamente.",
+        type: "success",
+      });
+      onDirty();
+      resetRefundForm();
+      reloadCase();
+    }
+  }, [
+    refundForm,
+    netPaidFromEntries,
+    row.ref_id,
+    registerRefund,
+    resetRefundForm,
+    reloadCase,
+  ]);
 
   // summaryRows memoizado para que FinancialSummaryGrid no re-renderice
   // cuando el componente padre re-renderiza por feedback o form
@@ -498,18 +558,13 @@ function CasePaymentView({ row }) {
               <TableCell>Fecha</TableCell>
               <TableCell>Monto</TableCell>
               <TableCell>Método</TableCell>
+              <TableCell>Notas</TableCell>
               <TableCell>Registrado por</TableCell>
-              {canAdmin && <TableCell />}
             </TableRow>
           </TableHead>
           <TableBody>
             {payments.map((p) => (
-              <PaymentTableRow
-                key={p.id}
-                p={p}
-                onDelete={handleDelete}
-                canAdmin={canAdmin}
-              />
+              <PaymentTableRow key={p.id} p={p} canAdmin={canAdmin} />
             ))}
           </TableBody>
         </Table>
@@ -525,6 +580,134 @@ function CasePaymentView({ row }) {
         />
       )}
 
+      {/* Reembolso manual */}
+      {canPay && netPaidFromEntries > 0 && (
+        <Box sx={{ mt: 1.5 }}>
+          {!refundForm.open ? (
+            <Button
+              size="small"
+              variant="outlined"
+              color="warning"
+              onClick={() => setRefundForm((f) => ({ ...f, open: true }))}
+            >
+              Registrar reembolso
+            </Button>
+          ) : (
+            <Box
+              sx={{
+                border: "1px solid",
+                borderColor: "warning.light",
+                borderRadius: 2,
+                p: 1.5,
+                mt: 1,
+              }}
+            >
+              <Typography
+                variant="caption"
+                color="warning.dark"
+                fontWeight={500}
+                display="block"
+                sx={{ mb: 1.25 }}
+              >
+                REEMBOLSO — máx. {fmtS(netPaidFromEntries)}
+              </Typography>
+
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 1.25,
+                  mt: 1.5,
+                }}
+              >
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Monto"
+                  type="number"
+                  name="refundAmount"
+                  value={refundForm.amount}
+                  onChange={(e) =>
+                    setRefundForm((f) => ({ ...f, amount: e.target.value }))
+                  }
+                  slotProps={{
+                    htmlInput: {
+                      min: 0.01,
+                      max: netPaidFromEntries,
+                      step: "0.01",
+                    },
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">S/</InputAdornment>
+                      ),
+                    },
+                  }}
+                  helperText={`Máximo reembolsable: ${fmtS(netPaidFromEntries)}`}
+                />
+                <TextField
+                  fullWidth
+                  select
+                  size="small"
+                  label="Canal de devolución"
+                  value={refundForm.method}
+                  onChange={(e) =>
+                    setRefundForm((f) => ({ ...f, method: e.target.value }))
+                  }
+                >
+                  {["efectivo", "yape", "plin", "transferencia", "tarjeta"].map(
+                    (m) => (
+                      <MenuItem
+                        key={m}
+                        value={m}
+                        sx={{ textTransform: "capitalize" }}
+                      >
+                        {m}
+                      </MenuItem>
+                    ),
+                  )}
+                </TextField>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={2}
+                  size="small"
+                  label="Motivo"
+                  value={refundForm.reason}
+                  onChange={(e) =>
+                    setRefundForm((f) => ({ ...f, reason: e.target.value }))
+                  }
+                  placeholder="Ej: Paciente canceló el tratamiento..."
+                />
+                <Box sx={{ display: "flex", gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    color="warning"
+                    size="small"
+                    onClick={handleRefund}
+                    disabled={saving}
+                    startIcon={
+                      saving ? (
+                        <CircularProgress size={14} color="inherit" />
+                      ) : null
+                    }
+                  >
+                    {saving ? "Procesando..." : "Confirmar reembolso"}
+                  </Button>
+                  <Button
+                    size="small"
+                    color="inherit"
+                    onClick={resetRefundForm}
+                    disabled={saving}
+                  >
+                    Cancelar
+                  </Button>
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </Box>
+      )}
+
       {totalBalance <= 0 && totalPaid > 0 && (
         <Alert severity="success" icon={false} sx={{ mt: 1 }}>
           Tratamiento completamente pagado.
@@ -537,8 +720,8 @@ function CasePaymentView({ row }) {
 // ─────────────────────────────────────────────────────────────
 // AppointmentPaymentView
 // ─────────────────────────────────────────────────────────────
-function AppointmentPaymentView({ row }) {
-  const { entriesByRef, saving, fetchByRef, register, remove } =
+function AppointmentPaymentView({ row, onDirty }) {
+  const { entriesByRef, saving, fetchByRef, register, registerRefund, remove } =
     useLedgerStore();
   const { can } = useRole();
 
@@ -546,6 +729,12 @@ function AppointmentPaymentView({ row }) {
   const [form, setForm] = useState(EMPTY);
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
   const [rowData, setRowData] = useState(row);
+  const [refundForm, setRefundForm] = useState({
+    open: false,
+    amount: "",
+    method: "efectivo",
+    reason: "",
+  });
 
   const balance = Number(rowData.balance ?? 0);
 
@@ -555,6 +744,17 @@ function AppointmentPaymentView({ row }) {
   useEffect(() => {
     fetchByRef("appointment", row.ref_id);
   }, [row.ref_id, fetchByRef]);
+
+  const resetRefundForm = useCallback(
+    () =>
+      setRefundForm({
+        open: false,
+        amount: "",
+        method: "efectivo",
+        reason: "",
+      }),
+    [],
+  );
 
   const reloadRow = useCallback(async () => {
     const data = await reloadFromSummary("appointment", row.ref_id);
@@ -595,23 +795,63 @@ function AppointmentPaymentView({ row }) {
     if (error) setFeedback({ msg: error, type: "error" });
     else {
       setFeedback({ msg: "Pago registrado.", type: "success" });
+      onDirty();
       setForm(EMPTY);
       reloadRow();
     }
   }, [form, balance, row.ref_id, register, reloadRow]);
 
-  const handleDelete = useCallback(
-    async (entryId) => {
-      if (!window.confirm("¿Eliminar este pago?")) return;
-      const { error } = await remove(entryId, row.ref_id);
-      if (error) setFeedback({ msg: error, type: "error" });
-      else {
-        setFeedback({ msg: "Pago eliminado.", type: "success" });
-        reloadRow();
-      }
-    },
-    [row.ref_id, remove, reloadRow],
+  const netPaidFromEntries = useMemo(
+    () =>
+      payments.reduce((acc, p) => {
+        const signed =
+          p.direction === "egreso"
+            ? -Number(p.amount ?? 0)
+            : Number(p.amount ?? 0);
+        return acc + signed;
+      }, 0),
+    [payments],
   );
+
+  const handleRefund = useCallback(async () => {
+    const amount = parseFloat(refundForm.amount);
+    if (!amount || amount <= 0) {
+      setFeedback({ msg: "Ingresa un monto válido.", type: "error" });
+      return;
+    }
+    if (amount > netPaidFromEntries + 0.001) {
+      setFeedback({
+        msg: `No puedes reembolsar más de lo cobrado neto (${fmtS(netPaidFromEntries)}).`,
+        type: "error",
+      });
+      return;
+    }
+    const { error } = await registerRefund({
+      refType: "appointment",
+      refId: row.ref_id,
+      amount,
+      method: refundForm.method,
+      refundReason: refundForm.reason || `Reembolso manual de cita`,
+      currentNetPaid: netPaidFromEntries,
+    });
+    if (error) setFeedback({ msg: error, type: "error" });
+    else {
+      setFeedback({
+        msg: "Reembolso registrado correctamente.",
+        type: "success",
+      });
+      onDirty();
+      resetRefundForm();
+      reloadRow();
+    }
+  }, [
+    refundForm,
+    netPaidFromEntries,
+    row.ref_id,
+    registerRefund,
+    resetRefundForm,
+    reloadRow,
+  ]);
 
   const summaryRows = useMemo(
     () => [
@@ -666,18 +906,13 @@ function AppointmentPaymentView({ row }) {
               <TableCell>Fecha</TableCell>
               <TableCell>Monto</TableCell>
               <TableCell>Método</TableCell>
+              <TableCell>Notas</TableCell>
               <TableCell>Registrado por</TableCell>
-              {canAdmin && <TableCell />}
             </TableRow>
           </TableHead>
           <TableBody>
             {payments.map((p) => (
-              <PaymentTableRow
-                key={p.id}
-                p={p}
-                onDelete={handleDelete}
-                canAdmin={canAdmin}
-              />
+              <PaymentTableRow key={p.id} p={p} canAdmin={canAdmin} />
             ))}
           </TableBody>
         </Table>
@@ -693,6 +928,134 @@ function AppointmentPaymentView({ row }) {
         />
       )}
 
+      {/* Reembolso manual */}
+      {canPay && netPaidFromEntries > 0 && (
+        <Box sx={{ mt: 1.5 }}>
+          {!refundForm.open ? (
+            <Button
+              size="small"
+              variant="outlined"
+              color="warning"
+              onClick={() => setRefundForm((f) => ({ ...f, open: true }))}
+            >
+              Registrar reembolso
+            </Button>
+          ) : (
+            <Box
+              sx={{
+                border: "1px solid",
+                borderColor: "warning.light",
+                borderRadius: 2,
+                p: 1.5,
+                mt: 1,
+              }}
+            >
+              <Typography
+                variant="caption"
+                color="warning.dark"
+                fontWeight={500}
+                display="block"
+                sx={{ mb: 1.25 }}
+              >
+                REEMBOLSO — máx. {fmtS(netPaidFromEntries)}
+              </Typography>
+
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 1.25,
+                  mt: 1.5,
+                }}
+              >
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Monto"
+                  type="number"
+                  name="refundAmount"
+                  value={refundForm.amount}
+                  onChange={(e) =>
+                    setRefundForm((f) => ({ ...f, amount: e.target.value }))
+                  }
+                  slotProps={{
+                    htmlInput: {
+                      min: 0.01,
+                      max: netPaidFromEntries,
+                      step: "0.01",
+                    },
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">S/</InputAdornment>
+                      ),
+                    },
+                  }}
+                  helperText={`Máximo reembolsable: ${fmtS(netPaidFromEntries)}`}
+                />
+                <TextField
+                  fullWidth
+                  select
+                  size="small"
+                  label="Canal de devolución"
+                  value={refundForm.method}
+                  onChange={(e) =>
+                    setRefundForm((f) => ({ ...f, method: e.target.value }))
+                  }
+                >
+                  {["efectivo", "yape", "plin", "transferencia", "tarjeta"].map(
+                    (m) => (
+                      <MenuItem
+                        key={m}
+                        value={m}
+                        sx={{ textTransform: "capitalize" }}
+                      >
+                        {m}
+                      </MenuItem>
+                    ),
+                  )}
+                </TextField>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={2}
+                  size="small"
+                  label="Motivo"
+                  value={refundForm.reason}
+                  onChange={(e) =>
+                    setRefundForm((f) => ({ ...f, reason: e.target.value }))
+                  }
+                  placeholder="Ej: Paciente canceló el tratamiento..."
+                />
+                <Box sx={{ display: "flex", gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    color="warning"
+                    size="small"
+                    onClick={handleRefund}
+                    disabled={saving}
+                    startIcon={
+                      saving ? (
+                        <CircularProgress size={14} color="inherit" />
+                      ) : null
+                    }
+                  >
+                    {saving ? "Procesando..." : "Confirmar reembolso"}
+                  </Button>
+                  <Button
+                    size="small"
+                    color="inherit"
+                    onClick={resetRefundForm}
+                    disabled={saving}
+                  >
+                    Cancelar
+                  </Button>
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </Box>
+      )}
+
       {balance <= 0 && Number(rowData.collected ?? 0) > 0 && (
         <Alert severity="success" icon={false} sx={{ mt: 1 }}>
           Cita completamente pagada.
@@ -706,13 +1069,19 @@ function AppointmentPaymentView({ row }) {
 // PaymentDetailModal — modal principal
 // ─────────────────────────────────────────────────────────────
 export default function PaymentDetailModal({ open, row, onClose }) {
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    setDirty(false);
+  }, [row]);
+
   if (!row) return null;
   const isCase = row.ref_type === "case";
 
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={() => onClose(dirty)}
       maxWidth="sm"
       fullWidth
       scroll="paper"
@@ -734,13 +1103,13 @@ export default function PaymentDetailModal({ open, row, onClose }) {
         </Box>
         <Divider sx={{ mb: 2 }} />
         {isCase ? (
-          <CasePaymentView row={row} />
+          <CasePaymentView row={row} onDirty={() => setDirty(true)} />
         ) : (
-          <AppointmentPaymentView row={row} />
+          <AppointmentPaymentView row={row} onDirty={() => setDirty(true)} />
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cerrar</Button>
+        <Button onClick={() => onClose(dirty)}>Cerrar</Button>
       </DialogActions>
     </Dialog>
   );

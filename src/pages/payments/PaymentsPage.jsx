@@ -425,10 +425,10 @@ export default function PaymentsPage() {
   }, [setFilter]);
 
   const handleDetail    = useCallback((row) => setSelected(row), []);
-  const handleCloseDetail = useCallback(() => {
-    setSelected(null);
-    load();
-  }, [load]);
+ const handleCloseDetail = useCallback((didChange) => {
+  setSelected(null);
+  if (didChange) load();
+}, [load]);
 
   const handlePageChange     = useCallback((p)  => setPage(p),                     []);
   const handlePageSizeChange = useCallback((ps) => { setPageSize(ps); setPage(1); }, []);

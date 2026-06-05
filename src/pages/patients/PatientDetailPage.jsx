@@ -1,25 +1,47 @@
-import { useEffect, memo, useCallback, useMemo, lazy, Suspense } from "react";
+import {
+  useEffect,
+  memo,
+  useCallback,
+  useMemo,
+  lazy,
+  Suspense,
+  useRef,
+} from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  Box, Typography, Button, Grid, Card, CardContent,
-  Chip, CircularProgress, Alert, Divider,
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Skeleton,
+  Box,
+  Typography,
+  Button,
+  Grid,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  Alert,
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Skeleton,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import { useState } from "react";
-import ArrowBackIcon  from "@mui/icons-material/ArrowBack";
-import LinkIcon       from "@mui/icons-material/Link";
-import LinkOffIcon    from "@mui/icons-material/LinkOff";
-import LockOpenIcon   from "@mui/icons-material/LockOpen";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import LinkIcon from "@mui/icons-material/Link";
+import LinkOffIcon from "@mui/icons-material/LinkOff";
+import LockOpenIcon from "@mui/icons-material/LockOpen";
 import { usePatientStore } from "../../stores/usePatientStore";
-import { useAuthStore }    from "../../stores/useAuthStore";
+import { useAuthStore } from "../../stores/useAuthStore";
 
 // ─────────────────────────────────────────────────────────────
 // Lazy — TreatmentCasesPanel y PatientHistory son pesados
 // (accordions, supabase queries, sub-stores). Se cargan solo
 // cuando el usuario abre la ficha del paciente.
 // ─────────────────────────────────────────────────────────────
-const PatientHistory      = lazy(() => import("./PatientHistory"));
+const PatientHistory = lazy(() => import("./PatientHistory"));
 const TreatmentCasesPanel = lazy(() => import("./TreatmentCasesPanel"));
 
 // Skeleton que mantiene el layout mientras carga el panel
@@ -46,8 +68,9 @@ const birthDateFormatter = new Intl.DateTimeFormat("es-PE");
 function calcAge(birth) {
   if (!birth) return "—";
   return (
-    Math.floor((Date.now() - new Date(birth)) / (1000 * 60 * 60 * 24 * 365.25)) +
-    " años"
+    Math.floor(
+      (Date.now() - new Date(birth)) / (1000 * 60 * 60 * 24 * 365.25),
+    ) + " años"
   );
 }
 
@@ -86,13 +109,14 @@ const AntecedentChip = memo(function AntecedentChip({ label, active, color }) {
 // en PatientDetailPage
 // ─────────────────────────────────────────────────────────────
 const PortalAccessCard = memo(function PortalAccessCard({ patient }) {
-  const { activatePortalAccess, deactivatePortalAccess, saving } = usePatientStore();
+  const { activatePortalAccess, deactivatePortalAccess, saving } =
+    usePatientStore();
   // Selector granular — solo re-suscribe si role cambia
   const role = useAuthStore((s) => s.role);
 
   const [openActivate, setOpenActivate] = useState(false);
-  const [form,         setForm]         = useState({ email: "", password: "" });
-  const [feedback,     setFeedback]     = useState({ msg: "", type: "success" });
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [feedback, setFeedback] = useState({ msg: "", type: "success" });
 
   // Solo ADMIN puede gestionar el portal
   if (role !== "ADMIN") return null;
@@ -105,22 +129,25 @@ const PortalAccessCard = memo(function PortalAccessCard({ patient }) {
     setForm((p) => ({ ...p, [name]: value }));
   }, []);
 
-  const handleOpenActivate  = useCallback(() => setOpenActivate(true), []);
+  const handleOpenActivate = useCallback(() => setOpenActivate(true), []);
   const handleCloseActivate = useCallback(() => setOpenActivate(false), []);
-  const clearFeedback       = useCallback(
+  const clearFeedback = useCallback(
     () => setFeedback({ msg: "", type: "success" }),
     [],
   );
 
   const handleActivate = useCallback(async () => {
     if (!form.email.trim() || !form.password.trim()) {
-      setFeedback({ msg: "Correo y contraseña son requeridos.", type: "error" });
+      setFeedback({
+        msg: "Correo y contraseña son requeridos.",
+        type: "error",
+      });
       return;
     }
     const { error } = await activatePortalAccess({
       patientId: patient.id,
-      email:     form.email.trim(),
-      password:  form.password,
+      email: form.email.trim(),
+      password: form.password,
     });
     if (error) {
       setFeedback({ msg: error, type: "error" });
@@ -132,10 +159,11 @@ const PortalAccessCard = memo(function PortalAccessCard({ patient }) {
   }, [form, patient.id, activatePortalAccess]);
 
   const handleDeactivate = useCallback(async () => {
-    if (!window.confirm("¿Desactivar el acceso al portal de este paciente?")) return;
+    if (!window.confirm("¿Desactivar el acceso al portal de este paciente?"))
+      return;
     const { error } = await deactivatePortalAccess(patient.id);
     if (error) setFeedback({ msg: error, type: "error" });
-    else       setFeedback({ msg: "Acceso al portal desactivado.", type: "success" });
+    else setFeedback({ msg: "Acceso al portal desactivado.", type: "success" });
   }, [patient.id, deactivatePortalAccess]);
 
   return (
@@ -150,7 +178,11 @@ const PortalAccessCard = memo(function PortalAccessCard({ patient }) {
           </Box>
 
           {feedback.msg && (
-            <Alert severity={feedback.type} sx={{ mb: 2 }} onClose={clearFeedback}>
+            <Alert
+              severity={feedback.type}
+              sx={{ mb: 2 }}
+              onClose={clearFeedback}
+            >
               {feedback.msg}
             </Alert>
           )}
@@ -187,8 +219,8 @@ const PortalAccessCard = memo(function PortalAccessCard({ patient }) {
                 sx={{ mb: 1.5 }}
               />
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                El paciente no tiene cuenta. Activa el portal para que pueda
-                ver sus citas en línea.
+                El paciente no tiene cuenta. Activa el portal para que pueda ver
+                sus citas en línea.
               </Typography>
               <Button
                 variant="contained"
@@ -204,10 +236,20 @@ const PortalAccessCard = memo(function PortalAccessCard({ patient }) {
       </Card>
 
       {/* Modal — activar portal */}
-      <Dialog open={openActivate} onClose={handleCloseActivate} maxWidth="xs" fullWidth>
+      <Dialog
+        open={openActivate}
+        onClose={handleCloseActivate}
+        maxWidth="xs"
+        fullWidth
+      >
         <DialogTitle>Activar portal — {patient.full_name}</DialogTitle>
         <DialogContent
-          sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "16px !important" }}
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            pt: "16px !important",
+          }}
         >
           {feedback.msg && feedback.type === "error" && (
             <Alert severity="error">{feedback.msg}</Alert>
@@ -238,8 +280,16 @@ const PortalAccessCard = memo(function PortalAccessCard({ patient }) {
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={handleCloseActivate}>Cancelar</Button>
-          <Button variant="contained" onClick={handleActivate} disabled={saving}>
-            {saving ? <CircularProgress size={18} color="inherit" /> : "Activar"}
+          <Button
+            variant="contained"
+            onClick={handleActivate}
+            disabled={saving}
+          >
+            {saving ? (
+              <CircularProgress size={18} color="inherit" />
+            ) : (
+              "Activar"
+            )}
           </Button>
         </DialogActions>
       </Dialog>
@@ -251,9 +301,33 @@ const PortalAccessCard = memo(function PortalAccessCard({ patient }) {
 // PatientDetailPage
 // ─────────────────────────────────────────────────────────────
 export default function PatientDetailPage() {
-  const { id }   = useParams();
+  const { id } = useParams();
   const navigate = useNavigate();
   const { selected, loading, error, fetchPatientById } = usePatientStore();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
+  const appBarHeight = isMobile ? 56 : 64;
+  const [isSticky, setIsSticky] = useState(false);
+  const headerRef = useRef(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!headerRef.current) return;
+
+      // offsetTop es la distancia del header desde el top del documento
+      // Si el scroll supera esa posición menos el AppBar, está sticky
+      const headerOffsetTop = headerRef.current.offsetTop;
+      setIsSticky(window.scrollY >= headerOffsetTop - appBarHeight);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    // Ejecutar una vez al montar por si ya hay scroll
+    handleScroll();
+
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [appBarHeight]);
 
   useEffect(() => {
     fetchPatientById(id);
@@ -269,8 +343,10 @@ export default function PatientDetailPage() {
     const p = selected;
     return {
       raw: p,
-      age:       calcAge(p.birth_date),
-      birthDate: p.birth_date ? birthDateFormatter.format(new Date(p.birth_date)) : null,
+      age: calcAge(p.birth_date),
+      birthDate: p.birth_date
+        ? birthDateFormatter.format(new Date(p.birth_date))
+        : null,
       genderLabel: GENDER_LABEL[p.gender] ?? "—",
     };
   }, [selected]);
@@ -281,7 +357,7 @@ export default function PatientDetailPage() {
         <CircularProgress />
       </Box>
     );
-  if (error)        return <Alert severity="error">{error}</Alert>;
+  if (error) return <Alert severity="error">{error}</Alert>;
   if (!patientData) return null;
 
   const { raw: p, age, birthDate, genderLabel } = patientData;
@@ -289,7 +365,38 @@ export default function PatientDetailPage() {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
+      <Box
+      ref={headerRef}
+        sx={{
+          position: "sticky",
+          top: `${appBarHeight}px`,
+          zIndex: theme.zIndex.appBar - 1,
+
+          display: "flex",
+          alignItems: "center",
+          gap: 2,
+
+          // Solo se expande cuando está sticky
+          mx: isSticky ? { xs: -2, sm: -3 } : 0,
+          px: isSticky ? { xs: 2, sm: 3 } : 2,
+          minHeight: 64,
+
+          // px: 2,
+          py: 1.5,
+          mb: 3,
+
+          bgcolor: "background.paper",
+
+          borderBottom: 1,
+          borderColor: "divider",
+
+          // Sombra más pronunciada al estar sticky para dar sensación de elevación
+          boxShadow: isSticky ? 3 : 1,
+          // Transición suave
+          transition:
+            "box-shadow 0.2s ease, margin 0.2s ease, padding 0.2s ease",
+        }}
+      >
         <Button startIcon={<ArrowBackIcon />} onClick={handleBack} size="small">
           Volver
         </Button>
@@ -297,7 +404,6 @@ export default function PatientDetailPage() {
       </Box>
 
       <Grid container spacing={2}>
-
         {/* Datos personales */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Card variant="outlined">
@@ -306,13 +412,27 @@ export default function PatientDetailPage() {
                 Datos personales
               </Typography>
               <Grid container>
-                <Grid size={{ xs: 6 }}><InfoRow label="DNI"        value={p.dni}        /></Grid>
-                <Grid size={{ xs: 6 }}><InfoRow label="Género"     value={genderLabel}  /></Grid>
-                <Grid size={{ xs: 6 }}><InfoRow label="Edad"       value={age}          /></Grid>
-                <Grid size={{ xs: 6 }}><InfoRow label="Nacimiento" value={birthDate}    /></Grid>
-                <Grid size={{ xs: 6 }}><InfoRow label="Teléfono"   value={p.phone}      /></Grid>
-                <Grid size={{ xs: 6 }}><InfoRow label="Correo"     value={p.email}      /></Grid>
-                <Grid size={{ xs: 12 }}><InfoRow label="Dirección" value={p.address}    /></Grid>
+                <Grid size={{ xs: 6 }}>
+                  <InfoRow label="DNI" value={p.dni} />
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <InfoRow label="Género" value={genderLabel} />
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <InfoRow label="Edad" value={age} />
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <InfoRow label="Nacimiento" value={birthDate} />
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <InfoRow label="Teléfono" value={p.phone} />
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <InfoRow label="Correo" value={p.email} />
+                </Grid>
+                <Grid size={{ xs: 12 }}>
+                  <InfoRow label="Dirección" value={p.address} />
+                </Grid>
               </Grid>
             </CardContent>
           </Card>
@@ -326,15 +446,27 @@ export default function PatientDetailPage() {
                 Antecedentes clínicos
               </Typography>
               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
-                <AntecedentChip label="Diabetes"     active={p.diabetes}     color="warning" />
-                <AntecedentChip label="Hipertensión" active={p.hypertension} color="error"   />
-                <AntecedentChip label="Gestante"     active={p.pregnancy}    color="info"    />
+                <AntecedentChip
+                  label="Diabetes"
+                  active={p.diabetes}
+                  color="warning"
+                />
+                <AntecedentChip
+                  label="Hipertensión"
+                  active={p.hypertension}
+                  color="error"
+                />
+                <AntecedentChip
+                  label="Gestante"
+                  active={p.pregnancy}
+                  color="info"
+                />
               </Box>
               <Divider sx={{ my: 1.5 }} />
-              <InfoRow label="Alergias"              value={p.allergies}    />
-              <InfoRow label="Medicamentos actuales" value={p.medications}  />
-              <InfoRow label="Diagnóstico"           value={p.diagnosis}    />
-              <InfoRow label="Observaciones"         value={p.observations} />
+              <InfoRow label="Alergias" value={p.allergies} />
+              <InfoRow label="Medicamentos actuales" value={p.medications} />
+              <InfoRow label="Diagnóstico" value={p.diagnosis} />
+              <InfoRow label="Observaciones" value={p.observations} />
             </CardContent>
           </Card>
         </Grid>
@@ -371,7 +503,6 @@ export default function PatientDetailPage() {
             </CardContent>
           </Card>
         </Grid>
-
       </Grid>
     </Box>
   );

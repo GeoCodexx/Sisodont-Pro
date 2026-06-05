@@ -86,6 +86,60 @@ export const useLedgerStore = create((set, get) => ({
     return { data, error: null };
   },
 
+  // - Registrar reembolso
+
+  registerRefund: async ({
+    refType,
+    refId,
+    amount,
+    method,
+    refundReason,
+    currentNetPaid,
+  }) => {
+    // Validación de tope: no se puede devolver más de lo cobrado neto
+    if (amount > currentNetPaid + 0.001) {
+      return {
+        error: `No puedes reembolsar más de lo cobrado (${currentNetPaid.toFixed(2)}).`,
+      };
+    }
+    if (amount <= 0) {
+      return { error: "El monto del reembolso debe ser mayor a cero." };
+    }
+
+    set({ saving: true, error: null });
+    const userId = useAuthStore.getState().user?.id ?? null;
+
+    const { data, error } = await supabase
+      .from("ledger_entries")
+      .insert({
+        ref_type: refType,
+        ref_id: refId,
+        amount, // siempre positivo
+        direction: "egreso", // marca el reembolso
+        method,
+        notes: refundReason || null,
+        refund_reason: refundReason || null,
+        created_by: userId,
+      })
+      .select("*, created_by_profile:profiles(full_name)")
+      .single();
+
+    if (error) {
+      set({ saving: false, error: error.message });
+      return { error: error.message };
+    }
+
+    set((s) => ({
+      entriesByRef: {
+        ...s.entriesByRef,
+        [refId]: [...(s.entriesByRef[refId] ?? []), data],
+      },
+      saving: false,
+    }));
+
+    return { data, error: null };
+  },
+
   // ── Eliminar pago ─────────────────────────────────────────
   remove: async (entryId, refId) => {
     const { error } = await supabase
@@ -112,8 +166,11 @@ export const useLedgerStore = create((set, get) => ({
     const entries = useLedgerStore.getState().entriesByRef[refId] ?? [];
     //return entries.reduce((acc, e) => acc + Number(e.amount ?? 0), 0);
     return entries.reduce((acc, e) => {
-    const signed = e.direction === "egreso" ? -Number(e.amount ?? 0) : Number(e.amount ?? 0);
-    return acc + signed;
-  }, 0);
+      const signed =
+        e.direction === "egreso"
+          ? -Number(e.amount ?? 0)
+          : Number(e.amount ?? 0);
+      return acc + signed;
+    }, 0);
   },
 }));
