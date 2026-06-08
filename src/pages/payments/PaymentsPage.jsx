@@ -465,12 +465,21 @@ export default function PaymentsPage() {
 
   // ── KPIs derivados — memoizados para no reducir en cada render
   const kpis = useMemo(() => {
-    const bruto = rows.reduce((s, r) => s + Number(r.billed), 0);
-    const cobrado = rows.reduce((s, r) => s + Number(r.collected), 0);
-    const pendiente = rows.reduce((s, r) => s + Number(r.balance), 0);
-    const conDeuda = rows.filter((r) => Number(r.balance) > 0).length;
-    return { bruto, cobrado, pendiente, conDeuda };
-  }, [rows]);
+  const bruto   = rows.reduce((s, r) => s + Number(r.billed), 0);
+  const cobrado = rows.reduce((s, r) => s + Number(r.collected), 0);
+
+  const isAbandoned = (r) => r.ref_type === "case" && r.case_status === "abandonado";
+
+  const pendiente = rows.reduce(
+    (s, r) => isAbandoned(r) ? s : s + Number(r.balance),
+    0,
+  );
+  const conDeuda = rows.filter(
+    (r) => !isAbandoned(r) && Number(r.balance) > 0,
+  ).length;
+
+  return { bruto, cobrado, pendiente, conDeuda };
+}, [rows]);
 
   // ── Conteo de filtros activos ─────────────────────────────
   const activeFilterCount = useMemo(

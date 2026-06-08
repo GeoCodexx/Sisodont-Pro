@@ -43,7 +43,7 @@ export const useDashboardStore = create((set) => ({
           supabase
             .from("financial_summary")
             .select(
-              "ref_type, ref_id, status, billed, collected, balance, " +
+              "ref_type, ref_id, status, case_status, billed, collected, balance, " +
                 "patient_id, treatment_name, doctor_name",
             )
             .gte("date", isoFrom)
@@ -114,8 +114,12 @@ export const useDashboardStore = create((set) => ({
         (s, r) => s + Number(r.collected ?? 0),
         0,
       );
+
       const pendingBalance = financialRows.reduce(
-        (s, r) => s + Number(r.balance ?? 0),
+        (s, r) =>
+          r.ref_type === "case" && r.case_status === "abandonado"
+            ? s // el balance de un caso abandonado no es deuda exigible
+            : s + Number(r.balance ?? 0),
         0,
       );
 

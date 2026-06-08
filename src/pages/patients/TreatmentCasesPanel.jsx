@@ -520,7 +520,7 @@ function CasePaymentsSection({ caseData }) {
     }
   }, [refundForm, totalPaid, caseData.id, registerRefund, resetRefundForm]);
 
-  const summaryRows = useMemo(
+  /*const summaryRows = useMemo(
     () => [
       ["Costo total", fmtS(totalBilled), "text.primary"],
       ["Pagado", fmtS(totalPaid), "success.main"],
@@ -531,7 +531,34 @@ function CasePaymentsSection({ caseData }) {
       ],
     ],
     [totalBilled, totalPaid, totalBalance],
-  );
+  );*/
+  const summaryRows = useMemo(
+  () => {
+    const isAbandoned = caseData.status === "abandonado";
+    return [
+      [
+        isAbandoned ? "Total cobrado" : "Costo total",
+        fmtS(totalBilled),
+        "text.primary",
+      ],
+      [
+        isAbandoned ? "Retenido en caja" : "Pagado",
+        fmtS(totalPaid),
+        "success.main",
+      ],
+      [
+        isAbandoned
+          ? totalBalance > 0
+            ? "Retenido sin devolver"
+            : "Reembolso completado"
+          : "Saldo",
+        fmtS(totalBalance),
+        totalBalance > 0 ? (isAbandoned ? "warning.main" : "error.main") : "text.secondary",
+      ],
+    ];
+  },
+  [totalBilled, totalPaid, totalBalance, caseData.status],
+);
 
   return (
     <Box>
@@ -735,7 +762,7 @@ function CasePaymentsSection({ caseData }) {
         </>
       )}
 
-      {totalBalance <= 0 && totalPaid > 0 && (
+      {totalBalance <= 0 && totalPaid > 0 && caseData?.status!=="abandonado" && (
         <Alert severity="success" icon={false} sx={{ mt: 1.5 }}>
           Tratamiento completamente pagado.
         </Alert>
@@ -847,8 +874,7 @@ function AppointmentPaymentsSection({ appt }) {
       refId: appt.id,
       amount,
       method: refundForm.method,
-      refundReason:
-        refundForm.reason || `Reembolso manual — cita ${appt.id}`,
+      refundReason: refundForm.reason || `Reembolso manual — cita ${appt.id}`,
       currentNetPaid: totalPaid,
     });
     if (error) setFeedback({ msg: error, type: "error" });

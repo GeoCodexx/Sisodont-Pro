@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, memo } from "react";
+import { useEffect, useState, useCallback, useMemo, memo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -17,6 +17,7 @@ import {
   CircularProgress,
   Alert,
   InputAdornment,
+  IconButton,
   Card,
   CardContent,
   Typography,
@@ -25,11 +26,13 @@ import {
   Divider,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import CloseIcon from "@mui/icons-material/Close";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 
 import { supabase } from "../../services/supabaseClient";
 import { useCatalogStore } from "../../stores/useCatalogStore";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
+import { useDebounce } from "../../hooks/useDebounce";
 
 import FilterDrawer from "../../components/FilterDrawer";
 import FilterButton from "../../components/FilterButton";
@@ -55,6 +58,9 @@ const EMPTY_FILTERS = {
   dateFrom: "",
   dateTo: "",
 };
+
+// Slot props estables para fechas — evitan recrear objetos en cada render
+const DATE_SLOT = { inputLabel: { shrink: true } };
 
 // Helpers puros — no dependen de estado ni props
 function fmt(iso) {
@@ -251,6 +257,9 @@ const HistoryRow = memo(function HistoryRow({ r, onNavigate }) {
       {/* Paciente */}
       <TableCell>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+          <Avatar sx={{ width: 32, height: 32, fontSize: 14 }}>
+            {r.patient_name?.[0] ?? "P"}
+          </Avatar>
           <Box>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {r.patient_name}
@@ -350,6 +359,67 @@ const KpiCard = memo(function KpiCard({ label, value, color }) {
 });
 
 // ─────────────────────────────────────────────────────────────
+// FilterFields — componente memoizado para el drawer móvil.
+// NO incluye el campo de búsqueda (se expone fuera del drawer).
+// ─────────────────────────────────────────────────────────────
+const FilterFields = memo(function FilterFields({ filters, onChange, treatments }) {
+  return (
+    <>
+      <TextField
+        select
+        label="Estado"
+        name="status"
+        size="small"
+        fullWidth
+        value={filters.status}
+        onChange={onChange}
+      >
+        <MenuItem value="all">Todos</MenuItem>
+        <MenuItem value="pendiente">Pendiente</MenuItem>
+        <MenuItem value="atendido">Atendido</MenuItem>
+        <MenuItem value="cancelado">Cancelado</MenuItem>
+      </TextField>
+      <TextField
+        select
+        label="Tratamiento"
+        name="treatment_id"
+        size="small"
+        fullWidth
+        value={filters.treatment_id}
+        onChange={onChange}
+      >
+        <MenuItem value="">Todos</MenuItem>
+        {treatments.map((t) => (
+          <MenuItem key={t.id} value={t.id}>
+            {t.name}
+          </MenuItem>
+        ))}
+      </TextField>
+      <TextField
+        label="Desde"
+        type="date"
+        name="dateFrom"
+        size="small"
+        fullWidth
+        slotProps={DATE_SLOT}
+        value={filters.dateFrom}
+        onChange={onChange}
+      />
+      <TextField
+        label="Hasta"
+        type="date"
+        name="dateTo"
+        size="small"
+        fullWidth
+        slotProps={DATE_SLOT}
+        value={filters.dateTo}
+        onChange={onChange}
+      />
+    </>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────
 // HistoryPage
 // ─────────────────────────────────────────────────────────────
 export default function HistoryPage() {
@@ -369,20 +439,38 @@ export default function HistoryPage() {
 
   const { handleExcel, handlePdf } = useHistoryExport(filters);
 
+  // ── Búsqueda con debounce ─────────────────────────────────
+  // searchInput: lo que escribe el usuario (respuesta inmediata en UI)
+  // debouncedSearch: dispara el filtro real tras 400ms y mínimo 3 chars
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const debouncedSearch = useDebounce(searchInput, 400);
+
+  useEffect(() => {
+    // Solo aplica si tiene 3+ chars o está vacío (para limpiar)
+    if (debouncedSearch.length >= 3 || debouncedSearch === "") {
+      setFilters((p) => ({ ...p, search: debouncedSearch }));
+      setPage(1);
+    }
+  }, [debouncedSearch]);
+
+  // ── Sticky filtros ────────────────────────────────────────
+  const [isSticky, setIsSticky] = useState(false);
+  const filterBarRef = useRef(null);
+  const appBarHeight = isMobile ? 56 : 64;
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!filterBarRef.current) return;
+      setIsSticky(
+        window.scrollY >= filterBarRef.current.offsetTop - appBarHeight,
+      );
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll(); // ejecutar al montar
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [appBarHeight]);
+
   useEffect(() => { fetchAll(); }, []);
-
-  // ── Setter genérico para filtros aplicados (desktop inline) ─
-  // useCallback: referencia estable — no recreada en cada render
-  const setF = useCallback(
-    (k) => (v) => setFilters((p) => ({ ...p, [k]: v })),
-    [],
-  );
-
-  // ── Setter genérico para filtros locales (drawer móvil) ────
-  const setLocal = useCallback(
-    (k) => (v) => setLocalFilters((p) => ({ ...p, [k]: v })),
-    [],
-  );
 
   // ── Carga de datos ─────────────────────────────────────────
   const load = useCallback(async () => {
@@ -422,23 +510,76 @@ export default function HistoryPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [filters]);
 
-  // ── Handlers estables ──────────────────────────────────────
+  // ── Handlers de búsqueda ──────────────────────────────────
+  // Limpia la búsqueda (botón X o tecla Esc)
+  const handleClearSearch = useCallback(() => setSearchInput(""), []);
+
+  const handleSearchInput = useCallback((e) => {
+    setSearchInput(e.target.value);
+  }, []);
+
+  const handleSearchKeyDown = useCallback(
+    (e) => {
+      if (e.key === "Escape") handleClearSearch();
+    },
+    [handleClearSearch],
+  );
+
+  // slotProps dinámico — adornment X solo cuando hay texto
+  const searchSlotProps = useMemo(
+    () => ({
+      input: {
+        startAdornment: (
+          <InputAdornment position="start">
+            <SearchIcon fontSize="small" />
+          </InputAdornment>
+        ),
+        endAdornment: searchInput ? (
+          <InputAdornment position="end">
+            <IconButton size="small" onClick={handleClearSearch} edge="end">
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </InputAdornment>
+        ) : null,
+      },
+    }),
+    [searchInput, handleClearSearch],
+  );
+
+  // ── Handler genérico para filtros desktop ─────────────────
+  // Un handler por evento en lugar de una closure inline por cada TextField
+  const handleDesktopFilter = useCallback((e) => {
+    const { name, value } = e.target;
+    setFilters((p) => ({ ...p, [name]: value }));
+    setPage(1);
+  }, []);
+
+  // ── Handlers del drawer móvil ─────────────────────────────
+  const handleLocalFilter = useCallback((e) => {
+    const { name, value } = e.target;
+    setLocalFilters((p) => ({ ...p, [name]: value }));
+  }, []);
+
+  const handleOpenFilter = useCallback(() => {
+    // Sincroniza localFilters con filters actuales (excluye search — vive fuera)
+    setLocalFilters({ ...filters, search: "" });
+    setFilterOpen(true);
+  }, [filters]);
+
+  const handleCloseFilter = useCallback(() => setFilterOpen(false), []);
+
   const applyFilters = useCallback(() => {
-    setFilters({ ...localFilters });
+    // Preserva el search actual al aplicar filtros del drawer
+    setFilters((p) => ({ ...localFilters, search: p.search }));
     setFilterOpen(false);
   }, [localFilters]);
 
   const clearFilters = useCallback(() => {
     setLocalFilters(EMPTY_FILTERS);
-    setFilters(EMPTY_FILTERS);
+    // Preserva el search actual al limpiar filtros del drawer
+    setFilters((p) => ({ ...EMPTY_FILTERS, search: p.search }));
+    setFilterOpen(false);
   }, []);
-
-  const handleOpenFilter = useCallback(() => {
-    setLocalFilters({ ...filters });
-    setFilterOpen(true);
-  }, [filters]);
-
-  const handleCloseFilter = useCallback(() => setFilterOpen(false), []);
 
   const handleNavigate = useCallback(
     (patientId) => navigate("/patients/" + patientId),
@@ -463,90 +604,16 @@ export default function HistoryPage() {
     [rows],
   );
 
-  // Contador de filtros activos
+  // Contador de filtros activos — excluye search (no vive en el drawer)
   const activeFilterCount = useMemo(
     () =>
       [
-        !!filters.search,
         filters.status !== "all",
         !!filters.treatment_id,
         !!filters.dateFrom,
         !!filters.dateTo,
       ].filter(Boolean).length,
     [filters],
-  );
-
-  // ── filterFields: función que produce los campos del drawer ─
-  // Se envuelve en useCallback para no recrear la función en
-  // cada render. Los campos leen localFilters y setLocal.
-  const filterFields = useCallback(
-    (f, set) => (
-      <>
-        <TextField
-          label="Paciente, DNI o doctor"
-          size="small"
-          fullWidth
-          value={f.search}
-          onChange={(e) => set("search")(e.target.value)}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-        <TextField
-          select
-          label="Estado"
-          size="small"
-          fullWidth
-          value={f.status}
-          onChange={(e) => set("status")(e.target.value)}
-        >
-          <MenuItem value="all">Todos</MenuItem>
-          <MenuItem value="pendiente">Pendiente</MenuItem>
-          <MenuItem value="atendido">Atendido</MenuItem>
-          <MenuItem value="cancelado">Cancelado</MenuItem>
-        </TextField>
-        <TextField
-          select
-          label="Tratamiento"
-          size="small"
-          fullWidth
-          value={f.treatment_id}
-          onChange={(e) => set("treatment_id")(e.target.value)}
-        >
-          <MenuItem value="">Todos</MenuItem>
-          {treatments.map((t) => (
-            <MenuItem key={t.id} value={t.id}>
-              {t.name}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          label="Desde"
-          type="date"
-          size="small"
-          fullWidth
-          slotProps={{ inputLabel: { shrink: true } }}
-          value={f.dateFrom}
-          onChange={(e) => set("dateFrom")(e.target.value)}
-        />
-        <TextField
-          label="Hasta"
-          type="date"
-          size="small"
-          fullWidth
-          slotProps={{ inputLabel: { shrink: true } }}
-          value={f.dateTo}
-          onChange={(e) => set("dateTo")(e.target.value)}
-        />
-      </>
-    ),
-    [treatments],
   );
 
   // ── Subtitle memoizado ─────────────────────────────────────
@@ -586,97 +653,134 @@ export default function HistoryPage() {
         </Grid>
       </Grid>
 
-      {/* Filtros inline — desktop */}
-      {!isMobile && (
-        <Card variant="outlined" sx={{ mb: 1.5 }}>
-          <CardContent>
-            <Grid container spacing={1.5}>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  size="small"
-                  fullWidth
-                  placeholder="Paciente, DNI o doctor..."
-                  value={filters.search}
-                  onChange={(e) => setF("search")(e.target.value)}
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                />
+      {/* ── Barra de filtros sticky ───────────────────────── */}
+      <Box
+        ref={filterBarRef}
+        sx={{
+          position: "sticky",
+          top: `${appBarHeight}px`,
+          zIndex: (theme) => theme.zIndex.appBar - 1,
+          // Expande al ancho completo solo cuando está sticky
+          mx: isSticky ? { xs: -2, sm: -3 } : 0,
+          px: isSticky ? { xs: 2, sm: 3 } : 0,
+          bgcolor: "background.default",
+          pb: 1.5,
+          pt: isSticky ? 1 : 0,
+          transition:
+            "box-shadow 0.2s ease, margin 0.2s ease, padding 0.2s ease",
+          boxShadow: isSticky ? 2 : 0,
+        }}
+      >
+        {/* Desktop — todos los filtros inline incluyendo búsqueda */}
+        {!isMobile && (
+          <Card variant="outlined">
+            <CardContent>
+              <Grid container spacing={1.5}>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <TextField
+                    size="small"
+                    fullWidth
+                    placeholder="Paciente, DNI o doctor..."
+                    name="search"
+                    value={searchInput}
+                    onChange={handleSearchInput}
+                    onKeyDown={handleSearchKeyDown}
+                    slotProps={searchSlotProps}
+                    helperText={
+                      searchInput.length > 0 && searchInput.length < 3
+                        ? "Escribe al menos 3 caracteres"
+                        : undefined
+                    }
+                  />
+                </Grid>
+                <Grid size={{ xs: 6, md: 2 }}>
+                  <TextField
+                    select
+                    label="Estado"
+                    name="status"
+                    size="small"
+                    fullWidth
+                    value={filters.status}
+                    onChange={handleDesktopFilter}
+                  >
+                    <MenuItem value="all">Todos</MenuItem>
+                    <MenuItem value="pendiente">Pendiente</MenuItem>
+                    <MenuItem value="atendido">Atendido</MenuItem>
+                    <MenuItem value="cancelado">Cancelado</MenuItem>
+                  </TextField>
+                </Grid>
+                <Grid size={{ xs: 6, md: 2 }}>
+                  <TextField
+                    select
+                    label="Tratamiento"
+                    name="treatment_id"
+                    size="small"
+                    fullWidth
+                    value={filters.treatment_id}
+                    onChange={handleDesktopFilter}
+                  >
+                    <MenuItem value="">Todos</MenuItem>
+                    {treatments.map((t) => (
+                      <MenuItem key={t.id} value={t.id}>
+                        {t.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid size={{ xs: 6, md: 2 }}>
+                  <TextField
+                    label="Desde"
+                    type="date"
+                    name="dateFrom"
+                    size="small"
+                    fullWidth
+                    slotProps={DATE_SLOT}
+                    value={filters.dateFrom}
+                    onChange={handleDesktopFilter}
+                  />
+                </Grid>
+                <Grid size={{ xs: 6, md: 2 }}>
+                  <TextField
+                    label="Hasta"
+                    type="date"
+                    name="dateTo"
+                    size="small"
+                    fullWidth
+                    slotProps={DATE_SLOT}
+                    value={filters.dateTo}
+                    onChange={handleDesktopFilter}
+                  />
+                </Grid>
               </Grid>
-              <Grid size={{ xs: 6, md: 2 }}>
-                <TextField
-                  select
-                  label="Estado"
-                  size="small"
-                  fullWidth
-                  value={filters.status}
-                  onChange={(e) => setF("status")(e.target.value)}
-                >
-                  <MenuItem value="all">Todos</MenuItem>
-                  <MenuItem value="pendiente">Pendiente</MenuItem>
-                  <MenuItem value="atendido">Atendido</MenuItem>
-                  <MenuItem value="cancelado">Cancelado</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid size={{ xs: 6, md: 2 }}>
-                <TextField
-                  select
-                  label="Tratamiento"
-                  size="small"
-                  fullWidth
-                  value={filters.treatment_id}
-                  onChange={(e) => setF("treatment_id")(e.target.value)}
-                >
-                  <MenuItem value="">Todos</MenuItem>
-                  {treatments.map((t) => (
-                    <MenuItem key={t.id} value={t.id}>
-                      {t.name}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid size={{ xs: 6, md: 2 }}>
-                <TextField
-                  label="Desde"
-                  type="date"
-                  size="small"
-                  fullWidth
-                  slotProps={{ inputLabel: { shrink: true } }}
-                  value={filters.dateFrom}
-                  onChange={(e) => setF("dateFrom")(e.target.value)}
-                />
-              </Grid>
-              <Grid size={{ xs: 6, md: 2 }}>
-                <TextField
-                  label="Hasta"
-                  type="date"
-                  size="small"
-                  fullWidth
-                  slotProps={{ inputLabel: { shrink: true } }}
-                  value={filters.dateTo}
-                  onChange={(e) => setF("dateTo")(e.target.value)}
-                />
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Botón filtros — móvil */}
-      {isMobile && (
-        <Box sx={{ mb: 2 }}>
-          <FilterButton
-            onClick={handleOpenFilter}
-            activeCount={activeFilterCount}
-          />
-        </Box>
-      )}
+        {/* Móvil — búsqueda + botón filtros en fila (búsqueda fuera del drawer) */}
+        {isMobile && (
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <TextField
+              size="small"
+              placeholder="Paciente, DNI o doctor..."
+              name="search"
+              value={searchInput}
+              onChange={handleSearchInput}
+              onKeyDown={handleSearchKeyDown}
+              slotProps={searchSlotProps}
+              helperText={
+                searchInput.length > 0 && searchInput.length < 3
+                  ? "Mín. 3 caracteres"
+                  : undefined
+              }
+              sx={{ flex: 1 }}
+            />
+            <FilterButton
+              onClick={handleOpenFilter}
+              activeCount={activeFilterCount}
+            />
+          </Box>
+        )}
+      </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -746,6 +850,7 @@ export default function HistoryPage() {
         </>
       )}
 
+      {/* FilterDrawer — solo contiene filtros que NO son búsqueda */}
       <FilterDrawer
         open={filterOpen}
         onClose={handleCloseFilter}
@@ -753,7 +858,11 @@ export default function HistoryPage() {
         onClear={clearFilters}
         activeCount={activeFilterCount}
       >
-        {filterFields(localFilters, setLocal)}
+        <FilterFields
+          filters={localFilters}
+          onChange={handleLocalFilter}
+          treatments={treatments}
+        />
       </FilterDrawer>
     </Box>
   );

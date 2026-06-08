@@ -457,7 +457,7 @@ function CasePaymentView({ row, onDirty }) {
 
   // summaryRows memoizado para que FinancialSummaryGrid no re-renderice
   // cuando el componente padre re-renderiza por feedback o form
-  const summaryRows = useMemo(
+  /*const summaryRows = useMemo(
     () => [
       ["Costo total", fmtS(totalBilled), "text.primary"],
       ["Total pagado", fmtS(totalPaid), "success.main"],
@@ -468,7 +468,33 @@ function CasePaymentView({ row, onDirty }) {
       ],
     ],
     [totalBilled, totalPaid, totalBalance],
-  );
+  );*/
+  const summaryRows = useMemo(() => {
+  const isAbandoned = row.case_status === "abandonado";
+  const hasRefund   = isAbandoned && totalPaid < totalBilled; // se devolvió algo
+
+  return [
+    [
+      isAbandoned ? "Total cobrado" : "Costo total",
+      fmtS(totalBilled),
+      "text.primary",
+    ],
+    [
+      isAbandoned ? "Retenido en caja" : "Pagado",
+      fmtS(totalPaid),
+      "success.main",
+    ],
+    [
+      isAbandoned
+        ? totalBalance > 0
+          ? "Retenido sin devolver"   // abandonado, la clínica se quedó con algo
+          : "Reembolso completado"    // abandonado, se devolvió todo
+        : "Saldo pendiente",          // caso activo o completado
+      fmtS(totalBalance),
+      totalBalance > 0 ? "warning.main" : "text.secondary",
+    ],
+  ];
+}, [totalBilled, totalPaid, totalBalance, row.case_status]);
 
   const balanceLabel = useMemo(
     () =>
