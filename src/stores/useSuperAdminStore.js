@@ -18,12 +18,12 @@ import { supabase } from "../services/supabaseClient";
 // ─────────────────────────────────────────────────────────────
 
 export const useSuperAdminStore = create((set, get) => ({
-  tenants:  [],
+  tenants: [],
   selected: null,
-  kpis:     null,
-  loading:  false,
-  saving:   false,
-  error:    null,
+  kpis: null,
+  loading: false,
+  saving: false,
+  error: null,
 
   // ── KPIs globales del SaaS ────────────────────────────────
   // Se calculan siempre junto con fetchTenants para no duplicar
@@ -50,31 +50,41 @@ export const useSuperAdminStore = create((set, get) => ({
           .select("id, status, total_cost, tenant_id"),
 
         // Fuente de verdad para cobros reales
-        supabase.from("ledger_entries").select("id, amount, tenant_id"),
+        supabase
+          .from("ledger_entries")
+          .select("id, amount, direction, tenant_id"),
       ]);
 
-    const tenants  = tenantsRes.data  ?? [];
+    const tenants = tenantsRes.data ?? [];
     const profiles = profilesRes.data ?? [];
-    const appts    = apptsRes.data    ?? [];
-    const cases    = casesRes.data    ?? [];
-    const ledger   = ledgerRes.data   ?? [];
+    const appts = apptsRes.data ?? [];
+    const cases = casesRes.data ?? [];
+    const ledger = ledgerRes.data ?? [];
 
-    const totalTenants  = tenants.length;
+    const totalTenants = tenants.length;
     const activeTenants = tenants.filter((t) => t.active).length;
-    const totalUsers    = profiles.length;
-    const totalAppts    = appts.length;
+    const totalUsers = profiles.length;
+    const totalAppts = appts.length;
 
     // Facturado = citas individuales + casos multisesión
     const grossFromAppts = appts
       .filter((a) => a.case_id === null)
       .reduce((s, a) => s + Number(a.total ?? 0), 0);
     const grossFromCases = cases.reduce(
-      (s, c) => s + Number(c.total_cost ?? 0), 0
+      (s, c) => s + Number(c.total_cost ?? 0),
+      0,
     );
     const grossRevenue = grossFromAppts + grossFromCases;
 
     // Cobrado real desde ledger_entries (fuente de verdad)
-    const collected = ledger.reduce((s, e) => s + Number(e.amount ?? 0), 0);
+    const collected = ledger.reduce(
+      (s, e) =>
+        s +
+        (e.direction === "egreso"
+          ? -Number(e.amount ?? 0)
+          : Number(e.amount ?? 0)),
+      0,
+    );
 
     const activeCases = cases.filter((c) => c.status === "en_curso").length;
 
@@ -120,27 +130,27 @@ export const useSuperAdminStore = create((set, get) => ({
 
         supabase
           .from("ledger_entries")
-          .select("id, tenant_id, amount"),
+          .select("id, tenant_id, amount, direction"),
       ]);
 
-    const tenants  = tenantsRes.data  ?? [];
+    const tenants = tenantsRes.data ?? [];
     const profiles = profilesRes.data ?? [];
-    const appts    = apptsRes.data    ?? [];
-    const cases    = casesRes.data    ?? [];
-    const ledger   = ledgerRes.data   ?? [];
+    const appts = apptsRes.data ?? [];
+    const cases = casesRes.data ?? [];
+    const ledger = ledgerRes.data ?? [];
 
     // Agregar métricas correctas por tenant
     const enriched = tenants.map((t) => {
       const tProfiles = profiles.filter((p) => p.tenant_id === t.id);
-      const tAppts    = appts.filter((a) => a.tenant_id === t.id);
-      const tCases    = cases.filter((c) => c.tenant_id === t.id);
-      const tLedger   = ledger.filter((e) => e.tenant_id === t.id);
+      const tAppts = appts.filter((a) => a.tenant_id === t.id);
+      const tCases = cases.filter((c) => c.tenant_id === t.id);
+      const tLedger = ledger.filter((e) => e.tenant_id === t.id);
 
       const attended = tAppts.filter((a) => a.status === "atendido");
 
       // Última actividad: la cita más reciente
       const sortedAppts = [...tAppts].sort(
-        (a, b) => new Date(b.date) - new Date(a.date)
+        (a, b) => new Date(b.date) - new Date(a.date),
       );
       const lastAppt = sortedAppts[0];
 
@@ -149,25 +159,31 @@ export const useSuperAdminStore = create((set, get) => ({
         .filter((a) => a.case_id === null)
         .reduce((s, a) => s + Number(a.total ?? 0), 0);
       const grossFromCases = tCases.reduce(
-        (s, c) => s + Number(c.total_cost ?? 0), 0
+        (s, c) => s + Number(c.total_cost ?? 0),
+        0,
       );
       const gross_revenue = grossFromAppts + grossFromCases;
 
       // Cobrado real desde ledger_entries del tenant
       const collected = tLedger.reduce(
-        (s, e) => s + Number(e.amount ?? 0), 0
+        (s, e) =>
+          s +
+          (e.direction === "egreso"
+            ? -Number(e.amount ?? 0)
+            : Number(e.amount ?? 0)),
+        0,
       );
 
       return {
         ...t,
-        users_count:    tProfiles.length,
-        appts_count:    tAppts.length,
+        users_count: tProfiles.length,
+        appts_count: tAppts.length,
         appts_attended: attended.length,
-        active_cases:   tCases.filter((c) => c.status === "en_curso").length,
+        active_cases: tCases.filter((c) => c.status === "en_curso").length,
         gross_revenue,
         collected,
         pending_balance: gross_revenue - collected,
-        last_activity:   lastAppt?.date ?? null,
+        last_activity: lastAppt?.date ?? null,
       };
     });
 
@@ -176,24 +192,30 @@ export const useSuperAdminStore = create((set, get) => ({
     // Calcular KPIs globales a partir de los mismos datos ya bajados
     // para evitar un segundo round-trip completo a la DB.
     const allProfiles = profiles;
-    const allAppts    = appts;
-    const allCases    = cases;
-    const allLedger   = ledger;
+    const allAppts = appts;
+    const allCases = cases;
+    const allLedger = ledger;
 
-    const totalTenants  = enriched.length;
+    const totalTenants = enriched.length;
     const activeTenants = enriched.filter((t) => t.active).length;
-    const totalUsers    = allProfiles.length;
-    const totalAppts    = allAppts.length;
+    const totalUsers = allProfiles.length;
+    const totalAppts = allAppts.length;
 
     const grossFromAppts = allAppts
       .filter((a) => a.case_id === null)
       .reduce((s, a) => s + Number(a.total ?? 0), 0);
     const grossFromCases = allCases.reduce(
-      (s, c) => s + Number(c.total_cost ?? 0), 0
+      (s, c) => s + Number(c.total_cost ?? 0),
+      0,
     );
     const grossRevenue = grossFromAppts + grossFromCases;
-    const collected    = allLedger.reduce(
-      (s, e) => s + Number(e.amount ?? 0), 0
+    const collected = allLedger.reduce(
+      (s, e) =>
+        s +
+        (e.direction === "egreso"
+          ? -Number(e.amount ?? 0)
+          : Number(e.amount ?? 0)),
+      0,
     );
     const activeCases = allCases.filter((c) => c.status === "en_curso").length;
 
@@ -233,8 +255,8 @@ export const useSuperAdminStore = create((set, get) => ({
           .from("appointments_full")
           .select(
             "id, date, status, total, paid, balance, " +
-            "patient_name, doctor_name, treatment_name, " +
-            "tenant_id, case_id"
+              "patient_name, doctor_name, treatment_name, " +
+              "tenant_id, case_id",
           )
           .eq("tenant_id", id)
           .order("date", { ascending: false })
@@ -247,9 +269,9 @@ export const useSuperAdminStore = create((set, get) => ({
           .from("treatment_cases_full")
           .select(
             "id, status, patient_name, doctor_name, treatment_name, " +
-            "sessions_attended, sessions_total, sessions_pending, " +
-            "total_paid, total_billed, total_balance, " +
-            "started_at, tenant_id"
+              "sessions_attended, sessions_total, sessions_pending, " +
+              "total_paid, total_billed, total_balance, " +
+              "started_at, tenant_id",
           )
           .eq("tenant_id", id)
           .eq("status", "en_curso")
@@ -269,7 +291,7 @@ export const useSuperAdminStore = create((set, get) => ({
             .eq("tenant_id", id),
           supabase
             .from("ledger_entries")
-            .select("id, amount")
+            .select("id, amount, direction")
             .eq("tenant_id", id),
         ]),
       ]);
@@ -281,8 +303,8 @@ export const useSuperAdminStore = create((set, get) => ({
 
     // Desempacar el Promise.all anidado
     const [allApptsRes, allCasesRes, allLedgerRes] = ledgerRes;
-    const allAppts  = allApptsRes.data  ?? [];
-    const allCases  = allCasesRes.data  ?? [];
+    const allAppts = allApptsRes.data ?? [];
+    const allCases = allCasesRes.data ?? [];
     const allLedger = allLedgerRes.data ?? [];
 
     // Métricas financieras reales del tenant (datos completos, no sample)
@@ -290,28 +312,36 @@ export const useSuperAdminStore = create((set, get) => ({
       .filter((a) => a.case_id === null)
       .reduce((s, a) => s + Number(a.total ?? 0), 0);
     const grossFromCases = allCases.reduce(
-      (s, c) => s + Number(c.total_cost ?? 0), 0
+      (s, c) => s + Number(c.total_cost ?? 0),
+      0,
     );
-    const totalGross   = grossFromAppts + grossFromCases;
+    const totalGross = grossFromAppts + grossFromCases;
     const totalCollected = allLedger.reduce(
-      (s, e) => s + Number(e.amount ?? 0), 0
+      (s, e) =>
+        s +
+        (e.direction === "egreso"
+          ? -Number(e.amount ?? 0)
+          : Number(e.amount ?? 0)),
+      0,
     );
 
     set({
       selected: {
         ...tenantRes.data,
-        profiles:            profilesRes.data ?? [],
-        recent_appointments: apptsRes.data    ?? [],
-        active_cases:        casesRes.data    ?? [],
+        profiles: profilesRes.data ?? [],
+        recent_appointments: apptsRes.data ?? [],
+        active_cases: casesRes.data ?? [],
         // Métricas financieras totales del tenant (no parciales)
         stats: {
-          total_appts:      allAppts.length,
-          appts_attended:   allAppts.filter((a) => a.status === "atendido").length,
-          total_cases:      allCases.length,
-          active_cases_count: allCases.filter((c) => c.status === "en_curso").length,
-          gross_revenue:    totalGross,
-          collected:        totalCollected,
-          pending_balance:  totalGross - totalCollected,
+          total_appts: allAppts.length,
+          appts_attended: allAppts.filter((a) => a.status === "atendido")
+            .length,
+          total_cases: allCases.length,
+          active_cases_count: allCases.filter((c) => c.status === "en_curso")
+            .length,
+          gross_revenue: totalGross,
+          collected: totalCollected,
+          pending_balance: totalGross - totalCollected,
         },
       },
       loading: false,
@@ -329,7 +359,7 @@ export const useSuperAdminStore = create((set, get) => ({
     if (!error) {
       set((s) => ({
         tenants: s.tenants.map((t) =>
-          t.id === id ? { ...t, active: !currentActive } : t
+          t.id === id ? { ...t, active: !currentActive } : t,
         ),
         selected:
           s.selected?.id === id
