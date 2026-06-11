@@ -421,18 +421,6 @@ export default function PatientsPage() {
     setOpenForm(true);
   }, []);
 
-  /*const handleDelete = useCallback(
-    async (p) => {
-      if (!window.confirm("¿Desactivar a " + p.full_name + "?")) return;
-      const { error } = await deletePatient(p.id);
-      if (error) setFeedback("Error: " + error);
-      else {
-        setFeedback("Paciente desactivado.");
-        load();
-      }
-    },
-    [deletePatient, load],
-  );*/
   const handleToggleActive = useCallback(
     async (p) => {
       const action = p.active ? "desactivar" : "reactivar";

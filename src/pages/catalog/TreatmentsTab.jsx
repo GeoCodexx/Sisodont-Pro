@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import {
   Box,
@@ -95,7 +95,17 @@ function TreatmentTypeChip({ isMultisession, unitPrice }) {
 }
 
 // ── TreatmentCard — vista móvil ───────────────────────────────
-function TreatmentCard({ t, onEdit, onDelete, canEdit }) {
+function TreatmentCard({
+  t,
+  onEdit,
+  onDelete,
+  onToggleActive,
+  onOpenPriceDialog,
+  canEdit,
+  isSuperAdmin,
+  isAdmin,
+  canManage,
+}) {
   return (
     <Card variant="outlined" sx={{ mb: 1.5 }}>
       <CardContent sx={{ pb: "12px !important" }}>
@@ -126,14 +136,39 @@ function TreatmentCard({ t, onEdit, onDelete, canEdit }) {
               </Typography>
             )}
           </Box>
-          {canEdit && (
+          {canManage && (
             <Box sx={{ display: "flex", gap: 0.5, ml: 1, flexShrink: 0 }}>
-              <IconButton size="small" onClick={() => onEdit(t)}>
-                <EditIcon fontSize="small" />
-              </IconButton>
-              <IconButton size="small" onClick={() => onDelete(t.id)}>
-                <DeleteIcon fontSize="small" color="error" />
-              </IconButton>
+              {/* Editar: SUPER_ADMIN edita cualquiera, ADMIN solo los suyos */}
+              {(isSuperAdmin || t.is_tenant_own) && (
+                <Tooltip title="Editar">
+                  <IconButton size="small" onClick={() => onEdit(t)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+
+              {/* Ajustar precio: solo ADMIN sobre tratamientos globales */}
+              {isAdmin && !t.is_tenant_own && (
+                <Tooltip title="Ajustar precio">
+                  <IconButton
+                    size="small"
+                    onClick={() => onOpenPriceDialog(t)}
+                  >
+                    <AttachMoneyIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+
+              {/* Activar/Desactivar */}
+              <Tooltip title={t.effective_active ? "Desactivar" : "Activar"}>
+                <IconButton size="small" onClick={() => onToggleActive(t)}>
+                  {t.effective_active ? (
+                    <ToggleOffIcon fontSize="small" color="error" />
+                  ) : (
+                    <ToggleOnIcon fontSize="small" color="success" />
+                  )}
+                </IconButton>
+              </Tooltip>
             </Box>
           )}
         </Box>
@@ -182,6 +217,13 @@ function TreatmentCard({ t, onEdit, onDelete, canEdit }) {
           <Typography variant="caption" color="textSecondary">
             {t.duration_min} min
           </Typography>
+          <Chip
+            label={t.effective_active ? "Activo" : "Inactivo"}
+            size="small"
+            color={t.effective_active ? "success" : "default"}
+            variant="outlined"
+            sx={{ fontSize: 10, height: 20 }}
+          />
         </Box>
       </CardContent>
     </Card>
@@ -239,6 +281,22 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
   const [pageSize, setPageSize] = useState(20);
 
   const [showButtons, setShowButtons] = useState(false);
+  // ── Sticky barra de filtros ───────────────────────────────
+  const [isSticky, setIsSticky] = useState(false);
+  const filterBarRef = useRef(null);
+  const appBarHeight = isMobile ? 56 : 64;
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!filterBarRef.current) return;
+      setIsSticky(
+        window.scrollY >= filterBarRef.current.offsetTop - appBarHeight,
+      );
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll(); // ejecutar al montar por si hay scroll previo
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [appBarHeight]);
 
   // Animación de entrada de botones en mobile
   useEffect(() => {
@@ -396,105 +454,36 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
           </Button>
         </Box>
       )} */}
-
-      {/* Barra superior: filtros + botón nuevo */}
-      {/* ── Barra superior desktop ── */}
-      {!isMobile && (
-        <Box
-          sx={{
-            display: "flex",
-            gap: 1.5,
-            mb: 2,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          {/* Búsqueda */}
-          <TextField
-            size="small"
-            placeholder="Buscar tratamiento..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
+      {/* ── Barra de filtros sticky ──────────────────────── */}
+      <Box
+        ref={filterBarRef}
+        sx={{
+          position: "sticky",
+          top: `${appBarHeight}px`,
+          zIndex: (theme) => theme.zIndex.appBar - 1,
+          mx: isSticky ? { xs: -2, sm: -3 } : 0,
+          px: isSticky ? { xs: 2, sm: 3 } : 0,
+          bgcolor: "background.default",
+          pb: 1.5,
+          pt: isSticky ? 1 : 0,
+          boxShadow: isSticky ? 2 : 0,
+          transition:
+            "box-shadow 0.2s ease, margin 0.2s ease, padding 0.2s ease",
+        }}
+      >
+        {/* Barra superior: filtros + botón nuevo */}
+        {/* ── Barra superior desktop ── */}
+        {!isMobile && (
+          <Box
+            sx={{
+              display: "flex",
+              gap: 1.5,
+              mb: 2,
+              alignItems: "center",
+              flexWrap: "wrap",
             }}
-            sx={{ flex: 1, maxWidth: 300 }}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
-
-          {/* Filtro origen — solo ADMIN */}
-          {isAdmin && (
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Origen</InputLabel>
-              <Select
-                value={origin}
-                label="Origen"
-                onChange={(e) => {
-                  setOrigin(e.target.value);
-                  setPage(1);
-                }}
-              >
-                <MenuItem value="all">Todos</MenuItem>
-                <MenuItem value="global">Globales</MenuItem>
-                <MenuItem value="own">Propios</MenuItem>
-              </Select>
-            </FormControl>
-          )}
-
-          <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
-            <ExportMenu
-              onPdfExport={handlePdf}
-              onExcelExport={handleExcel}
-              totalRows={
-                Array.isArray(treatmentsCatalog) ? treatmentsCatalog.length : 0
-              }
-              disabled={loading}
-            />
-            {canManage && (
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={openCreate}
-              >
-                Nuevo tratamiento
-              </Button>
-            )}
-          </Box>
-        </Box>
-      )}
-
-      {/* ── Barra superior móvil ── */}
-      {isMobile && (
-        <>
-          <Box sx={{ display: "flex", gap: 1, mb: 1, alignItems: "center" }}>
-            <ExportMenu
-              onPdfExport={handlePdf}
-              onExcelExport={handleExcel}
-              totalRows={
-                Array.isArray(treatmentsCatalog) ? treatmentsCatalog.length : 0
-              }
-              disabled={loading}
-            />
-            {canManage && (
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={openCreate}
-                size="small"
-              >
-                Nuevo
-              </Button>
-            )}
-          </Box>
-          <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
+          >
+            {/* Búsqueda */}
             <TextField
               size="small"
               placeholder="Buscar tratamiento..."
@@ -503,7 +492,7 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              sx={{ flex: 1 }}
+              sx={{ flex: 1, maxWidth: 300 }}
               slotProps={{
                 input: {
                   startAdornment: (
@@ -514,22 +503,122 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
                 },
               }}
             />
-            {/* Filtro solo si es ADMIN (tiene el select de origen) */}
+
+            {/* Filtro origen — solo ADMIN */}
             {isAdmin && (
-              <FilterButton
-                onClick={() => setFilterOpen(true)}
-                activeCount={origin !== "all" ? 1 : 0}
-              />
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Origen</InputLabel>
+                <Select
+                  value={origin}
+                  label="Origen"
+                  onChange={(e) => {
+                    setOrigin(e.target.value);
+                    setPage(1);
+                  }}
+                >
+                  <MenuItem value="all">Todos</MenuItem>
+                  <MenuItem value="global">Globales</MenuItem>
+                  <MenuItem value="own">Propios</MenuItem>
+                </Select>
+              </FormControl>
             )}
+
+            <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
+              <ExportMenu
+                onPdfExport={handlePdf}
+                onExcelExport={handleExcel}
+                totalRows={
+                  Array.isArray(treatmentsCatalog)
+                    ? treatmentsCatalog.length
+                    : 0
+                }
+                disabled={loading}
+              />
+              {canManage && (
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={openCreate}
+                >
+                  Nuevo tratamiento
+                </Button>
+              )}
+            </Box>
           </Box>
-        </>
-      )}
+        )}
+
+        {/* ── Barra superior móvil ── */}
+        {isMobile && (
+          <>
+            <Box
+              sx={{
+                display: "flex",
+                gap: 1,
+                mb: 1,
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <ExportMenu
+                onPdfExport={handlePdf}
+                onExcelExport={handleExcel}
+                totalRows={
+                  Array.isArray(treatmentsCatalog)
+                    ? treatmentsCatalog.length
+                    : 0
+                }
+                disabled={loading}
+              />
+              {canManage && (
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={openCreate}
+                  size="small"
+                >
+                  Nuevo tratamiento
+                </Button>
+              )}
+            </Box>
+            <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
+              <TextField
+                size="small"
+                placeholder="Buscar tratamiento..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                sx={{ flex: 1 }}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
+              {/* Filtro solo si es ADMIN (tiene el select de origen) */}
+              {isAdmin && (
+                <FilterButton
+                  onClick={() => setFilterOpen(true)}
+                  activeCount={origin !== "all" ? 1 : 0}
+                />
+              )}
+            </Box>
+          </>
+        )}
+      </Box>
 
       {/* Vista móvil */}
       {isMobile ? (
         <Box>
           {paginated.length === 0 ? (
-            <Typography color="textSecondary" textAlign="center" mt={4}>
+            <Typography
+              sx={{ color: "textSecondary", textAlign: "center", mt: 4 }}
+            >
               {search || origin !== "all"
                 ? "Sin resultados para los filtros aplicados."
                 : "No hay tratamientos registrados."}
@@ -539,9 +628,14 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
               <TreatmentCard
                 key={t.id}
                 t={t}
-                canEdit={isSuperAdmin || t.is_tenant_own}
                 onEdit={openEdit}
                 onDelete={handleDelete}
+                onToggleActive={handleToggleActive}
+                onOpenPriceDialog={openPriceDialog}
+                canEdit={isSuperAdmin || t.is_tenant_own}
+                isSuperAdmin={isSuperAdmin}
+                isAdmin={isAdmin}
+                canManage={canManage}
               />
             ))
           )}
