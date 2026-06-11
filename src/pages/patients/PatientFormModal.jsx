@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -14,9 +14,17 @@ import {
   Alert,
   Divider,
   Typography,
+  Fade,
+  Stack,
+  IconButton,
+  Box,
 } from "@mui/material";
+import EditIcon from "@mui/icons-material/Edit";
+import SaveIcon from "@mui/icons-material/Save";
+import CloseIcon from "@mui/icons-material/Close";
 import { useForm, Controller } from "react-hook-form";
 import { usePatientStore } from "../../stores/usePatientStore";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
 
 // ─────────────────────────────────────────────────────────────
 // Constantes
@@ -91,6 +99,7 @@ function buildDefaultValues(patient) {
 // PatientFormModal
 // ─────────────────────────────────────────────────────────────
 export default function PatientFormModal({ open, patient, onClose }) {
+  const { isMobile } = useBreakpoint();
   const { createPatient, updatePatient, saving } = usePatientStore();
 
   const {
@@ -101,6 +110,20 @@ export default function PatientFormModal({ open, patient, onClose }) {
     setError,
     formState: { errors },
   } = useForm({ defaultValues: EMPTY });
+
+  const [showButtons, setShowButtons] = useState(false);
+
+  // Animación de entrada de botones en mobile
+  useEffect(() => {
+    if (open && isMobile) {
+      const timer = setTimeout(() => setShowButtons(true), 300);
+      return () => clearTimeout(timer);
+    } else if (open) {
+      setShowButtons(true);
+    } else {
+      setShowButtons(false);
+    }
+  }, [open, isMobile]);
 
   // Reiniciar form cuando cambia patient u open
   useEffect(() => {
@@ -152,9 +175,44 @@ export default function PatientFormModal({ open, patient, onClose }) {
       onClose={() => onClose(false)}
       maxWidth="md"
       fullWidth
+      fullScreen={isMobile}
     >
-      <DialogTitle>
-        {patient ? "Editar paciente" : "Nuevo paciente"}
+      <DialogTitle
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          backgroundColor: (theme) => theme.palette.primary.main,
+          borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          {patient ? (
+            <EditIcon sx={{ color: "white" }} />
+          ) : (
+            <SaveIcon sx={{ color: "white" }} />
+          )}
+          <Typography
+            variant="h6"
+            component="span"
+            sx={{ color: "white" /*, fontWeight: 600 */ }}
+          >
+            {patient ? "Editar paciente" : "Nuevo paciente"}
+          </Typography>
+        </Box>
+        <IconButton
+          aria-label="close"
+          onClick={() => onClose(false)}
+          size="small"
+          sx={{
+            color: "white",
+            "&:hover": {
+              bgcolor: (theme) => theme.palette.action.hover,
+            },
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
       </DialogTitle>
 
       <DialogContent dividers>
@@ -220,14 +278,16 @@ export default function PatientFormModal({ open, patient, onClose }) {
               size="small"
               fullWidth
               slotProps={{
-                htmlInput:{ maxLength: 8, inputMode: "numeric" }
+                htmlInput: { maxLength: 8, inputMode: "numeric" },
               }}
               error={!!errors.dni}
               helperText={errors.dni?.message}
               {...register("dni", {
                 setValueAs: (v) => onlyNumbers(v).slice(0, 8),
                 validate: (v) =>
-                  !v || v.length === 8 || "El DNI debe tener exactamente 8 dígitos.",
+                  !v ||
+                  v.length === 8 ||
+                  "El DNI debe tener exactamente 8 dígitos.",
               })}
             />
           </Grid>
@@ -283,14 +343,16 @@ export default function PatientFormModal({ open, patient, onClose }) {
               size="small"
               fullWidth
               slotProps={{
-                htmlInput:{ maxLength: 9, inputMode: "numeric" }
+                htmlInput: { maxLength: 9, inputMode: "numeric" },
               }}
               error={!!errors.phone}
               helperText={errors.phone?.message}
               {...register("phone", {
                 setValueAs: (v) => onlyNumbers(v).slice(0, 9),
                 validate: (v) =>
-                  !v || v.length === 9 || "El teléfono debe tener exactamente 9 dígitos.",
+                  !v ||
+                  v.length === 9 ||
+                  "El teléfono debe tener exactamente 9 dígitos.",
               })}
             />
           </Grid>
@@ -343,11 +405,7 @@ export default function PatientFormModal({ open, patient, onClose }) {
                   <FormControlLabel
                     label={label}
                     control={
-                      <Checkbox
-                        {...field}
-                        checked={field.value}
-                        size="small"
-                      />
+                      <Checkbox {...field} checked={field.value} size="small" />
                     }
                   />
                 )}
@@ -376,26 +434,60 @@ export default function PatientFormModal({ open, patient, onClose }) {
             </Grid>
           ))}
         </Grid>
+        {/* Botones dentro del contenido en mobile con animación */}
+        {isMobile && (
+          <Fade in={showButtons} timeout={500}>
+            <Stack spacing={1.5} sx={{ mt: 3 }}>
+              <Button
+                variant="contained"
+                size="large"
+                fullWidth
+                onClick={handleSubmit(onSubmit)}
+                disabled={saving}
+                startIcon={
+                  saving ? <CircularProgress size={16} color="inherit" /> : null
+                }
+              >
+                {saving
+                  ? "Guardando..."
+                  : patient
+                    ? "Guardar cambios"
+                    : "Crear paciente"}
+              </Button>
+              <Button
+                onClick={() => onClose(false)}
+                variant="outlined"
+                size="large"
+                fullWidth
+                color="inherit"
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+            </Stack>
+          </Fade>
+        )}
       </DialogContent>
-
-      <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={() => onClose(false)} disabled={saving}>
-          Cancelar
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleSubmit(onSubmit)}
-          disabled={saving}
-        >
-          {saving ? (
-            <CircularProgress size={20} color="inherit" />
-          ) : patient ? (
-            "Guardar cambios"
-          ) : (
-            "Crear paciente"
-          )}
-        </Button>
-      </DialogActions>
+      {!isMobile && (
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => onClose(false)} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmit(onSubmit)}
+            disabled={saving}
+          >
+            {saving ? (
+              <CircularProgress size={20} color="inherit" />
+            ) : patient ? (
+              "Guardar cambios"
+            ) : (
+              "Crear paciente"
+            )}
+          </Button>
+        </DialogActions>
+      )}
     </Dialog>
   );
 }

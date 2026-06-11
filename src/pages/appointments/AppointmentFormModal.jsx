@@ -26,11 +26,14 @@ import {
   RadioGroup,
   FormControlLabel,
   FormLabel,
+  Fade,
+  Stack,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
+import SaveIcon from "@mui/icons-material/Save";
 import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
 import { useAppointmentStore } from "../../stores/useAppointmentStore";
 import { useCatalogStore } from "../../stores/useCatalogStore";
@@ -418,6 +421,20 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     defaultValues: EMPTY,
   });
 
+  const [showButtons, setShowButtons] = useState(false);
+
+  // Animación de entrada de botones en mobile
+  useEffect(() => {
+    if (open && isMobile) {
+      const timer = setTimeout(() => setShowButtons(true), 300);
+      return () => clearTimeout(timer);
+    } else if (open) {
+      setShowButtons(true);
+    } else {
+      setShowButtons(false);
+    }
+  }, [open, isMobile]);
+
   // Watch solo los campos que afectan lógica condicional
   const watchTreatmentId = watch("treatment_id");
   const watchPatientId = watch("patient_id");
@@ -581,112 +598,6 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     [selectedTreatment, setValue],
   );
 
-  /*const onSubmit = useCallback(
-    async (data) => {
-      setError("");
-
-      if (!data.patient_id) {
-        setError("Selecciona o crea un paciente.");
-        return;
-      }
-      if (!data.doctor_id) {
-        setError("Selecciona un doctor.");
-        return;
-      }
-      if (!data.date) {
-        setError("Ingresa la fecha y hora.");
-        return;
-      }
-      if (isObturacion && (!teethCount || parseInt(teethCount) < 1)) {
-        setError("Ingresa la cantidad de dientes a curar.");
-        return;
-      }
-      if (isMultisession && (!openCase || caseOption === "new") && !totalCost) {
-        setError("Ingresa el costo total pactado del tratamiento.");
-        return;
-      }
-
-      const startDate = new Date(data.date);
-      const endDate = new Date(
-        startDate.getTime() + (selectedTreatment?.duration_min ?? 30) * 60000,
-      );
-      const total = isObturacion
-        ? (parseFloat(unitPrice) || 0) * (parseInt(teethCount) || 0)
-        : parseFloat(data.total) || 0;
-
-      let caseId = null;
-      if (isMultisession) {
-        if (openCase && caseOption === "existing") {
-          caseId = openCase.id;
-        } else {
-          const { data: newCase, error: caseError } = await createCase({
-            patient_id: data.patient_id,
-            treatment_id: data.treatment_id,
-            doctor_id: data.doctor_id,
-            notes: caseNotes || null,
-            total_sessions: totalSessions ? parseInt(totalSessions) : null,
-            total_cost: totalCost ? parseFloat(totalCost) : null,
-          });
-          if (caseError) {
-            setError("Error al crear el caso: " + caseError);
-            return;
-          }
-          caseId = newCase.id;
-        }
-      }
-
-      // Validar solapamiento
-      const { overlap, error: overlapError } = await checkOverlap(
-        data.doctor_id,
-        startDate.toISOString(),
-        endDate.toISOString(),
-      );
-      if (overlapError) {
-        setError("Error al verificar disponibilidad.");
-        return;
-      }
-      if (overlap) {
-        setError(
-          "El doctor ya tiene una cita en ese horario. Elige otra hora.",
-        );
-        return;
-      }
-
-      const { error: apptError } = await createAppointment({
-        patient_id: data.patient_id,
-        doctor_id: data.doctor_id,
-        treatment_id: data.treatment_id || null,
-        date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
-        total,
-        notes: data.notes || null,
-        case_id: caseId,
-        teeth_count: isObturacion ? parseInt(teethCount) : null,
-        unit_price: isObturacion ? parseFloat(unitPrice) : null,
-      });
-
-      if (apptError) {
-        setError(apptError);
-        return;
-      }
-      onClose(true);
-    },
-    [
-      isObturacion,
-      isMultisession,
-      teethCount,
-      unitPrice,
-      totalCost,
-      openCase,
-      caseOption,
-      caseNotes,
-      totalSessions,
-      selectedTreatment,
-      createCase,
-      createAppointment,
-      onClose,
-    ],
-  );*/
   const onSubmit = useCallback(
     async (data) => {
       setError("");
@@ -840,7 +751,40 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       fullWidth
       fullScreen={isMobile}
     >
-      <DialogTitle>Nueva cita</DialogTitle>
+      <DialogTitle
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          backgroundColor: theme.palette.primary.main,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <SaveIcon sx={{ color: "white" }} />
+
+          <Typography
+            variant="h6"
+            component="span"
+            sx={{ color: "white" /*, fontWeight: 600 */ }}
+          >
+            Nueva cita
+          </Typography>
+        </Box>
+        <IconButton
+          aria-label="close"
+          onClick={() => onClose(false)}
+          size="small"
+          sx={{
+            color: "white",
+            "&:hover": {
+              bgcolor: theme.palette.action.hover,
+            },
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
       <DialogContent dividers>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -900,59 +844,6 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
 
           {/* Tratamiento */}
           <Grid size={{ xs: 12 }}>
-            {/* <TextField
-              select
-              label="Tratamiento"
-              value={form.treatment_id}
-              onChange={set("treatment_id")}
-              size="small"
-              fullWidth
-            >
-              <MenuItem value="">Sin especificar</MenuItem>
-              {treatments.map((t) => (
-                <MenuItem key={t.id} value={t.id}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      width: "100%",
-                    }}
-                  >
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="body2" noWrap>
-                        {t.name}
-                      </Typography>
-                    </Box>
-                    {t.is_multisession && (
-                      <Chip
-                        label="Multisesión"
-                        size="small"
-                        color="primary"
-                        variant="outlined"
-                        sx={{ fontSize: 10, height: 18, flexShrink: 0 }}
-                      />
-                    )}
-                    {!t.is_multisession && !t.unit_price && (
-                      <Typography
-                        variant="caption"
-                        sx={{ flexShrink: 0, color: "text.secondary" }}
-                      >
-                        S/ {Number(t.effective_price).toFixed(2)}
-                      </Typography>
-                    )}
-                    {t.unit_price && (
-                      <Typography
-                        variant="caption"
-                        sx={{ flexShrink: 0, color: "warning.dark" }}
-                      >
-                        S/ {Number(t.effective_price).toFixed(2)}/d
-                      </Typography>
-                    )}
-                  </Box>
-                </MenuItem>
-              ))}
-            </TextField> */}
             <Controller
               name="treatment_id"
               control={control}
@@ -1021,23 +912,6 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
 
           {/* Doctor */}
           <Grid size={{ xs: 12, sm: 6 }}>
-            {/* <TextField
-              select
-              label="Doctor *"
-              value={form.doctor_id}
-              onChange={set("doctor_id")}
-              size="small"
-              fullWidth
-            >
-              {filteredDoctors.length === 0 && (
-                <MenuItem disabled>Sin doctores disponibles</MenuItem>
-              )}
-              {filteredDoctors.map((d) => (
-                <MenuItem key={d.id} value={d.id}>
-                  {d.profile?.full_name ?? d.id}
-                </MenuItem>
-              ))}
-            </TextField> */}
             <Controller
               name="doctor_id"
               control={control}
@@ -1186,23 +1060,57 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             />
           </Grid>
         </Grid>
+        {/* Botones dentro del contenido en mobile con animación */}
+        {isMobile && (
+          <Fade in={showButtons} timeout={500}>
+            <Stack spacing={1.5} sx={{ mt: 3 }}>
+              <Button
+                variant="contained"
+                size="large"
+                fullWidth
+                onClick={rhfHandleSubmit(onSubmit)}
+                disabled={isSubmitting || saving}
+                startIcon={
+                  isSubmitting || saving ? (
+                    <CircularProgress size={16} color="inherit" />
+                  ) : null
+                }
+              >
+                {isSubmitting || saving ? "Guardando..." : "Crear cita"}
+              </Button>
+              <Button
+                onClick={() => onClose(false)}
+                variant="outlined"
+                size="large"
+                fullWidth
+                color="inherit"
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+            </Stack>
+          </Fade>
+        )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={() => onClose(false)} disabled={saving}>
-          Cancelar
-        </Button>
-        <Button
-          variant="contained"
-          onClick={rhfHandleSubmit(onSubmit)}
-          disabled={isSubmitting || saving || quickSaving || checkingCase}
-        >
-          {isSubmitting || saving ? (
-            <CircularProgress size={20} color="inherit" />
-          ) : (
-            "Crear cita"
-          )}
-        </Button>
-      </DialogActions>
+      {/* Acciones solo en desktop */}
+      {!isMobile && (
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => onClose(false)} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={rhfHandleSubmit(onSubmit)}
+            disabled={isSubmitting || saving || quickSaving || checkingCase}
+          >
+            {isSubmitting || saving ? (
+              <CircularProgress size={20} color="inherit" />
+            ) : (
+              "Crear cita"
+            )}
+          </Button>
+        </DialogActions>
+      )}
     </Dialog>
   );
 }

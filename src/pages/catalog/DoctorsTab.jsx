@@ -23,10 +23,15 @@ import {
   CircularProgress,
   Card,
   CardContent,
+  Alert,
+  Fade,
+  Stack,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import SaveIcon from "@mui/icons-material/Save";
+import CloseIcon from "@mui/icons-material/Close";
 import { useCatalogStore } from "../../stores/useCatalogStore";
 import { useUsersStore } from "../../stores/useUsersStore";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
@@ -138,6 +143,20 @@ export default function DoctorsTab({ onNotify }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null);
+  const [error, setError] = useState("");
+  const [showButtons, setShowButtons] = useState(false);
+
+  // Animación de entrada de botones en mobile
+  useEffect(() => {
+    if (open && isMobile) {
+      const timer = setTimeout(() => setShowButtons(true), 300);
+      return () => clearTimeout(timer);
+    } else if (open) {
+      setShowButtons(true);
+    } else {
+      setShowButtons(false);
+    }
+  }, [open, isMobile]);
 
   // Perfiles con rol DOCTOR que aún no tienen registro doctor
   // (excepto el que se está editando)
@@ -171,9 +190,18 @@ export default function DoctorsTab({ onNotify }) {
 
   const handleSave = async () => {
     if (!form.profile_id) {
-      onNotify("Selecciona un perfil.", "error");
+      //onNotify("Selecciona un perfil.", "error");
+      setError("Selecciona un perfil.");
       return;
     }
+
+    if (!form.specialty_id) {
+      //onNotify("Selecciona un perfil.", "error");
+      setError("Selecciona una especialidad.");
+      return;
+    }
+
+    setError("");
     const fn = editId
       ? updateDoctor(editId, {
           specialty_id: form.specialty_id || null,
@@ -198,6 +226,11 @@ export default function DoctorsTab({ onNotify }) {
     const { error } = await deleteDoctor(id);
     if (error) onNotify(error, "error");
     else onNotify("Doctor desactivado.");
+  };
+
+  const handleCloseDialog = () => {
+    setOpen(false);
+    setError("");
   };
 
   return (
@@ -327,14 +360,46 @@ export default function DoctorsTab({ onNotify }) {
       {/* Modal */}
       <Dialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={handleCloseDialog}
         maxWidth="xs"
         fullWidth
         fullScreen={isMobile}
       >
-        <DialogTitle>
-          {editId ? "Editar doctor" : "Registrar doctor"}
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            //pb: 1.5,
+            backgroundColor: (theme) => theme.palette.primary.main,
+            borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <SaveIcon sx={{ color: "white" }} />
+            <Typography
+              variant="h6"
+              component="span"
+              sx={{ color: "white" /*, fontWeight: 600 */ }}
+            >
+              {editId ? "Editar doctor" : "Registrar doctor"}
+            </Typography>
+          </Box>
+          <IconButton
+            aria-label="close"
+            onClick={handleCloseDialog}
+            size="small"
+            sx={{
+              color: "white",
+              "&:hover": {
+                bgcolor: (theme) => theme.palette.action.hover,
+              },
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
         </DialogTitle>
+
         <DialogContent
           sx={{
             display: "flex",
@@ -343,6 +408,12 @@ export default function DoctorsTab({ onNotify }) {
             pt: "16px !important",
           }}
         >
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+              {error}
+            </Alert>
+          )}
+
           {!editId && (
             <TextField
               select
@@ -384,17 +455,51 @@ export default function DoctorsTab({ onNotify }) {
             size="small"
             fullWidth
           />
+          {/* Botones dentro del contenido en mobile con animación */}
+          {isMobile && (
+            <Fade in={showButtons} timeout={500}>
+              <Stack spacing={1.5} sx={{ mt: 3 }}>
+                <Button
+                  variant="contained"
+                  size="large"
+                  fullWidth
+                  onClick={handleSave}
+                  disabled={saving}
+                  startIcon={
+                    saving ? (
+                      <CircularProgress size={16} color="inherit" />
+                    ) : null
+                  }
+                >
+                  {saving ? "Guardando..." : "Guardar"}
+                </Button>
+                <Button
+                  onClick={handleCloseDialog}
+                  variant="outlined"
+                  size="large"
+                  fullWidth
+                  color="inherit"
+                  disabled={saving}
+                >
+                  Cancelar
+                </Button>
+              </Stack>
+            </Fade>
+          )}
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave} disabled={saving}>
-            {saving ? (
-              <CircularProgress size={20} color="inherit" />
-            ) : (
-              "Guardar"
-            )}
-          </Button>
-        </DialogActions>
+        {/* Acciones solo en desktop */}
+        {!isMobile && (
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={handleCloseDialog}>Cancelar</Button>
+            <Button variant="contained" onClick={handleSave} disabled={saving}>
+              {saving ? (
+                <CircularProgress size={20} color="inherit" />
+              ) : (
+                "Guardar"
+              )}
+            </Button>
+          </DialogActions>
+        )}
       </Dialog>
     </Box>
   );

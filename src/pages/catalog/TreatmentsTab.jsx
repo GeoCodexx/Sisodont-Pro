@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import {
   Box,
@@ -31,6 +31,8 @@ import {
   Select,
   FormControl,
   InputLabel,
+  Fade,
+  Stack,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -40,6 +42,8 @@ import ToggleOnIcon from "@mui/icons-material/ToggleOn";
 import ToggleOffIcon from "@mui/icons-material/ToggleOff";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import SearchIcon from "@mui/icons-material/Search";
+import SaveIcon from "@mui/icons-material/Save";
+import CloseIcon from "@mui/icons-material/Close";
 import { useCatalogStore } from "../../stores/useCatalogStore";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import TablePagination from "../../components/TablePagination";
@@ -209,9 +213,6 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
 
   const { handlePdf, handleExcel } = useTreatmentsExport(treatmentsCatalog);
 
-  /*const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY);
-  const [editId, setEditId] = useState(null);*/
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState(null);
 
@@ -236,6 +237,20 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
   const [origin, setOrigin] = useState("all"); // "all" | "global" | "own"
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+
+  const [showButtons, setShowButtons] = useState(false);
+
+  // Animación de entrada de botones en mobile
+  useEffect(() => {
+    if (open && isMobile) {
+      const timer = setTimeout(() => setShowButtons(true), 300);
+      return () => clearTimeout(timer);
+    } else if (open) {
+      setShowButtons(true);
+    } else {
+      setShowButtons(false);
+    }
+  }, [open, isMobile]);
 
   const openCreate = () => {
     //setForm(EMPTY);
@@ -718,8 +733,42 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
           fullWidth
           fullScreen={isMobile}
         >
-          <DialogTitle>
-            {editId ? "Editar tratamiento" : "Nuevo tratamiento"}
+          <DialogTitle
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              backgroundColor: (theme) => theme.palette.primary.main,
+              borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              {editId ? (
+                <EditIcon sx={{ color: "white" }} />
+              ) : (
+                <SaveIcon sx={{ color: "white" }} />
+              )}
+              <Typography
+                variant="h6"
+                component="span"
+                sx={{ color: "white" /*, fontWeight: 600 */ }}
+              >
+                {editId ? "Editar tratamiento" : "Nuevo tratamiento"}
+              </Typography>
+            </Box>
+            <IconButton
+              aria-label="close"
+              onClick={() => setOpen(false)}
+              size="small"
+              sx={{
+                color: "white",
+                "&:hover": {
+                  bgcolor: (theme) => theme.palette.action.hover,
+                },
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
           </DialogTitle>
 
           <DialogContent sx={{ pt: "16px !important" }}>
@@ -969,25 +1018,62 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
                 />
               </Grid>
             </Grid>
+            {/* Botones dentro del contenido en mobile con animación */}
+            {isMobile && (
+              <Fade in={showButtons} timeout={500}>
+                <Stack spacing={1.5} sx={{ mt: 3 }}>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    fullWidth
+                    onClick={handleSubmit(onSubmit)}
+                    disabled={saving}
+                    startIcon={
+                      saving ? (
+                        <CircularProgress size={16} color="inherit" />
+                      ) : null
+                    }
+                  >
+                    {saving
+                      ? "Guardando..."
+                      : editId
+                        ? "Guardar cambios"
+                        : "Crear tratamiento"}
+                  </Button>
+                  <Button
+                    onClick={() => setOpen(false)}
+                    variant="outlined"
+                    size="large"
+                    fullWidth
+                    color="inherit"
+                    disabled={saving}
+                  >
+                    Cancelar
+                  </Button>
+                </Stack>
+              </Fade>
+            )}
           </DialogContent>
-
-          <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button onClick={() => setOpen(false)}>Cancelar</Button>
-            {/* handleSubmit de RHF valida primero, luego llama onSubmit */}
-            <Button
-              variant="contained"
-              onClick={handleSubmit(onSubmit)}
-              disabled={saving}
-            >
-              {saving ? (
-                <CircularProgress size={20} color="inherit" />
-              ) : editId ? (
-                "Guardar cambios"
-              ) : (
-                "Crear tratamiento"
-              )}
-            </Button>
-          </DialogActions>
+          {/* Acciones solo en desktop */}
+          {!isMobile && (
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button onClick={() => setOpen(false)}>Cancelar</Button>
+              {/* handleSubmit de RHF valida primero, luego llama onSubmit */}
+              <Button
+                variant="contained"
+                onClick={handleSubmit(onSubmit)}
+                disabled={saving}
+              >
+                {saving ? (
+                  <CircularProgress size={20} color="inherit" />
+                ) : editId ? (
+                  "Guardar cambios"
+                ) : (
+                  "Crear tratamiento"
+                )}
+              </Button>
+            </DialogActions>
+          )}
         </Dialog>
       )}
 

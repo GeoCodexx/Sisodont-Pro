@@ -24,11 +24,15 @@ import {
   Card,
   CardContent,
   Typography,
+  Fade,
+  Stack,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import BlockIcon from "@mui/icons-material/Block";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import SaveIcon from "@mui/icons-material/Save";
+import CloseIcon from "@mui/icons-material/Close";
 
 import { useUsersStore } from "../../stores/useUsersStore";
 import { useAuthStore } from "../../stores/useAuthStore";
@@ -223,6 +227,19 @@ export default function UsersPage() {
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
   const [invite, setInviteState] = useState(INVITE_EMPTY);
+  const [showButtons, setShowButtons] = useState(false);
+
+  // Animación de entrada de botones en mobile
+  useEffect(() => {
+    if (openInvite && isMobile) {
+      const timer = setTimeout(() => setShowButtons(true), 300);
+      return () => clearTimeout(timer);
+    } else if (openInvite) {
+      setShowButtons(true);
+    } else {
+      setShowButtons(false);
+    }
+  }, [openInvite, isMobile]);
 
   useEffect(() => {
     fetchUsers();
@@ -244,7 +261,10 @@ export default function UsersPage() {
     setActionError("");
   }, []);
 
-  const handleCloseInvite = useCallback(() => setOpenInvite(false), []);
+  const handleCloseInvite = useCallback(() => {
+    setOpenInvite(false);
+    setInviteState(INVITE_EMPTY);
+  }, []);
 
   const handleCloseEdit = useCallback(() => setOpenEdit(false), []);
 
@@ -253,6 +273,18 @@ export default function UsersPage() {
 
   const handleInvite = useCallback(async () => {
     setActionError("");
+    if (invite?.full_name.length < 5) {
+      setActionError(
+        "Ingrese sus nombres y apellidos en el campo correspondiente.",
+      );
+      return;
+    }
+    if (invite?.email.length < 5) {
+      setActionError(
+        "Ingrese su dirección de correo electrónico en el campo correspondiente.",
+      );
+      return;
+    }
     if (invite?.password.length < 5) {
       setActionError("La contraseña debe ser mayor o igual a 5 caracteres.");
       return;
@@ -418,7 +450,36 @@ export default function UsersPage() {
         fullWidth
         fullScreen={isMobile}
       >
-        <DialogTitle>Nuevo usuario</DialogTitle>
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            //pb: 1.5,
+            backgroundColor: (theme) => theme.palette.primary.main,
+            borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <SaveIcon sx={{ color: "white" }} />
+            <Typography variant="h6" component="span" sx={{ color: "white" }}>
+              Nuevo usuario
+            </Typography>
+          </Box>
+          <IconButton
+            aria-label="close"
+            onClick={handleCloseInvite}
+            size="small"
+            sx={{
+              color: "white",
+              "&:hover": {
+                bgcolor: (theme) => theme.palette.action.hover,
+              },
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
         <DialogContent
           sx={{
             display: "flex",
@@ -430,7 +491,7 @@ export default function UsersPage() {
           {actionError && <Alert severity="error">{actionError}</Alert>}
 
           <TextField
-            label="Nombre completo"
+            label="Nombres y Apellidos"
             value={invite.full_name}
             onChange={setInviteField("full_name")}
             size="small"
@@ -466,17 +527,55 @@ export default function UsersPage() {
               </MenuItem>
             ))}
           </TextField>
+          {/* Botones dentro del contenido en mobile con animación */}
+          {isMobile && (
+            <Fade in={showButtons} timeout={500}>
+              <Stack spacing={1.5} sx={{ mt: 3 }}>
+                <Button
+                  variant="contained"
+                  size="large"
+                  fullWidth
+                  onClick={handleInvite}
+                  disabled={saving}
+                  startIcon={
+                    saving ? (
+                      <CircularProgress size={16} color="inherit" />
+                    ) : null
+                  }
+                >
+                  {saving ? "Creando usuario..." : "Crear usuario"}
+                </Button>
+                <Button
+                  onClick={handleCloseInvite}
+                  variant="outlined"
+                  size="large"
+                  fullWidth
+                  color="inherit"
+                  disabled={saving}
+                >
+                  Cancelar
+                </Button>
+              </Stack>
+            </Fade>
+          )}
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleCloseInvite}>Cancelar</Button>
-          <Button variant="contained" onClick={handleInvite} disabled={saving}>
-            {saving ? (
-              <CircularProgress size={18} color="inherit" />
-            ) : (
-              "Crear usuario"
-            )}
-          </Button>
-        </DialogActions>
+        {/* Acciones solo en desktop */}
+        {!isMobile && (
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={handleCloseInvite}>Cancelar</Button>
+            <Button
+              variant="contained"
+              onClick={handleInvite}
+              disabled={saving}
+            >
+              {saving ? (
+                <CircularProgress size={18} color="inherit" />
+              ) : (
+                "Crear usuario"
+              )}
+            </Button>
+          </DialogActions>
+        )}
       </Dialog>
 
       {/* Modal: editar rol */}
