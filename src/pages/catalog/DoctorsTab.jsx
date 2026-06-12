@@ -32,9 +32,13 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
+import ToggleOnIcon from "@mui/icons-material/ToggleOn";
+import ToggleOffIcon from "@mui/icons-material/ToggleOff";
 import { useCatalogStore } from "../../stores/useCatalogStore";
 import { useUsersStore } from "../../stores/useUsersStore";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
+import useSnackbarStore from "../../stores/useSnackbarStore";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 const EMPTY = { profile_id: "", specialty_id: "", license: "" };
 
@@ -48,7 +52,7 @@ function initials(name = "") {
 }
 
 // ── DoctorCard — vista móvil ──────────────────────────────────
-function DoctorCard({ d, onEdit, onDelete }) {
+function DoctorCard({ d, onEdit, onToggleActive, isAdmin }) {
   return (
     <Card variant="outlined" sx={{ mb: 1.5 }}>
       <CardContent sx={{ pb: "12px !important" }}>
@@ -75,14 +79,26 @@ function DoctorCard({ d, onEdit, onDelete }) {
               {d.profile?.email}
             </Typography>
           </Box>
-          <Box sx={{ display: "flex", gap: 0.5 }}>
-            <IconButton size="small" onClick={() => onEdit(d)}>
-              <EditIcon fontSize="small" />
-            </IconButton>
-            <IconButton size="small" onClick={() => onDelete(d.id)}>
-              <DeleteIcon fontSize="small" color="error" />
-            </IconButton>
-          </Box>
+          {isAdmin && (
+            <Box sx={{ display: "flex", gap: 0.5 }}>
+              <Tooltip title="Editar">
+                <IconButton size="small" onClick={() => onEdit(d)}>
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+
+              {/* Activar/Desactivar */}
+              <Tooltip title={d.active ? "Desactivar" : "Activar"}>
+                <IconButton size="small" onClick={() => onToggleActive(d)}>
+                  {d.active ? (
+                    <ToggleOffIcon fontSize="small" color="error" />
+                  ) : (
+                    <ToggleOnIcon fontSize="small" color="success" />
+                  )}
+                </IconButton>
+              </Tooltip>
+            </Box>
+          )}
         </Box>
         <Box
           sx={{
@@ -105,15 +121,22 @@ function DoctorCard({ d, onEdit, onDelete }) {
               }}
             />
           ) : (
-            <Typography variant="caption" color="textSecondary">
+            <Typography variant="caption" sx={{ color: "textSecondary" }}>
               Sin especialidad
             </Typography>
           )}
           {d.license && (
-            <Typography variant="caption" color="textSecondary">
+            <Typography variant="caption" sx={{ color: "textSecondary" }}>
               N.° {d.license}
             </Typography>
           )}
+          <Chip
+            label={d.active ? "Activo" : "Inactivo"}
+            size="small"
+            color={d.active ? "success" : "default"}
+            variant="outlined"
+            sx={{ fontSize: 10, height: 20 }}
+          />
         </Box>
       </CardContent>
     </Card>
@@ -128,23 +151,25 @@ function DoctorCard({ d, onEdit, onDelete }) {
 // tenant (el RLS le da bypass), por eso aquí no restringimos —
 // ambos roles tienen acceso completo a esta pestaña.
 // ─────────────────────────────────────────────────────────────
-export default function DoctorsTab({ onNotify }) {
+export default function DoctorsTab({ isAdmin }) {
   const { isMobile } = useBreakpoint();
+  const showSnackbar = useSnackbarStore((state) => state.showSnackbar);
   const {
     doctors,
     specialties,
     saving,
     createDoctor,
     updateDoctor,
-    deleteDoctor,
   } = useCatalogStore();
   const { users, fetchUsers } = useUsersStore();
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null);
-  const [error, setError] = useState("");
   const [showButtons, setShowButtons] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [doctorToToggle, setDoctorToToggle] = useState(null);
+  const [loadingConfirm, setLoadingConfirm] = useState(false);
 
   // Animación de entrada de botones en mobile
   useEffect(() => {
@@ -168,17 +193,19 @@ export default function DoctorsTab({ onNotify }) {
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
   const setField = (f) => (e) =>
     setForm((p) => ({ ...p, [f]: e.target.value }));
 
   const openCreate = () => {
+    setErrors({});
     setForm(EMPTY);
     setEditId(null);
     setOpen(true);
   };
   const openEdit = (d) => {
+    setErrors({});
     setForm({
       profile_id: d.profile_id,
       specialty_id: d.specialty_id ?? "",
@@ -189,19 +216,22 @@ export default function DoctorsTab({ onNotify }) {
   };
 
   const handleSave = async () => {
+    const validationErrors = {};
     if (!form.profile_id) {
-      //onNotify("Selecciona un perfil.", "error");
-      setError("Selecciona un perfil.");
-      return;
+      validationErrors.profile_id = "Seleccione un perfil.";
     }
 
     if (!form.specialty_id) {
-      //onNotify("Selecciona un perfil.", "error");
-      setError("Selecciona una especialidad.");
+      validationErrors.specialty_id = "Selecciona una especialidad.";
+    }
+
+    if (Object.keys(validationErrors).length) {
+      setErrors(validationErrors);
+
       return;
     }
 
-    setError("");
+    setErrors({});
     const fn = editId
       ? updateDoctor(editId, {
           specialty_id: form.specialty_id || null,
@@ -214,37 +244,71 @@ export default function DoctorsTab({ onNotify }) {
         });
     const { error } = await fn;
     if (error) {
-      onNotify(error, "error");
+      showSnackbar(error, "error");
       return;
     }
-    onNotify(editId ? "Doctor actualizado." : "Doctor registrado.");
+    showSnackbar(
+      editId ? "Doctor actualizado." : "Doctor registrado.",
+      "success",
+    );
     setOpen(false);
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("¿Desactivar este doctor?")) return;
-    const { error } = await deleteDoctor(id);
-    if (error) onNotify(error, "error");
-    else onNotify("Doctor desactivado.");
   };
 
   const handleCloseDialog = () => {
     setOpen(false);
-    setError("");
+  };
+
+  const dialogTitle = doctorToToggle?.active
+    ? "Desactivar doctor"
+    : "Activar doctor";
+
+  const dialogMessage = doctorToToggle?.active
+    ? `¿Desea desactivar al doctor "${doctorToToggle?.profile?.full_name}"?`
+    : `¿Desea activar al doctor "${doctorToToggle?.profile?.full_name}"?`;
+
+  const confirmText = doctorToToggle?.active ? "Desactivar" : "Activar";
+
+  const confirmColor = doctorToToggle?.active ? "error" : "success";
+
+  const handleConfirmToggle = async () => {
+    if (!doctorToToggle) return;
+
+    setLoadingConfirm(true);
+
+    const newActive = !doctorToToggle.active;
+
+    const { error } = await updateDoctor(doctorToToggle.id, {
+      active: newActive,
+    });
+
+    if (error) {
+      showSnackbar(error, "error");
+    } else {
+      showSnackbar(
+        `Doctor ${newActive ? "activado" : "desactivado"}.`,
+        "success",
+      );
+    }
+
+    setLoadingConfirm(false);
+
+    setDoctorToToggle(null);
   };
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={openCreate}
-          size={isMobile ? "small" : "medium"}
-        >
-          {isMobile ? "Registrar" : "Registrar doctor"}
-        </Button>
-      </Box>
+      {isAdmin && (
+        <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={openCreate}
+            size={isMobile ? "small" : "medium"}
+          >
+            {isMobile ? "Registrar" : "Registrar doctor"}
+          </Button>
+        </Box>
+      )}
 
       {/* Vista móvil */}
       {isMobile ? (
@@ -261,7 +325,8 @@ export default function DoctorsTab({ onNotify }) {
                 key={d.id}
                 d={d}
                 onEdit={openEdit}
-                onDelete={handleDelete}
+                onToggleActive={() => setDoctorToToggle(d)}
+                isAdmin={isAdmin}
               />
             ))
           )}
@@ -275,7 +340,8 @@ export default function DoctorsTab({ onNotify }) {
                 <TableCell>Doctor</TableCell>
                 <TableCell>Especialidad</TableCell>
                 <TableCell>N.° colegiatura</TableCell>
-                <TableCell align="right">Acciones</TableCell>
+                <TableCell>Estado</TableCell>
+                {isAdmin && <TableCell align="right">Acciones</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -333,23 +399,41 @@ export default function DoctorsTab({ onNotify }) {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">{d.license ?? "—"}</Typography>
+                    <Typography variant="body2">
+                      {d.license ? d.license : "—"}
+                    </Typography>
                   </TableCell>
-                  <TableCell align="right">
-                    <Tooltip title="Editar">
-                      <IconButton size="small" onClick={() => openEdit(d)}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Desactivar">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDelete(d.id)}
-                      >
-                        <DeleteIcon fontSize="small" color="error" />
-                      </IconButton>
-                    </Tooltip>
+                  <TableCell>
+                    <Chip
+                      label={d.active ? "Activo" : "Inactivo"}
+                      size="small"
+                      color={d.active ? "success" : "default"}
+                      variant="outlined"
+                      sx={{ fontSize: 10, height: 20 }}
+                    />
                   </TableCell>
+                  {isAdmin && (
+                    <TableCell align="right">
+                      <Tooltip title="Editar">
+                        <IconButton size="small" onClick={() => openEdit(d)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {/* Activar/desactivar */}
+                      <Tooltip title={d.active ? "Desactivar" : "Activar"}>
+                        <IconButton
+                          size="small"
+                          onClick={() => setDoctorToToggle(d)}
+                        >
+                          {d.active ? (
+                            <ToggleOffIcon fontSize="small" color="error" />
+                          ) : (
+                            <ToggleOnIcon fontSize="small" color="success" />
+                          )}
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -408,18 +492,23 @@ export default function DoctorsTab({ onNotify }) {
             pt: "16px !important",
           }}
         >
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
-              {error}
-            </Alert>
-          )}
-
           {!editId && (
             <TextField
               select
               label="Perfil (rol DOCTOR)"
               value={form.profile_id}
-              onChange={setField("profile_id")}
+              onChange={(e) => {
+                setField("profile_id")(e);
+
+                if (errors.profile_id) {
+                  setErrors((prev) => ({
+                    ...prev,
+                    profile_id: "",
+                  }));
+                }
+              }}
+              error={!!errors.profile_id}
+              helperText={errors.profile_id}
               size="small"
               fullWidth
             >
@@ -437,7 +526,18 @@ export default function DoctorsTab({ onNotify }) {
             select
             label="Especialidad"
             value={form.specialty_id}
-            onChange={setField("specialty_id")}
+            onChange={(e) => {
+              setField("specialty_id")(e);
+
+              if (errors.specialty_id) {
+                setErrors((prev) => ({
+                  ...prev,
+                  specialty_id: "",
+                }));
+              }
+            }}
+            error={!!errors.specialty_id}
+            helperText={errors.specialty_id}
             size="small"
             fullWidth
           >
@@ -501,6 +601,17 @@ export default function DoctorsTab({ onNotify }) {
           </DialogActions>
         )}
       </Dialog>
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={!!doctorToToggle}
+        title={dialogTitle}
+        message={dialogMessage}
+        confirmText={confirmText}
+        confirmColor={confirmColor}
+        onClose={() => setDoctorToToggle(null)}
+        onConfirm={handleConfirmToggle}
+        loading={loadingConfirm}
+      />
     </Box>
   );
 }

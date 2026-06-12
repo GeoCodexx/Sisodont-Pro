@@ -17,7 +17,6 @@ import {
   useMediaQuery,
   Box,
   Typography,
-  Divider,
   Paper,
   IconButton,
   Collapse,
@@ -32,13 +31,13 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
-import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import SaveIcon from "@mui/icons-material/Save";
 import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
 import { useAppointmentStore } from "../../stores/useAppointmentStore";
 import { useCatalogStore } from "../../stores/useCatalogStore";
 import { usePatientStore } from "../../stores/usePatientStore";
 import { useTreatmentCaseStore } from "../../stores/useTreatmentCaseStore";
+import useSnackbarStore from "../../stores/useSnackbarStore";
 
 const toDatetimeLocal = (d) => {
   if (!d) return "";
@@ -56,9 +55,11 @@ const EMPTY = {
   total: "",
 };
 
+// Opción centinela que representa "Sin especificar"
+const NO_TREATMENT = { id: "", name: "Sin especificar" };
+
 // ─────────────────────────────────────────────────────────────
-// QuickPatientForm — memo: no re-renderiza por cambios del padre
-// que no afectan sus props (saving, onCreated, onCancel).
+// QuickPatientForm
 // ─────────────────────────────────────────────────────────────
 const QuickPatientForm = memo(function QuickPatientForm({
   onCreated,
@@ -68,7 +69,6 @@ const QuickPatientForm = memo(function QuickPatientForm({
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
 
-  // useMemo: recalcula payload solo cuando cambian first/last
   const payload = useMemo(
     () => ({
       first_name: first.trim(),
@@ -81,7 +81,6 @@ const QuickPatientForm = memo(function QuickPatientForm({
 
   const valid = payload.first_name.length > 0 && payload.last_name.length > 0;
 
-  // useCallback: referencia estable para el botón
   const handleCreate = useCallback(
     () => onCreated(payload),
     [onCreated, payload],
@@ -164,8 +163,7 @@ const QuickPatientForm = memo(function QuickPatientForm({
 });
 
 // ─────────────────────────────────────────────────────────────
-// MultisessionSection — memo: solo re-renderiza si cambia alguna
-// de sus props. Aísla el bloque de multisesión del resto del form.
+// MultisessionSection
 // ─────────────────────────────────────────────────────────────
 const MultisessionSection = memo(function MultisessionSection({
   openCase,
@@ -287,8 +285,7 @@ const MultisessionSection = memo(function MultisessionSection({
 });
 
 // ─────────────────────────────────────────────────────────────
-// ObturacionSection — memo: solo re-renderiza si cambian
-// teethCount, unitPrice o el callback onTotalChange.
+// ObturacionSection
 // ─────────────────────────────────────────────────────────────
 const ObturacionSection = memo(function ObturacionSection({
   teethCount,
@@ -297,7 +294,6 @@ const ObturacionSection = memo(function ObturacionSection({
   setUnitPrice,
   onTotalChange,
 }) {
-  // useMemo: no recalcula si los valores no cambian
   const total = useMemo(
     () => (parseFloat(unitPrice) || 0) * (parseInt(teethCount) || 0),
     [unitPrice, teethCount],
@@ -391,9 +387,8 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
   const { doctors, treatments, fetchAll } = useCatalogStore();
   const { patients, fetchPatients, createQuickPatient } = usePatientStore();
   const { findOpenCase, createCase } = useTreatmentCaseStore();
+  const showSnackbar = useSnackbarStore((state) => state.showSnackbar);
 
-  //const [form, setForm] = useState(EMPTY);
-  const [error, setError] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [showQuickForm, setShowQuickForm] = useState(false);
   const [quickSaving, setQuickSaving] = useState(false);
@@ -411,19 +406,22 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
   const [calcTotal, setCalcTotal] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Estado local de errores para campos no controlados por RHF
+  const [fieldErrors, setFieldErrors] = useState({});
+
   const {
     control,
     handleSubmit: rhfHandleSubmit,
     reset,
     setValue,
     watch,
+    formState: { errors },
   } = useForm({
     defaultValues: EMPTY,
   });
 
   const [showButtons, setShowButtons] = useState(false);
 
-  // Animación de entrada de botones en mobile
   useEffect(() => {
     if (open && isMobile) {
       const timer = setTimeout(() => setShowButtons(true), 300);
@@ -435,15 +433,11 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     }
   }, [open, isMobile]);
 
-  // Watch solo los campos que afectan lógica condicional
   const watchTreatmentId = watch("treatment_id");
   const watchPatientId = watch("patient_id");
   const watchDoctorId = watch("doctor_id");
   const watchTotal = watch("total");
-  const watchDate = watch("date");
-  const watchNotes = watch("notes");
 
-  // useMemo: derivados del tratamiento seleccionado
   const selectedTreatment = useMemo(
     () => treatments.find((t) => t.id === watchTreatmentId) ?? null,
     [treatments, watchTreatmentId],
@@ -458,7 +452,6 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     [selectedTreatment],
   );
 
-  // isUnitPrice: tratamientos por unidad que NO son obturación
   const isUnitPrice = useMemo(
     () => !!selectedTreatment?.unit_price && !isObturacion,
     [selectedTreatment, isObturacion],
@@ -466,18 +459,14 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
 
   const showTotalField = !isObturacion && !isMultisession && !isUnitPrice;
 
-  //const showTotalField = !isObturacion && !isMultisession;
-
-  // useMemo: filtra doctores por especialidad
-  const filteredDoctors = useMemo(
-    () =>
-      selectedTreatment?.specialty_id
-        ? doctors.filter(
-            (d) => d.specialty_id === selectedTreatment.specialty_id,
-          )
-        : doctors,
-    [doctors, selectedTreatment?.specialty_id],
-  );
+  const filteredDoctors = useMemo(() => {
+    const activeDoctors = doctors.filter((d) => d.active === true);
+    return selectedTreatment?.specialty_id
+      ? activeDoctors.filter(
+          (d) => d.specialty_id === selectedTreatment.specialty_id,
+        )
+      : activeDoctors;
+  }, [doctors, selectedTreatment?.specialty_id]);
 
   useEffect(() => {
     if (!open) return;
@@ -502,17 +491,16 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     setTeethCount("");
     setUnitPrice("50");
     setCalcTotal("");
-    setError("");
     setQuickError("");
     setIsSubmitting(false);
+    setFieldErrors({});
   }, [open]);
 
   useEffect(() => {
-    if (!open || watchDoctorId) return; // ya tiene doctor seleccionado
+    if (!open || watchDoctorId) return;
     if (doctors.length > 0) setValue("doctor_id", doctors[0].id);
   }, [doctors, open]);
 
-  // ── Efecto 1: lógica de obturación (unit_price) ──────────────
   useEffect(() => {
     if (!selectedTreatment || !isObturacion) return;
     setTeethCount("");
@@ -522,15 +510,12 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       setUnitPrice(String(selectedTreatment.unit_price));
   }, [watchTreatmentId, isObturacion]);
 
-  // ── Efecto 2: lógica de sesión única — autoprecio ─────────────
   useEffect(() => {
     if (!selectedTreatment || isObturacion || isMultisession || isUnitPrice)
       return;
-    // Sesión única: autorellena el total con effective_price
     setValue("total", String(selectedTreatment.effective_price ?? ""));
   }, [watchTreatmentId, isObturacion, isMultisession, isUnitPrice]);
 
-  // ── Efecto 3: lógica multisesión — verificar caso abierto ─────
   useEffect(() => {
     if (!selectedTreatment || !isMultisession) return;
     if (!watchPatientId) {
@@ -549,6 +534,8 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     });
   }, [watchPatientId, watchTreatmentId, isMultisession]);
 
+  // ── Handlers ──────────────────────────────────────────────
+
   const handleQuickCancel = useCallback(() => setShowQuickForm(false), []);
   const handleShowQuickForm = useCallback(() => setShowQuickForm(true), []);
 
@@ -556,7 +543,11 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     (_, val) => {
       setSelectedPatient(val);
       setValue("patient_id", val?.id ?? "");
-      if (val) setShowQuickForm(false);
+      // Limpia error de paciente al seleccionar uno
+      if (val) {
+        setFieldErrors((prev) => ({ ...prev, patient_id: undefined }));
+        setShowQuickForm(false);
+      }
     },
     [setValue],
   );
@@ -574,6 +565,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       await fetchPatients({ page: 1, pageSize: 200 });
       setSelectedPatient(data);
       setValue("patient_id", data.id);
+      setFieldErrors((prev) => ({ ...prev, patient_id: undefined }));
       setShowQuickForm(false);
     },
     [createQuickPatient, fetchPatients, setValue],
@@ -598,40 +590,41 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     [selectedTreatment, setValue],
   );
 
+  // ── Submit ────────────────────────────────────────────────
   const onSubmit = useCallback(
     async (data) => {
-      setError("");
       setIsSubmitting(true);
 
-      try {
-        if (!data.patient_id) {
-          setError("Selecciona o crea un paciente.");
-          return;
-        }
-        if (!data.doctor_id) {
-          setError("Selecciona un doctor.");
-          return;
-        }
-        if (!data.date) {
-          setError("Ingresa la fecha y hora.");
-          return;
-        }
-        if (isObturacion && (!teethCount || parseInt(teethCount) < 1)) {
-          setError("Ingresa la cantidad de dientes a curar.");
-          return;
-        }
-        if (
-          isMultisession &&
-          (!openCase || caseOption === "new") &&
-          !totalCost
-        ) {
-          setError("Ingresa el costo total pactado del tratamiento.");
-          return;
-        }
+      // Validaciones manuales para campos fuera de RHF o con lógica condicional
+      const manualErrors = {};
 
+      if (!data.patient_id) {
+        manualErrors.patient_id = "Selecciona o crea un paciente.";
+      }
+      if (isObturacion && (!teethCount || parseInt(teethCount) < 1)) {
+        manualErrors.teethCount = "Ingresa la cantidad de dientes a tratar.";
+      }
+      if (
+        isMultisession &&
+        (!openCase || caseOption === "new") &&
+        !totalCost
+      ) {
+        manualErrors.totalCost = "Ingresa el costo total pactado.";
+      }
+
+      if (Object.keys(manualErrors).length > 0) {
+        setFieldErrors(manualErrors);
+        setIsSubmitting(false);
+        return;
+      }
+
+      setFieldErrors({});
+
+      try {
         const startDate = new Date(data.date);
         const endDate = new Date(
-          startDate.getTime() + (selectedTreatment?.duration_min ?? 30) * 60000,
+          startDate.getTime() +
+            (selectedTreatment?.duration_min ?? 30) * 60000,
         );
         const total = isObturacion
           ? (parseFloat(unitPrice) || 0) * (parseInt(teethCount) || 0)
@@ -651,26 +644,26 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
               total_cost: totalCost ? parseFloat(totalCost) : null,
             });
             if (caseError) {
-              setError("Error al crear el caso: " + caseError);
+              showSnackbar("Error al crear el caso: " + caseError, "error");
               return;
             }
             caseId = newCase.id;
           }
         }
 
-        // Validar solapamiento
         const { overlap, error: overlapError } = await checkOverlap(
           data.doctor_id,
           startDate.toISOString(),
           endDate.toISOString(),
         );
         if (overlapError) {
-          setError("Error al verificar disponibilidad.");
+          showSnackbar("Error al verificar disponibilidad.", "error");
           return;
         }
         if (overlap) {
-          setError(
+          showSnackbar(
             "El doctor ya tiene una cita en ese horario. Elige otra hora.",
+            "error",
           );
           return;
         }
@@ -689,9 +682,11 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
         });
 
         if (apptError) {
-          setError(apptError);
+          showSnackbar(apptError, "error");
           return;
         }
+
+        showSnackbar("Cita creada correctamente.", "success");
         onClose(true);
       } finally {
         setIsSubmitting(false);
@@ -710,11 +705,15 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       selectedTreatment,
       createCase,
       createAppointment,
+      checkOverlap,
+      showSnackbar,
       onClose,
     ],
   );
-  // useMemo: opciones de Autocomplete no cambian si patients no cambia
-  const autocompleteGetLabel = useCallback(
+
+  // ── Autocomplete helpers ──────────────────────────────────
+
+  const autocompleteGetPatientLabel = useCallback(
     (p) => `${p.full_name}${p.dni ? " — " + p.dni : ""}`,
     [],
   );
@@ -743,6 +742,21 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
     [handleShowQuickForm],
   );
 
+  // Opciones de tratamiento: siempre incluye el centinela al inicio
+  const treatmentOptions = useMemo(
+    () => [NO_TREATMENT, ...treatments],
+    [treatments],
+  );
+
+  // Valor actual del Autocomplete de tratamiento
+  const treatmentValue = useMemo(
+    () =>
+      treatments.find((t) => t.id === watchTreatmentId) ?? NO_TREATMENT,
+    [treatments, watchTreatmentId],
+  );
+
+  const isSubmitDisabled = isSubmitting || saving || quickSaving || checkingCase;
+
   return (
     <Dialog
       open={open}
@@ -762,12 +776,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <SaveIcon sx={{ color: "white" }} />
-
-          <Typography
-            variant="h6"
-            component="span"
-            sx={{ color: "white" /*, fontWeight: 600 */ }}
-          >
+          <Typography variant="h6" component="span" sx={{ color: "white" }}>
             Nueva cita
           </Typography>
         </Box>
@@ -777,27 +786,21 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
           size="small"
           sx={{
             color: "white",
-            "&:hover": {
-              bgcolor: theme.palette.action.hover,
-            },
+            "&:hover": { bgcolor: theme.palette.action.hover },
           }}
         >
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      <DialogContent dividers>
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
 
+      <DialogContent dividers>
         <Grid container spacing={2}>
-          {/* Paciente */}
+
+          {/* ── Paciente ──────────────────────────────────── */}
           <Grid size={{ xs: 12 }}>
             <Autocomplete
               options={patients}
-              getOptionLabel={autocompleteGetLabel}
+              getOptionLabel={autocompleteGetPatientLabel}
               value={selectedPatient}
               onChange={handlePatientChange}
               noOptionsText={noOptionsText}
@@ -806,10 +809,10 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                   {...params}
                   label="Paciente *"
                   size="small"
+                  error={!!fieldErrors.patient_id}
                   helperText={
-                    selectedPatient
-                      ? ""
-                      : "Escribe para buscar o crea uno nuevo"
+                    fieldErrors.patient_id ??
+                    (selectedPatient ? "" : "Escribe para buscar o crea uno nuevo")
                   }
                 />
               )}
@@ -842,23 +845,21 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             </Collapse>
           </Grid>
 
-          {/* Tratamiento */}
+          {/* ── Tratamiento ───────────────────────────────── */}
           <Grid size={{ xs: 12 }}>
             <Controller
               name="treatment_id"
               control={control}
+              rules={{ required: "Selecciona un tratamiento." }}
               render={({ field }) => (
                 <Autocomplete
-                  options={[{ id: "", name: "Sin especificar" }, ...treatments]}
+                  options={treatmentOptions}
                   getOptionLabel={(t) => t.name ?? ""}
                   isOptionEqualToValue={(opt, val) => opt.id === val.id}
-                  value={
-                    treatments.find((t) => t.id === field.value) ?? {
-                      id: "",
-                      name: "Sin especificar",
-                    }
-                  }
-                  onChange={(_, val) => field.onChange(val?.id ?? "")}
+                  value={treatmentValue}
+                  onChange={(_, val) => {
+                    field.onChange(val?.id ?? "");
+                  }}
                   renderOption={(props, t) => (
                     <Box component="li" {...props} key={t.id}>
                       <Box
@@ -903,14 +904,23 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                     </Box>
                   )}
                   renderInput={(params) => (
-                    <TextField {...params} label="Tratamiento" size="small" />
+                    <TextField
+                      {...params}
+                      label="Tratamiento *"
+                      size="small"
+                      error={!!errors.treatment_id}
+                      helperText={
+                        errors.treatment_id?.message ??
+                        "Escribe para filtrar tratamientos"
+                      }
+                    />
                   )}
                 />
               )}
             />
           </Grid>
 
-          {/* Doctor */}
+          {/* ── Doctor ────────────────────────────────────── */}
           <Grid size={{ xs: 12, sm: 6 }}>
             <Controller
               name="doctor_id"
@@ -939,7 +949,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             />
           </Grid>
 
-          {/* Obturación */}
+          {/* ── Obturación ────────────────────────────────── */}
           {isObturacion && (
             <Grid size={{ xs: 12 }}>
               <ObturacionSection
@@ -949,10 +959,19 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                 setUnitPrice={setUnitPrice}
                 onTotalChange={handleTotalChange}
               />
+              {fieldErrors.teethCount && (
+                <Typography
+                  variant="caption"
+                  color="error"
+                  sx={{ mt: 0.5, display: "block", pl: 1.5 }}
+                >
+                  {fieldErrors.teethCount}
+                </Typography>
+              )}
             </Grid>
           )}
 
-          {/* Multisesión */}
+          {/* ── Multisesión ───────────────────────────────── */}
           {isMultisession && watchPatientId && (
             <Grid size={{ xs: 12 }}>
               {checkingCase ? (
@@ -963,23 +982,34 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                   </Typography>
                 </Box>
               ) : (
-                <MultisessionSection
-                  openCase={openCase}
-                  caseOption={caseOption}
-                  setCaseOption={setCaseOption}
-                  onCaseOptionChange={handleCaseOptionChange}
-                  caseNotes={caseNotes}
-                  setCaseNotes={setCaseNotes}
-                  totalSessions={totalSessions}
-                  setTotalSessions={setTotalSessions}
-                  totalCost={totalCost}
-                  setTotalCost={setTotalCost}
-                />
+                <>
+                  <MultisessionSection
+                    openCase={openCase}
+                    caseOption={caseOption}
+                    setCaseOption={setCaseOption}
+                    onCaseOptionChange={handleCaseOptionChange}
+                    caseNotes={caseNotes}
+                    setCaseNotes={setCaseNotes}
+                    totalSessions={totalSessions}
+                    setTotalSessions={setTotalSessions}
+                    totalCost={totalCost}
+                    setTotalCost={setTotalCost}
+                  />
+                  {fieldErrors.totalCost && (
+                    <Typography
+                      variant="caption"
+                      color="error"
+                      sx={{ mt: 0.5, display: "block", pl: 1.5 }}
+                    >
+                      {fieldErrors.totalCost}
+                    </Typography>
+                  )}
+                </>
               )}
             </Grid>
           )}
 
-          {/* Fecha */}
+          {/* ── Fecha ─────────────────────────────────────── */}
           <Grid size={{ xs: 12, sm: showTotalField ? 6 : 12 }}>
             <Controller
               name="date"
@@ -1000,19 +1030,25 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             />
           </Grid>
 
-          {/* Total sesión */}
+          {/* ── Total sesión única ────────────────────────── */}
           {showTotalField && (
             <Grid size={{ xs: 12, sm: 6 }}>
               <Controller
                 name="total"
                 control={control}
-                render={({ field }) => (
+                rules={{
+                  required: "Ingresa el total de la sesión.",
+                  min: { value: 0, message: "El total no puede ser negativo." },
+                }}
+                render={({ field, fieldState }) => (
                   <TextField
                     {...field}
-                    label="Total"
+                    label="Total *"
                     type="number"
                     size="small"
                     fullWidth
+                    error={!!fieldState.error}
+                    helperText={fieldState.error?.message}
                     slotProps={{
                       input: {
                         startAdornment: (
@@ -1027,7 +1063,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             </Grid>
           )}
 
-          {/* Total calculado obturación */}
+          {/* ── Total calculado obturación (solo lectura) ─── */}
           {isObturacion && watchTotal && (
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
@@ -1041,7 +1077,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             </Grid>
           )}
 
-          {/* Notas */}
+          {/* ── Notas ─────────────────────────────────────── */}
           <Grid size={{ xs: 12 }}>
             <Controller
               name="notes"
@@ -1060,7 +1096,8 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
             />
           </Grid>
         </Grid>
-        {/* Botones dentro del contenido en mobile con animación */}
+
+        {/* ── Botones mobile ────────────────────────────────── */}
         {isMobile && (
           <Fade in={showButtons} timeout={500}>
             <Stack spacing={1.5} sx={{ mt: 3 }}>
@@ -1069,7 +1106,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                 size="large"
                 fullWidth
                 onClick={rhfHandleSubmit(onSubmit)}
-                disabled={isSubmitting || saving}
+                disabled={isSubmitDisabled}
                 startIcon={
                   isSubmitting || saving ? (
                     <CircularProgress size={16} color="inherit" />
@@ -1092,7 +1129,8 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
           </Fade>
         )}
       </DialogContent>
-      {/* Acciones solo en desktop */}
+
+      {/* ── Botones desktop ───────────────────────────────────── */}
       {!isMobile && (
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={() => onClose(false)} disabled={saving}>
@@ -1101,7 +1139,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
           <Button
             variant="contained"
             onClick={rhfHandleSubmit(onSubmit)}
-            disabled={isSubmitting || saving || quickSaving || checkingCase}
+            disabled={isSubmitDisabled}
           >
             {isSubmitting || saving ? (
               <CircularProgress size={20} color="inherit" />

@@ -30,6 +30,7 @@ import { useBreakpoint } from "../../hooks/useBreakpoint";
 import AppointmentFormModal from "./AppointmentFormModal";
 import AppointmentDetailDrawer from "./AppointmentDetailDrawer";
 import PageHeader from "../../components/PageHeader";
+import useSnackbarStore from "../../stores/useSnackbarStore";
 
 const STATUS_COLORS = {
   pendiente: "#BA7517",
@@ -243,7 +244,9 @@ const CALENDAR_SX = {
 
 const handleEventDidMount = ({ el, event }) => {
   const appt = event.extendedProps;
-  const time = new Date(appt.date).toLocaleTimeString("es-PE", { timeStyle: "short" });
+  const time = new Date(appt.date).toLocaleTimeString("es-PE", {
+    timeStyle: "short",
+  });
   el.title = `${time} · ${appt.patient_name} · ${appt.treatment_name ?? "Sin tratamiento"}`;
 };
 
@@ -251,6 +254,8 @@ const handleEventDidMount = ({ el, event }) => {
 // AppointmentsPage
 // ─────────────────────────────────────────────────────────────
 export default function AppointmentsPage() {
+  const showSnackbar = useSnackbarStore((state) => state.showSnackbar);
+
   const calendarRef = useRef(null);
   const { can } = useRole();
   const { isMobile } = useBreakpoint();
@@ -260,7 +265,7 @@ export default function AppointmentsPage() {
   const [openForm, setOpenForm] = useState(false);
   const [openDetail, setOpenDetail] = useState(false);
   const [prefillDate, setPrefillDate] = useState(null);
-  const [feedback, setFeedback] = useState("");
+  //const [feedback, setFeedback] = useState("");
   const [viewMode, setViewMode] = useState("list");
   const [currentRange, setCurrentRange] = useState({ start: null, end: null });
 
@@ -321,14 +326,30 @@ export default function AppointmentsPage() {
     [setSelected],
   );
 
-  const handleFormClose = useCallback(
+  /*const handleFormClose = useCallback(
     (saved) => {
       setOpenForm(false);
       setPrefillDate(null);
       if (saved) {
-        setFeedback("Cita guardada correctamente.");
+        //setFeedback("Cita guardada correctamente.");
         if (currentRange.start)
           fetchByRange(currentRange.start, currentRange.end);
+      }
+    },
+    [currentRange, fetchByRange],
+  );*/
+
+  const handleFormClose = useCallback(
+    (saved) => {
+      setOpenForm(false);
+      setPrefillDate(null);
+
+      if (saved) {
+        //showSnackbar("Cita guardada correctamente.", "success");
+
+        if (currentRange.start) {
+          fetchByRange(currentRange.start, currentRange.end);
+        }
       }
     },
     [currentRange, fetchByRange],
@@ -347,7 +368,7 @@ export default function AppointmentsPage() {
     setOpenForm(true);
   }, []);
 
-  const handleCloseFeedback = useCallback(() => setFeedback(""), []);
+  // const handleCloseFeedback = useCallback(() => setFeedback(""), []);
   const handleCloseDetail = useCallback(() => setOpenDetail(false), []);
 
   // En móvil vista lista: cargar mes actual al montar
@@ -360,6 +381,12 @@ export default function AppointmentsPage() {
       setCurrentRange({ start, end });
     }
   }, [isMobile, viewMode]);
+
+  useEffect(() => {
+    if (error) {
+      showSnackbar(error, "error");
+    }
+  }, [error, showSnackbar]);
 
   return (
     <Box>
@@ -396,16 +423,16 @@ export default function AppointmentsPage() {
         }
       />
 
-      {feedback && (
+      {/* {feedback && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={handleCloseFeedback}>
           {feedback}
         </Alert>
-      )}
-      {error && (
+      )} */}
+      {/* {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
-      )}
+      )} */}
 
       {/* Leyenda de estados */}
       <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>
@@ -461,7 +488,7 @@ export default function AppointmentsPage() {
             dateClick={handleDateClick}
             eventClick={handleEventClick}
             eventDisplay="block"
-            eventDidMount={handleEventDidMount}   // ← tooltip nativo en hover
+            eventDidMount={handleEventDidMount} // ← tooltip nativo en hover
             height={isMobile ? 420 : "auto"}
             editable={false}
             selectable={can(["ADMIN", "ASSISTANT"])}

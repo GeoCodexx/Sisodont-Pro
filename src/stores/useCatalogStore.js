@@ -31,7 +31,9 @@ export const useCatalogStore = create((set, get) => ({
     set({ loading: true, error: null });
 
     const [specs, treats, docs] = await Promise.all([
-      supabase.from("specialties").select("*").eq("active", true).order("name"),
+      supabase.from("specialties").select("*")
+      //.eq("active", true)
+      .order("name"),
       supabase
         .from("treatments_catalog")
         .select("*, specialty:specialties(id, name, color)")
@@ -45,7 +47,7 @@ export const useCatalogStore = create((set, get) => ({
           specialty:specialties(id, name, color)
         `,
         )
-        .eq("active", true)
+        //.eq("active", true)
         .order("created_at"),
     ]);
 

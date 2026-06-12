@@ -15,30 +15,19 @@ export default function CatalogPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [tab, setTab] = useState(0);
-  const [feedback, setFeedback] = useState({ msg: "", type: "success" });
 
   useEffect(() => {
     fetchAll();
-  }, []);
-
-  const notify = (msg, type = "success") => setFeedback({ msg, type });
-  const clearFeedback = () => setFeedback({ msg: "", type: "success" });
+  }, [fetchAll]);
 
   return (
     <Box>
       <PageHeader title="Catálogo clínico" />
 
-      {feedback.msg && (
-        <Alert severity={feedback.type} sx={{ mb: 2 }} onClose={clearFeedback}>
-          {feedback.msg}
-        </Alert>
-      )}
-
       <Tabs
         value={tab}
         onChange={(_, v) => {
           setTab(v);
-          clearFeedback();
         }}
         variant={isMobile ? "fullWidth" : "standard"}
         sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}
@@ -50,18 +39,10 @@ export default function CatalogPage() {
 
       {/* isSuperAdmin se pasa a cada tab para controlar
           visibilidad de acciones CRUD */}
-      {tab === 0 && (
-        <SpecialtiesTab onNotify={notify} isSuperAdmin={isSuperAdmin} />
-      )}
-      {tab === 1 && (
-        <DoctorsTab onNotify={notify} isSuperAdmin={isSuperAdmin} />
-      )}
+      {tab === 0 && <SpecialtiesTab isSuperAdmin={isSuperAdmin} />}
+      {tab === 1 && <DoctorsTab isAdmin={isAdmin} />}
       {tab === 2 && (
-        <TreatmentsTab
-          onNotify={notify}
-          isSuperAdmin={isSuperAdmin}
-          isAdmin={isAdmin}
-        />
+        <TreatmentsTab isSuperAdmin={isSuperAdmin} isAdmin={isAdmin} />
       )}
     </Box>
   );

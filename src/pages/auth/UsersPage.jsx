@@ -38,6 +38,8 @@ import { useUsersStore } from "../../stores/useUsersStore";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import PageHeader from "../../components/PageHeader";
+import useSnackbarStore from "../../stores/useSnackbarStore";
+import { Controller, useForm } from "react-hook-form";
 
 // ─────────────────────────────────────────────────────────────
 // Constantes — fuera del componente para evitar recreación
@@ -208,6 +210,7 @@ const UserCard = memo(function UserCard({ user, isSelf, onEdit, onToggle }) {
 // UsersPage
 // ─────────────────────────────────────────────────────────────
 export default function UsersPage() {
+  const showSnackbar = useSnackbarStore((state) => state.showSnackbar);
   const { isMobile } = useBreakpoint();
   const {
     users,
@@ -224,10 +227,17 @@ export default function UsersPage() {
   const [openInvite, setOpenInvite] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [actionError, setActionError] = useState("");
-  const [actionSuccess, setActionSuccess] = useState("");
-  const [invite, setInviteState] = useState(INVITE_EMPTY);
   const [showButtons, setShowButtons] = useState(false);
+
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
+    defaultValues: INVITE_EMPTY,
+    mode: "onSubmit",
+  });
 
   // Animación de entrada de botones en mobile
   useEffect(() => {
@@ -251,81 +261,77 @@ export default function UsersPage() {
   // useCallback evita que UserCard reciba nuevas referencias en
   // cada render, lo que dispararía re-renders aunque memo esté.
 
-  const setInviteField = useCallback(
+  /*const setInviteField = useCallback(
     (f) => (e) => setInviteState((p) => ({ ...p, [f]: e.target.value })),
     [],
-  );
+  );*/
 
   const handleOpenInvite = useCallback(() => {
+    reset(INVITE_EMPTY);
     setOpenInvite(true);
-    setActionError("");
-  }, []);
+  }, [reset]);
 
   const handleCloseInvite = useCallback(() => {
+    reset(INVITE_EMPTY);
     setOpenInvite(false);
-    setInviteState(INVITE_EMPTY);
-  }, []);
+  }, [reset]);
 
   const handleCloseEdit = useCallback(() => setOpenEdit(false), []);
 
-  let mensajeTraducido =
-    "Ocurrió un error inesperado. Por favor, intenta de nuevo.";
+  const onSubmitInvite = useCallback(
+    async (data) => {
+      const { error } = await inviteUser(data);
 
-  const handleInvite = useCallback(async () => {
-    setActionError("");
-    if (invite?.full_name.length < 5) {
-      setActionError(
-        "Ingrese sus nombres y apellidos en el campo correspondiente.",
-      );
-      return;
-    }
-    if (invite?.email.length < 5) {
-      setActionError(
-        "Ingrese su dirección de correo electrónico en el campo correspondiente.",
-      );
-      return;
-    }
-    if (invite?.password.length < 5) {
-      setActionError("La contraseña debe ser mayor o igual a 5 caracteres.");
-      return;
-    }
-    const { error } = await inviteUser(invite);
-    if (error) {
-      setActionError(
-        error.includes(
-          "A user with this email address has already been registered",
-        )
-          ? "Este correo electrónico ya está en uso. Intenta con otro."
-          : mensajeTraducido,
-      );
-      return;
-    }
-    setActionSuccess("Usuario creado correctamente.");
-    setOpenInvite(false);
-    setInviteState(INVITE_EMPTY);
-  }, [invite, inviteUser]);
+      if (error) {
+        showSnackbar(
+          error.includes(
+            "A user with this email address has already been registered",
+          )
+            ? "Este correo electrónico ya está en uso."
+            : "Ocurrió un error inesperado. Por favor, intenta nuevamente.",
+          "error",
+        );
+
+        return;
+      }
+
+      showSnackbar("Usuario creado correctamente.", "success");
+
+      reset(INVITE_EMPTY);
+      setOpenInvite(false);
+    },
+    [inviteUser, reset, showSnackbar],
+  );
+
+  const onInvalidInvite = useCallback(() => {
+    showSnackbar("Rellene los campos del formulario correctamente.", "error");
+  }, [showSnackbar]);
 
   const handleRoleChange = useCallback(
     async (userId, role) => {
       const { error } = await updateRole(userId, role);
-      if (error) setActionError(error);
-      else setActionSuccess("Rol actualizado.");
+      if (error) showSnackbar(error, "error");
+      else showSnackbar("Rol actualizado.", "success");
       setOpenEdit(false);
     },
-    [updateRole],
+    [updateRole, showSnackbar],
   );
 
   const handleToggle = useCallback(
     async (user) => {
-      setActionError("");
       const { error } = await toggleActive(user.id, user.active);
-      if (error) setActionError(error);
-      else
-        setActionSuccess(
-          user.active ? "Usuario desactivado." : "Usuario activado.",
-        );
+
+      if (error) {
+        showSnackbar(error, "error");
+        return;
+      }
+
+      showSnackbar(
+        user.active ? "Usuario desactivado." : "Usuario activado.",
+        "success",
+      );
     },
-    [toggleActive],
+    [toggleActive, showSnackbar],
   );
 
   // Callback estable para UserCard.onEdit
@@ -362,7 +368,7 @@ export default function UsersPage() {
         actions={headerActions}
       />
 
-      {actionError && (
+      {/* {actionError && (
         <Alert
           severity="error"
           sx={{ mb: 2 }}
@@ -379,7 +385,7 @@ export default function UsersPage() {
         >
           {actionSuccess}
         </Alert>
-      )}
+      )} */}
 
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
@@ -488,45 +494,97 @@ export default function UsersPage() {
             pt: "16px !important",
           }}
         >
-          {actionError && <Alert severity="error">{actionError}</Alert>}
+          {/* {actionError && <Alert severity="error">{actionError}</Alert>} */}
 
-          <TextField
-            label="Nombres y Apellidos"
-            value={invite.full_name}
-            onChange={setInviteField("full_name")}
-            size="small"
-            fullWidth
+          <Controller
+            name="full_name"
+            control={control}
+            rules={{
+              required: "Ingrese sus nombres y apellidos.",
+              minLength: {
+                value: 5,
+                message: "Ingrese nombres y apellidos completos.",
+              },
+            }}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Nombres y Apellidos"
+                size="small"
+                fullWidth
+                error={!!errors.full_name}
+                helperText={errors.full_name?.message}
+              />
+            )}
           />
-          <TextField
-            label="Correo electrónico"
-            type="email"
-            value={invite.email}
-            onChange={setInviteField("email")}
-            size="small"
-            fullWidth
+          <Controller
+            name="email"
+            control={control}
+            rules={{
+              required: "Ingrese una dirección de correo electrónico.",
+              pattern: {
+                value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                message: "Ingrese un correo electrónico válido.",
+              },
+            }}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Correo electrónico"
+                type="email"
+                size="small"
+                fullWidth
+                error={!!errors.email}
+                helperText={errors.email?.message}
+              />
+            )}
           />
-          <TextField
-            label="Contraseña temporal"
-            type="password"
-            value={invite.password}
-            onChange={setInviteField("password")}
-            size="small"
-            fullWidth
+          <Controller
+            name="password"
+            control={control}
+            rules={{
+              required: "Ingrese una contraseña temporal.",
+              minLength: {
+                value: 5,
+                message: "La contraseña debe tener al menos 5 caracteres.",
+              },
+            }}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Contraseña temporal"
+                type="password"
+                size="small"
+                fullWidth
+                error={!!errors.password}
+                helperText={errors.password?.message}
+              />
+            )}
           />
-          <TextField
-            select
-            label="Rol"
-            value={invite.role}
-            onChange={setInviteField("role")}
-            size="small"
-            fullWidth
-          >
-            {ROLES.map((r) => (
-              <MenuItem key={r} value={r}>
-                {ROLE_LABELS[r]}
-              </MenuItem>
-            ))}
-          </TextField>
+          <Controller
+            name="role"
+            control={control}
+            rules={{
+              required: "Seleccione un rol para el usuario.",
+            }}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                select
+                label="Rol"
+                size="small"
+                fullWidth
+                error={!!errors.role}
+                helperText={errors.role?.message}
+              >
+                {ROLES.map((r) => (
+                  <MenuItem key={r} value={r}>
+                    {ROLE_LABELS[r]}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+          />
           {/* Botones dentro del contenido en mobile con animación */}
           {isMobile && (
             <Fade in={showButtons} timeout={500}>
@@ -535,7 +593,7 @@ export default function UsersPage() {
                   variant="contained"
                   size="large"
                   fullWidth
-                  onClick={handleInvite}
+                  onClick={handleSubmit(onSubmitInvite, onInvalidInvite)}
                   disabled={saving}
                   startIcon={
                     saving ? (
@@ -565,7 +623,7 @@ export default function UsersPage() {
             <Button onClick={handleCloseInvite}>Cancelar</Button>
             <Button
               variant="contained"
-              onClick={handleInvite}
+              onClick={handleSubmit(onSubmitInvite, onInvalidInvite)}
               disabled={saving}
             >
               {saving ? (

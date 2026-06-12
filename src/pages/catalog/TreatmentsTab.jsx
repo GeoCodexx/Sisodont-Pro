@@ -51,6 +51,8 @@ import FilterDrawer from "../../components/FilterDrawer";
 import FilterButton from "../../components/FilterButton";
 import ExportMenu from "../../components/ExportMenu";
 import { useTreatmentsExport } from "../../hooks/useTreatmentsExport";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import useSnackbarStore from "../../stores/useSnackbarStore";
 
 const EMPTY = {
   name: "",
@@ -98,10 +100,8 @@ function TreatmentTypeChip({ isMultisession, unitPrice }) {
 function TreatmentCard({
   t,
   onEdit,
-  onDelete,
   onToggleActive,
   onOpenPriceDialog,
-  canEdit,
   isSuperAdmin,
   isAdmin,
   canManage,
@@ -150,10 +150,7 @@ function TreatmentCard({
               {/* Ajustar precio: solo ADMIN sobre tratamientos globales */}
               {isAdmin && !t.is_tenant_own && (
                 <Tooltip title="Ajustar precio">
-                  <IconButton
-                    size="small"
-                    onClick={() => onOpenPriceDialog(t)}
-                  >
+                  <IconButton size="small" onClick={() => onOpenPriceDialog(t)}>
                     <AttachMoneyIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
@@ -237,11 +234,11 @@ function TreatmentCard({
 // isSuperAdmin = false → solo lectura + banner informativo
 // ─────────────────────────────────────────────────────────────
 export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
+  const showSnackbar = useSnackbarStore((state) => state.showSnackbar);
   const canManage = isSuperAdmin || isAdmin;
   const { isMobile } = useBreakpoint();
   const {
     treatmentsCatalog,
-    treatments, // solo se usa para el selector de citas, no aquí
     specialties,
     saving,
     loading,
@@ -280,6 +277,8 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
+  const [treatmentToToggle, setTreatmentToToggle] = useState(null);
+  const [loadingConfirm, setLoadingConfirm] = useState(false);
   const [showButtons, setShowButtons] = useState(false);
   // ── Sticky barra de filtros ───────────────────────────────
   const [isSticky, setIsSticky] = useState(false);
@@ -362,31 +361,6 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
     setOpen(false);
   };
 
-  const handleToggleActive = async (t) => {
-    const newActive = !t.effective_active;
-    const action = newActive ? "activar" : "desactivar";
-    if (
-      !window.confirm(
-        `¿${action.charAt(0).toUpperCase() + action.slice(1)} este tratamiento?`,
-      )
-    )
-      return;
-
-    let error;
-    if (isSuperAdmin) {
-      // SUPER_ADMIN siempre edita directo en treatments
-      ({ error } = await updateTreatment(t.id, { active: newActive }));
-    } else if (t.is_tenant_own) {
-      // ADMIN sobre su propio tratamiento
-      ({ error } = await updateTenantTreatment(t.id, { active: newActive }));
-    } else {
-      // ADMIN sobre tratamiento global → config por tenant
-      ({ error } = await upsertTreatmentConfig(t.id, { is_active: newActive }));
-    }
-    if (error) onNotify(error, "error");
-    else onNotify(`Tratamiento ${newActive ? "activado" : "desactivado"}.`);
-  };
-
   // SOLO PARA EL SUPER ADMIN
   const handleDelete = async (id) => {
     if (!window.confirm("¿Desactivar este tratamiento?")) return;
@@ -412,6 +386,54 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
       setPriceDialog({ open: false, treatment: null, value: "" });
     }
   };
+
+  const handleConfirmToggle = async () => {
+    if (!treatmentToToggle) return;
+
+    setLoadingConfirm(true);
+
+    const newActive = !treatmentToToggle.effective_active;
+
+    let error;
+    if (isSuperAdmin) {
+      // SUPER_ADMIN siempre edita directo en treatments
+      ({ error } = await updateTreatment(treatmentToToggle.id, {
+        active: newActive,
+      }));
+    } else if (treatmentToToggle.is_tenant_own) {
+      // ADMIN sobre su propio tratamiento
+      ({ error } = await updateTenantTreatment(treatmentToToggle.id, {
+        active: newActive,
+      }));
+    } else {
+      // ADMIN sobre tratamiento global → config por tenant
+      ({ error } = await upsertTreatmentConfig(treatmentToToggle.id, {
+        is_active: newActive,
+      }));
+    }
+    if (error) showSnackbar(error, "error");
+    else
+      showSnackbar(
+        `Tratamiento ${newActive ? "activado" : "desactivado"}.`,
+        "success",
+      );
+
+    setLoadingConfirm(false);
+
+    setTreatmentToToggle(null);
+  };
+
+  const dialogTitle = treatmentToToggle?.effective_active
+    ? "Desactivar tratamiento"
+    : "Activar tratamiento";
+
+  const dialogMessage = treatmentToToggle?.effective_active
+    ? `¿Desea desactivar el tratamiento "${treatmentToToggle?.name}"?`
+    : `¿Desea activar el tratamiento "${treatmentToToggle?.name}"?`;
+
+  const confirmText = treatmentToToggle?.effective_active ? "Desactivar" : "Activar";
+
+  const confirmColor = treatmentToToggle?.effective_active ? "error" : "success";
 
   // ── Lista filtrada ────────────────────────────────────────────
   const filtered = treatmentsCatalog.filter((t) => {
@@ -630,7 +652,7 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
                 t={t}
                 onEdit={openEdit}
                 onDelete={handleDelete}
-                onToggleActive={handleToggleActive}
+                onToggleActive={() => setTreatmentToToggle(t)}
                 onOpenPriceDialog={openPriceDialog}
                 canEdit={isSuperAdmin || t.is_tenant_own}
                 isSuperAdmin={isSuperAdmin}
@@ -789,7 +811,7 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
                         >
                           <IconButton
                             size="small"
-                            onClick={() => handleToggleActive(t)}
+                            onClick={() => setTreatmentToToggle(t)}
                           >
                             {t.effective_active ? (
                               <ToggleOffIcon fontSize="small" color="error" />
@@ -900,11 +922,13 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
                       fullWidth
                     >
                       <MenuItem value="">Sin especialidad</MenuItem>
-                      {specialties.map((s) => (
-                        <MenuItem key={s.id} value={s.id}>
-                          {s.name}
-                        </MenuItem>
-                      ))}
+                      {specialties
+                        .filter((sp) => sp.active === true)
+                        .map((s) => (
+                          <MenuItem key={s.id} value={s.id}>
+                            {s.name}
+                          </MenuItem>
+                        ))}
                     </TextField>
                   )}
                 />
@@ -1243,6 +1267,16 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
           </FormControl>
         </FilterDrawer>
       )}
+      <ConfirmDialog
+        open={!!treatmentToToggle}
+        title={dialogTitle}
+        message={dialogMessage}
+        confirmText={confirmText}
+        confirmColor={confirmColor}
+        onClose={() => setTreatmentToToggle(null)}
+        onConfirm={handleConfirmToggle}
+        loading={loadingConfirm}
+      />
     </Box>
   );
 }

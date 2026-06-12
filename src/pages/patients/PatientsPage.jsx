@@ -28,8 +28,8 @@ import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
-import LockOpenIcon from "@mui/icons-material/LockOpen";
+import BlockIcon from "@mui/icons-material/Block";
+import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import { usePatientStore } from "../../stores/usePatientStore";
 import { useRole } from "../../hooks/useRole";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
@@ -41,6 +41,8 @@ import PageHeader from "../../components/PageHeader";
 import TablePagination from "../../components/TablePagination";
 import { usePatientsExport } from "../../hooks/usePatientsExport";
 import ExportMenu from "../../components/ExportMenu";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import useSnackbarStore from "../../stores/useSnackbarStore";
 
 // ─────────────────────────────────────────────────────────────
 // Helpers puros fuera del componente
@@ -75,7 +77,7 @@ const PatientCard = memo(function PatientCard({
   onEdit,
   onToggleActive,
   canEdit,
-  canDelete,
+  canChangeStatus,
 }) {
   const age = useMemo(() => calcAge(patient.birth_date), [patient.birth_date]);
 
@@ -98,13 +100,15 @@ const PatientCard = memo(function PatientCard({
               <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
                 {patient.full_name}
               </Typography>
-              <Chip
-                label={patient.active ? "Activo" : "Inactivo"}
-                size="small"
-                color={patient.active ? "success" : "default"}
-                variant="outlined"
-                sx={{ flexShrink: 0 }}
-              />
+              {canChangeStatus && (
+                <Chip
+                  label={patient.active ? "Activo" : "Inactivo"}
+                  size="small"
+                  color={patient.active ? "success" : "default"}
+                  variant="outlined"
+                  sx={{ flexShrink: 0 }}
+                />
+              )}
             </Box>
             <Typography variant="caption" sx={{ color: "text.secondary" }}>
               {patient.dni ? "DNI: " + patient.dni : "Sin DNI"} · {age}
@@ -162,14 +166,14 @@ const PatientCard = memo(function PatientCard({
               Editar
             </Button>
           )}
-          {canDelete && (
+          {canChangeStatus && (
             <Button
               size="small"
               color={patient.active ? "error" : "success"}
-              startIcon={patient.active ? <DeleteIcon /> : <LockOpenIcon />}
+              startIcon={patient.active ? <BlockIcon /> : <TaskAltIcon />}
               onClick={() => onToggleActive(patient)}
             >
-              {patient.active ? "Desactivar" : "Reactivar"}
+              {patient.active ? "Desactivar" : "Activar"}
             </Button>
           )}
         </Box>
@@ -187,7 +191,7 @@ const PatientRow = memo(function PatientRow({
   onEdit,
   onToggleActive,
   canEdit,
-  canDelete,
+  canChangeStatus,
 }) {
   const age = useMemo(() => calcAge(patient.birth_date), [patient.birth_date]);
 
@@ -238,14 +242,16 @@ const PatientRow = memo(function PatientRow({
           )}
         </Box>
       </TableCell>
-      <TableCell>
-        <Chip
-          label={patient.active ? "Activo" : "Inactivo"}
-          size="small"
-          color={patient.active ? "success" : "default"}
-          variant="outlined"
-        />
-      </TableCell>
+      {canChangeStatus && (
+        <TableCell>
+          <Chip
+            label={patient.active ? "Activo" : "Inactivo"}
+            size="small"
+            color={patient.active ? "success" : "default"}
+            variant="outlined"
+          />
+        </TableCell>
+      )}
       <TableCell align="right">
         <Tooltip title="Ver ficha">
           <IconButton size="small" onClick={() => onNavigate(patient.id)}>
@@ -259,13 +265,13 @@ const PatientRow = memo(function PatientRow({
             </IconButton>
           </Tooltip>
         )}
-        {canDelete && (
-          <Tooltip title={patient.active ? "Desactivar" : "Reactivar"}>
+        {canChangeStatus && (
+          <Tooltip title={patient.active ? "Desactivar" : "Activar"}>
             <IconButton size="small" onClick={() => onToggleActive(patient)}>
               {patient.active ? (
-                <DeleteIcon fontSize="small" color="error" />
+                <BlockIcon fontSize="small" color="error" />
               ) : (
-                <LockOpenIcon fontSize="small" color="success" />
+                <TaskAltIcon fontSize="small" color="success" />
               )}
             </IconButton>
           </Tooltip>
@@ -314,6 +320,7 @@ export default function PatientsPage() {
     fetchPatients,
     togglePatientActive,
   } = usePatientStore();
+  const showSnackbar = useSnackbarStore((state) => state.showSnackbar);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -323,6 +330,10 @@ export default function PatientsPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [reloadAfterSave, setReloadAfterSave] = useState(false);
 
+  //Dialog confirm
+  const [patientToToggle, setPatientToToggle] = useState(null);
+  const [loadingConfirm, setLoadingConfirm] = useState(false);
+
   // ── Búsqueda con debounce ─────────────────────────────────
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebounce(searchInput, 400);
@@ -330,7 +341,7 @@ export default function PatientsPage() {
   // ── Filtro activo/inactivo ────────────────────────────────
   // activeStatus: valor comprometido (el que va al fetch)
   // localFilters: borrador del drawer antes de aplicar
-  const [activeStatus, setActiveStatus] = useState("active");
+  const [activeStatus, setActiveStatus] = useState("all");
   const [localFilters, setLocalFilters] = useState({ ...DRAWER_FILTERS_EMPTY });
 
   const { handleExcel, handlePdf } = usePatientsExport(
@@ -373,7 +384,7 @@ export default function PatientsPage() {
 
   // ── Permisos ──────────────────────────────────────────────
   const canEdit = useMemo(() => can(["ADMIN", "DOCTOR", "ASSISTANT"]), [can]);
-  const canDelete = useMemo(() => can(["ADMIN"]), [can]);
+  const canChangeStatus = useMemo(() => can(["ADMIN"]), [can]);
 
   // ── slotProps dinámico para el buscador ───────────────────
   const handleClearSearch = useCallback(() => setSearchInput(""), []);
@@ -421,7 +432,7 @@ export default function PatientsPage() {
     setOpenForm(true);
   }, []);
 
-  const handleToggleActive = useCallback(
+  /*const handleToggleActive = useCallback(
     async (p) => {
       const action = p.active ? "desactivar" : "reactivar";
       if (!window.confirm(`¿Deseas ${action} a ${p.full_name}?`)) return;
@@ -431,7 +442,41 @@ export default function PatientsPage() {
       else setFeedback(`Paciente ${p.active ? "desactivado" : "reactivado"}.`);
     },
     [togglePatientActive],
-  );
+  );*/
+
+  const dialogTitle = patientToToggle?.active
+    ? "Desactivar paciente"
+    : "Activar paciente";
+
+  const dialogMessage = patientToToggle?.active
+    ? `¿Desea desactivar al paciente "${patientToToggle?.full_name}"?`
+    : `¿Desea activar al paciente "${patientToToggle?.full_name}"?`;
+
+  const confirmText = patientToToggle?.active ? "Desactivar" : "Activar";
+
+  const confirmColor = patientToToggle?.active ? "error" : "success";
+
+  const handleConfirmToggle = async () => {
+    if (!patientToToggle) return;
+    setLoadingConfirm(true);
+
+    const { error } = await togglePatientActive(
+      patientToToggle.id,
+      patientToToggle.active, // el store se encarga de invertirlo
+    );
+
+    if (error) {
+      showSnackbar(error, "error");
+    } else {
+      showSnackbar(
+        `Paciente ${!patientToToggle.active ? "activado" : "desactivado"}.`,
+        "success",
+      );
+    }
+
+    setLoadingConfirm(false);
+    setPatientToToggle(null);
+  };
 
   const handleOpenNew = useCallback(() => {
     setEditTarget(null);
@@ -578,21 +623,23 @@ export default function PatientsPage() {
                   : undefined
               }
             />
-            <TextField
-              select
-              label="Estado"
-              size="small"
-              sx={{ minWidth: 140 }}
-              value={activeStatus}
-              onChange={(e) => {
-                setActiveStatus(e.target.value);
-                setPage(1);
-              }}
-            >
-              <MenuItem value="all">Todos</MenuItem>
-              <MenuItem value="active">Activos</MenuItem>
-              <MenuItem value="inactive">Inactivos</MenuItem>
-            </TextField>
+            {canChangeStatus && (
+              <TextField
+                select
+                label="Estado"
+                size="small"
+                sx={{ minWidth: 140 }}
+                value={activeStatus}
+                onChange={(e) => {
+                  setActiveStatus(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <MenuItem value="all">Todos</MenuItem>
+                <MenuItem value="active">Activos</MenuItem>
+                <MenuItem value="inactive">Inactivos</MenuItem>
+              </TextField>
+            )}
           </Box>
         )}
 
@@ -613,10 +660,12 @@ export default function PatientsPage() {
               }
               sx={{ flex: 1 }}
             />
-            <FilterButton
-              onClick={handleFilterOpen}
-              activeCount={activeFilterCount}
-            />
+            {canChangeStatus && (
+              <FilterButton
+                onClick={handleFilterOpen}
+                activeCount={activeFilterCount}
+              />
+            )}
           </Box>
         )}
       </Box>
@@ -642,9 +691,9 @@ export default function PatientsPage() {
                     patient={p}
                     onView={handleNavigate}
                     onEdit={handleEdit}
-                    onToggleActive={handleToggleActive}
+                    onToggleActive={() => setPatientToToggle(p)}
                     canEdit={canEdit}
-                    canDelete={canDelete}
+                    canChangeStatus={canChangeStatus}
                   />
                 ))
               )}
@@ -659,7 +708,7 @@ export default function PatientsPage() {
                     <TableCell>Edad</TableCell>
                     <TableCell>Teléfono</TableCell>
                     <TableCell>Antecedentes</TableCell>
-                    <TableCell>Estado</TableCell>
+                    {canChangeStatus && <TableCell>Estado</TableCell>}
                     <TableCell align="right">Acciones</TableCell>
                   </TableRow>
                 </TableHead>
@@ -681,9 +730,9 @@ export default function PatientsPage() {
                         patient={p}
                         onNavigate={handleNavigate}
                         onEdit={handleEdit}
-                        onToggleActive={handleToggleActive}
+                        onToggleActive={() => setPatientToToggle(p)}
                         canEdit={canEdit}
-                        canDelete={canDelete}
+                        canChangeStatus={canChangeStatus}
                       />
                     ))
                   )}
@@ -720,6 +769,16 @@ export default function PatientsPage() {
         open={openForm}
         patient={editTarget}
         onClose={handleFormClose}
+      />
+      <ConfirmDialog
+        open={!!patientToToggle}
+        title={dialogTitle}
+        message={dialogMessage}
+        confirmText={confirmText}
+        confirmColor={confirmColor}
+        onClose={() => setPatientToToggle(null)}
+        onConfirm={handleConfirmToggle}
+        loading={loadingConfirm}
       />
     </Box>
   );

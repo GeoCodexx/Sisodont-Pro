@@ -10,6 +10,7 @@ import { router }        from "./router";
 import { lightTheme, darkTheme } from "./theme";
 import { useAuthStore }  from "./stores/useAuthStore";
 import { useThemeStore } from "./stores/useThemeStore";
+import GlobalSnackbar from "./components/GlobalSnackbar";
 
 export default function App() {
   const initAuthListener = useAuthStore((s) => s.initAuthListener);
@@ -46,6 +47,7 @@ export default function App() {
     <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
       <CssBaseline />
       <RouterProvider router={router} />
+      <GlobalSnackbar />
     </ThemeProvider>
   );
 }
