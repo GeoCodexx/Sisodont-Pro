@@ -25,9 +25,13 @@ import {
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import ReceiptIcon from "@mui/icons-material/Receipt";
 import SouthIcon from "@mui/icons-material/South"; // egreso / devolución
+import PointOfSaleIcon from "@mui/icons-material/PointOfSale";
+import CloseIcon from "@mui/icons-material/Close";
+
 import { useLedgerStore } from "../../stores/useLedgerStore";
 import { useRole } from "../../hooks/useRole";
 import { supabase } from "../../services/supabaseClient";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
 
 // ─────────────────────────────────────────────────────────────
 // Constantes fuera del componente
@@ -470,31 +474,31 @@ function CasePaymentView({ row, onDirty }) {
     [totalBilled, totalPaid, totalBalance],
   );*/
   const summaryRows = useMemo(() => {
-  const isAbandoned = row.case_status === "abandonado";
-  const hasRefund   = isAbandoned && totalPaid < totalBilled; // se devolvió algo
+    const isAbandoned = row.case_status === "abandonado";
+    const hasRefund = isAbandoned && totalPaid < totalBilled; // se devolvió algo
 
-  return [
-    [
-      isAbandoned ? "Total cobrado" : "Costo total",
-      fmtS(totalBilled),
-      "text.primary",
-    ],
-    [
-      isAbandoned ? "Retenido en caja" : "Pagado",
-      fmtS(totalPaid),
-      "success.main",
-    ],
-    [
-      isAbandoned
-        ? totalBalance > 0
-          ? "Retenido sin devolver"   // abandonado, la clínica se quedó con algo
-          : "Reembolso completado"    // abandonado, se devolvió todo
-        : "Saldo pendiente",          // caso activo o completado
-      fmtS(totalBalance),
-      totalBalance > 0 ? "warning.main" : "text.secondary",
-    ],
-  ];
-}, [totalBilled, totalPaid, totalBalance, row.case_status]);
+    return [
+      [
+        isAbandoned ? "Total cobrado" : "Costo total",
+        fmtS(totalBilled),
+        "text.primary",
+      ],
+      [
+        isAbandoned ? "Retenido en caja" : "Pagado",
+        fmtS(totalPaid),
+        "success.main",
+      ],
+      [
+        isAbandoned
+          ? totalBalance > 0
+            ? "Retenido sin devolver" // abandonado, la clínica se quedó con algo
+            : "Reembolso completado" // abandonado, se devolvió todo
+          : "Saldo pendiente", // caso activo o completado
+        fmtS(totalBalance),
+        totalBalance > 0 ? "warning.main" : "text.secondary",
+      ],
+    ];
+  }, [totalBilled, totalPaid, totalBalance, row.case_status]);
 
   const balanceLabel = useMemo(
     () =>
@@ -1101,11 +1105,25 @@ function AppointmentPaymentView({ row, onDirty }) {
 // PaymentDetailModal — modal principal
 // ─────────────────────────────────────────────────────────────
 export default function PaymentDetailModal({ open, row, onClose }) {
+  const { isMobile } = useBreakpoint();
   const [dirty, setDirty] = useState(false);
+  const [showButtons, setShowButtons] = useState(false);
 
   useEffect(() => {
     setDirty(false);
   }, [row]);
+
+  // Animación de entrada de botones en mobile
+  useEffect(() => {
+    if (open && isMobile) {
+      const timer = setTimeout(() => setShowButtons(true), 300);
+      return () => clearTimeout(timer);
+    } else if (open) {
+      setShowButtons(true);
+    } else {
+      setShowButtons(false);
+    }
+  }, [open, isMobile]);
 
   if (!row) return null;
   const isCase = row.ref_type === "case";
@@ -1116,20 +1134,52 @@ export default function PaymentDetailModal({ open, row, onClose }) {
       onClose={() => onClose(dirty)}
       maxWidth="sm"
       fullWidth
-      scroll="paper"
+      //scroll="paper"
+      fullScreen={isMobile}
     >
-      <DialogTitle>
-        {isCase ? "Detalle del caso multisesión" : "Detalle de pago"}
+      <DialogTitle
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          backgroundColor: (theme) => theme.palette.primary.main,
+          borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <PointOfSaleIcon sx={{ color: "white" }} />
+
+          <Typography
+            variant="h6"
+            component="span"
+            sx={{ color: "white" /*, fontWeight: 600 */ }}
+          >
+            {isCase ? "Detalle del caso multisesión" : "Detalle de pago"}
+          </Typography>
+        </Box>
+        <IconButton
+          aria-label="close"
+          onClick={() => onClose(dirty)}
+          size="small"
+          sx={{
+            color: "white",
+            "&:hover": {
+              bgcolor: (theme) => theme.palette.action.hover,
+            },
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
       </DialogTitle>
       <DialogContent dividers>
         <Box sx={{ mb: 2 }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
             {row.patient_name ?? "—"}
           </Typography>
           <Typography variant="body2" fontWeight={500}>
             {row.treatment_name ?? "—"}
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
             Dr. {row.doctor_name ?? "—"}
           </Typography>
         </Box>
@@ -1140,9 +1190,12 @@ export default function PaymentDetailModal({ open, row, onClose }) {
           <AppointmentPaymentView row={row} onDirty={() => setDirty(true)} />
         )}
       </DialogContent>
-      <DialogActions>
-        <Button onClick={() => onClose(dirty)}>Cerrar</Button>
-      </DialogActions>
+      {/* Acciones solo en desktop */}
+      {!isMobile && (
+        <DialogActions>
+          <Button onClick={() => onClose(dirty)}>Cerrar</Button>
+        </DialogActions>
+      )}
     </Dialog>
   );
 }

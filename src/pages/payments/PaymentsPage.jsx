@@ -169,7 +169,13 @@ const PaymentCard = memo(function PaymentCard({ row, onDetail }) {
           <Box sx={{ display: "flex", gap: 0.5, ml: 1, flexShrink: 0 }}>
             <TypeChip type={row.ref_type} />
             <Chip
-              label={row?.status? row.status==="en_curso"?"en curso":row.status:"Desconocido"}
+              label={
+                row?.status
+                  ? row.status === "en_curso"
+                    ? "en curso"
+                    : row.status
+                  : "Desconocido"
+              }
               color={STATUS_COLOR[row.status] ?? "default"}
               size="small"
               sx={{ textTransform: "capitalize" }}
@@ -259,7 +265,7 @@ const PaymentRow = memo(function PaymentRow({ row, onDetail }) {
 
   // Determinar si es caso o cita — estable si row.payment_type no cambia
   const isCase = row.payment_type === "case";
-  const rowBgColor = isCase ? "primary.main08" : "inherit";
+  //const rowBgColor = isCase ? "primary.main08" : "inherit";
   const detailTitle = isCase ? "Ver pagos del caso" : "Ver pagos de la cita";
 
   const handleDetail = useCallback(() => onDetail(row), [onDetail, row]);
@@ -306,7 +312,13 @@ const PaymentRow = memo(function PaymentRow({ row, onDetail }) {
       </TableCell>
       <TableCell>
         <Chip
-          label={row?.status? row.status==="en_curso"?"en curso":row.status:"Desconocido"}
+          label={
+            row?.status
+              ? row.status === "en_curso"
+                ? "en curso"
+                : row.status
+              : "Desconocido"
+          }
           color={STATUS_COLOR[row.status] ?? "default"}
           size="small"
           sx={{ textTransform: "capitalize" }}
@@ -432,20 +444,31 @@ export default function PaymentsPage() {
     }
   }, [debouncedSearch, setFilter]);
 
-  // ── Sticky filtros ────────────────────────────────────────
+  // ── Sticky barra de filtros ───────────────────────────────
   const [isSticky, setIsSticky] = useState(false);
   const filterBarRef = useRef(null);
+  const stickyThreshold = useRef(0); // ← referencia fija
   const appBarHeight = isMobile ? 56 : 64;
+  const filterBarHeightRef = useRef(0);
 
   useEffect(() => {
+    if (!filterBarRef.current) return;
+
+    // Capturar el offsetTop UNA SOLA VEZ antes de que sticky lo altere
+    stickyThreshold.current =
+      filterBarRef.current.getBoundingClientRect().top +
+      window.scrollY -
+      appBarHeight;
+
+    filterBarHeightRef.current = filterBarRef.current.offsetHeight;
+
     const handleScroll = () => {
-      if (!filterBarRef.current) return;
-      setIsSticky(
-        window.scrollY >= filterBarRef.current.offsetTop - appBarHeight,
-      );
+      setIsSticky(window.scrollY >= stickyThreshold.current);
     };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll(); // ejecutar al montar
+    handleScroll(); // por si hay scroll previo al montar
+
     return () => window.removeEventListener("scroll", handleScroll);
   }, [appBarHeight]);
 
@@ -465,21 +488,22 @@ export default function PaymentsPage() {
 
   // ── KPIs derivados — memoizados para no reducir en cada render
   const kpis = useMemo(() => {
-  const bruto   = rows.reduce((s, r) => s + Number(r.billed), 0);
-  const cobrado = rows.reduce((s, r) => s + Number(r.collected), 0);
+    const bruto = rows.reduce((s, r) => s + Number(r.billed), 0);
+    const cobrado = rows.reduce((s, r) => s + Number(r.collected), 0);
 
-  const isAbandoned = (r) => r.ref_type === "case" && r.case_status === "abandonado";
+    const isAbandoned = (r) =>
+      r.ref_type === "case" && r.case_status === "abandonado";
 
-  const pendiente = rows.reduce(
-    (s, r) => isAbandoned(r) ? s : s + Number(r.balance),
-    0,
-  );
-  const conDeuda = rows.filter(
-    (r) => !isAbandoned(r) && Number(r.balance) > 0,
-  ).length;
+    const pendiente = rows.reduce(
+      (s, r) => (isAbandoned(r) ? s : s + Number(r.balance)),
+      0,
+    );
+    const conDeuda = rows.filter(
+      (r) => !isAbandoned(r) && Number(r.balance) > 0,
+    ).length;
 
-  return { bruto, cobrado, pendiente, conDeuda };
-}, [rows]);
+    return { bruto, cobrado, pendiente, conDeuda };
+  }, [rows]);
 
   // ── Conteo de filtros activos ─────────────────────────────
   const activeFilterCount = useMemo(
@@ -768,6 +792,9 @@ export default function PaymentsPage() {
           </Box>
         )}
       </Box>
+      {isSticky && (
+        <Box sx={{ height: filterBarHeightRef.current }} aria-hidden />
+      )}
 
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>

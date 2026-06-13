@@ -280,20 +280,32 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
   const [treatmentToToggle, setTreatmentToToggle] = useState(null);
   const [loadingConfirm, setLoadingConfirm] = useState(false);
   const [showButtons, setShowButtons] = useState(false);
+
   // ── Sticky barra de filtros ───────────────────────────────
   const [isSticky, setIsSticky] = useState(false);
   const filterBarRef = useRef(null);
+  const stickyThreshold = useRef(0); // ← referencia fija
   const appBarHeight = isMobile ? 56 : 64;
+  const filterBarHeightRef = useRef(0);
 
   useEffect(() => {
+    if (!filterBarRef.current) return;
+
+    // Capturar el offsetTop UNA SOLA VEZ antes de que sticky lo altere
+    stickyThreshold.current =
+      filterBarRef.current.getBoundingClientRect().top +
+      window.scrollY -
+      appBarHeight;
+
+    filterBarHeightRef.current = filterBarRef.current.offsetHeight;
+
     const handleScroll = () => {
-      if (!filterBarRef.current) return;
-      setIsSticky(
-        window.scrollY >= filterBarRef.current.offsetTop - appBarHeight,
-      );
+      setIsSticky(window.scrollY >= stickyThreshold.current);
     };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll(); // ejecutar al montar por si hay scroll previo
+    handleScroll(); // por si hay scroll previo al montar
+
     return () => window.removeEventListener("scroll", handleScroll);
   }, [appBarHeight]);
 
@@ -431,9 +443,13 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
     ? `¿Desea desactivar el tratamiento "${treatmentToToggle?.name}"?`
     : `¿Desea activar el tratamiento "${treatmentToToggle?.name}"?`;
 
-  const confirmText = treatmentToToggle?.effective_active ? "Desactivar" : "Activar";
+  const confirmText = treatmentToToggle?.effective_active
+    ? "Desactivar"
+    : "Activar";
 
-  const confirmColor = treatmentToToggle?.effective_active ? "error" : "success";
+  const confirmColor = treatmentToToggle?.effective_active
+    ? "error"
+    : "success";
 
   // ── Lista filtrada ────────────────────────────────────────────
   const filtered = treatmentsCatalog.filter((t) => {
@@ -633,6 +649,9 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
           </>
         )}
       </Box>
+      {isSticky && (
+        <Box sx={{ height: filterBarHeightRef.current }} aria-hidden />
+      )}
 
       {/* Vista móvil */}
       {isMobile ? (

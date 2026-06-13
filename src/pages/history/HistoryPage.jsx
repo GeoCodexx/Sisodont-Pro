@@ -453,20 +453,31 @@ export default function HistoryPage() {
     }
   }, [debouncedSearch]);
 
-  // ── Sticky filtros ────────────────────────────────────────
+  // ── Sticky barra de filtros ───────────────────────────────
   const [isSticky, setIsSticky] = useState(false);
   const filterBarRef = useRef(null);
+  const stickyThreshold = useRef(0); // ← referencia fija
   const appBarHeight = isMobile ? 56 : 64;
+  const filterBarHeightRef = useRef(0);
 
   useEffect(() => {
+    if (!filterBarRef.current) return;
+
+    // Capturar el offsetTop UNA SOLA VEZ antes de que sticky lo altere
+    stickyThreshold.current =
+      filterBarRef.current.getBoundingClientRect().top +
+      window.scrollY -
+      appBarHeight;
+
+    filterBarHeightRef.current = filterBarRef.current.offsetHeight;
+
     const handleScroll = () => {
-      if (!filterBarRef.current) return;
-      setIsSticky(
-        window.scrollY >= filterBarRef.current.offsetTop - appBarHeight,
-      );
+      setIsSticky(window.scrollY >= stickyThreshold.current);
     };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll(); // ejecutar al montar
+    handleScroll(); // por si hay scroll previo al montar
+
     return () => window.removeEventListener("scroll", handleScroll);
   }, [appBarHeight]);
 
@@ -781,6 +792,9 @@ export default function HistoryPage() {
           </Box>
         )}
       </Box>
+      {isSticky && (
+        <Box sx={{ height: filterBarHeightRef.current }} aria-hidden />
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>

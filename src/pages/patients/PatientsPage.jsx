@@ -326,7 +326,7 @@ export default function PatientsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [openForm, setOpenForm] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
-  const [feedback, setFeedback] = useState("");
+  //const [feedback, setFeedback] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [reloadAfterSave, setReloadAfterSave] = useState(false);
 
@@ -351,17 +351,28 @@ export default function PatientsPage() {
   // ── Sticky barra de filtros ───────────────────────────────
   const [isSticky, setIsSticky] = useState(false);
   const filterBarRef = useRef(null);
+  const stickyThreshold = useRef(0); // ← referencia fija
   const appBarHeight = isMobile ? 56 : 64;
+  const filterBarHeightRef = useRef(0);
 
   useEffect(() => {
+    if (!filterBarRef.current) return;
+
+    // Capturar el offsetTop UNA SOLA VEZ antes de que sticky lo altere
+    stickyThreshold.current =
+      filterBarRef.current.getBoundingClientRect().top +
+      window.scrollY -
+      appBarHeight;
+
+    filterBarHeightRef.current = filterBarRef.current.offsetHeight;
+
     const handleScroll = () => {
-      if (!filterBarRef.current) return;
-      setIsSticky(
-        window.scrollY >= filterBarRef.current.offsetTop - appBarHeight,
-      );
+      setIsSticky(window.scrollY >= stickyThreshold.current);
     };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll(); // ejecutar al montar por si hay scroll previo
+    handleScroll(); // por si hay scroll previo al montar
+
     return () => window.removeEventListener("scroll", handleScroll);
   }, [appBarHeight]);
 
@@ -381,6 +392,12 @@ export default function PatientsPage() {
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, activeStatus]);
+
+  useEffect(() => {
+    if (error) {
+      showSnackbar(error, "error");
+    }
+  }, [error, showSnackbar]);
 
   // ── Permisos ──────────────────────────────────────────────
   const canEdit = useMemo(() => can(["ADMIN", "DOCTOR", "ASSISTANT"]), [can]);
@@ -507,7 +524,7 @@ export default function PatientsPage() {
     setPageSize(ps);
     setPage(1);
   }, []);
-  const clearFeedback = useCallback(() => setFeedback(""), []);
+  // const clearFeedback = useCallback(() => setFeedback(""), []);
 
   // Drawer handlers
   const handleFilterOpen = useCallback(() => {
@@ -574,7 +591,7 @@ export default function PatientsPage() {
         actions={headerActions}
       />
 
-      {feedback && (
+      {/* {feedback && (
         <Alert
           severity={feedback.startsWith("Error") ? "error" : "success"}
           sx={{ mb: 2 }}
@@ -587,7 +604,7 @@ export default function PatientsPage() {
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
-      )}
+      )} */}
 
       {/* ── Barra de filtros sticky ──────────────────────── */}
       <Box
@@ -647,7 +664,7 @@ export default function PatientsPage() {
         {isMobile && (
           <Box sx={{ display: "flex", gap: 1 /*, alignItems: "flex-start"*/ }}>
             <TextField
-              placeholder="Buscar por nombre o DNI..."
+              placeholder="Buscar..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={handleSearchKeyDown}
@@ -669,6 +686,9 @@ export default function PatientsPage() {
           </Box>
         )}
       </Box>
+      {isSticky && (
+        <Box sx={{ height: filterBarHeightRef.current }} aria-hidden />
+      )}
 
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>

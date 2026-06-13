@@ -788,7 +788,6 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
     selected,
     saving,
     changeStatus,
-    deleteAppointment,
     setSelected,
     smartCancelOrDelete,
     cancelAppointment,
@@ -1002,10 +1001,6 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
     onUpdate();
   }, [form, balance, register, selected?.id, reloadSelected, onUpdate]);
 
-  // ── Botón "Eliminar cita" — también abre el modal ─────────
-  /*const handleDeleteClick = useCallback(() => {
-    setCancelDialogOpen(true);
-  }, []);*/
   const handleDeleteClick = useCallback(() => {
     setDialogAction("delete");
     setCancelDialogOpen(true);
@@ -1013,50 +1008,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
 
   // ── Confirmación desde el modal ───────────────────────────
   const handleCancelConfirm = useCallback(
-    /*async (notes, refundMethod = "efectivo") => {
-      const { action, error, warning } = await smartCancelOrDelete(
-        selected,
-        notes,
-        refundMethod,
-      );
 
-      if (error) {
-        setFeedback({ msg: error, type: "error" });
-        setCancelDialogOpen(false);
-        return;
-      }
-
-      setCancelDialogOpen(false);
-
-      const messages = {
-        deleted: "Cita eliminada correctamente.",
-        cancelled: "Cita cancelada correctamente.",
-        cancelled_with_refund:
-          "Cita cancelada. Se registró un reembolso en el ledger.",
-      };
-
-      setFeedback({
-        msg: warning ?? messages[action] ?? "Operación completada.",
-        type: warning ? "warning" : "success",
-      });
-
-      if (action === "deleted") {
-        onClose();
-        onUpdate();
-      } else {
-        await reloadSelected();
-        await loadCaseFinancials();
-        onUpdate();
-      }
-    },
-    [
-      smartCancelOrDelete,
-      selected,
-      onClose,
-      onUpdate,
-      reloadSelected,
-      loadCaseFinancials,
-    ],*/
     async (notes, refundMethod = "efectivo") => {
       let result;
 
@@ -1133,7 +1085,7 @@ export default function AppointmentDetailDrawer({ open, onClose, onUpdate }) {
   const drawerPaperSx = isMobile
     ? {
         borderRadius: "16px 16px 0 0",
-        maxHeight: "92vh",
+        //maxHeight: "92vh",
         display: "flex",
         flexDirection: "column",
       }
