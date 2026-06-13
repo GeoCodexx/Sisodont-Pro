@@ -285,7 +285,6 @@ const PaymentForm = memo(function PaymentForm({
   showLimit,
 }) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [form, setForm] = useState(FORM_EMPTY);
 
   const handleChange = useCallback((e) => {
@@ -387,7 +386,10 @@ const FinancialSummary = memo(function FinancialSummary({ rows }) {
             textAlign: "center",
           }}
         >
-          <Typography variant="caption" color="text.secondary" display="block">
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", display: "block" }}
+          >
             {label}
           </Typography>
           <Typography variant="body2" sx={{ fontWeight: 600, color }}>
@@ -406,12 +408,15 @@ function CasePaymentsSection({ caseData }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
-  const { entriesByRef, saving, fetchByRef, register, registerRefund, remove } =
+  const { entriesByRef, saving, fetchByRef, register, registerRefund } =
     useLedgerStore();
   // Selectores granulares — evitan re-suscripciones innecesarias
   const role = useAuthStore((s) => s.role);
 
-  const payments = entriesByRef[caseData.id] ?? [];
+  const payments = useMemo(
+    () => entriesByRef[caseData.id] ?? [],
+    [entriesByRef, caseData.id],
+  );
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
   const [refundForm, setRefundForm] = useState({
     open: false,
@@ -520,20 +525,7 @@ function CasePaymentsSection({ caseData }) {
     }
   }, [refundForm, totalPaid, caseData.id, registerRefund, resetRefundForm]);
 
-  /*const summaryRows = useMemo(
-    () => [
-      ["Costo total", fmtS(totalBilled), "text.primary"],
-      ["Pagado", fmtS(totalPaid), "success.main"],
-      [
-        "Saldo",
-        fmtS(totalBalance),
-        totalBalance > 0 ? "error.main" : "text.secondary",
-      ],
-    ],
-    [totalBilled, totalPaid, totalBalance],
-  );*/
-  const summaryRows = useMemo(
-  () => {
+  const summaryRows = useMemo(() => {
     const isAbandoned = caseData.status === "abandonado";
     return [
       [
@@ -553,12 +545,14 @@ function CasePaymentsSection({ caseData }) {
             : "Reembolso completado"
           : "Saldo",
         fmtS(totalBalance),
-        totalBalance > 0 ? (isAbandoned ? "warning.main" : "error.main") : "text.secondary",
+        totalBalance > 0
+          ? isAbandoned
+            ? "warning.main"
+            : "error.main"
+          : "text.secondary",
       ],
     ];
-  },
-  [totalBilled, totalPaid, totalBalance, caseData.status],
-);
+  }, [totalBilled, totalPaid, totalBalance, caseData.status]);
 
   return (
     <Box>
@@ -762,11 +756,13 @@ function CasePaymentsSection({ caseData }) {
         </>
       )}
 
-      {totalBalance <= 0 && totalPaid > 0 && caseData?.status!=="abandonado" && (
-        <Alert severity="success" icon={false} sx={{ mt: 1.5 }}>
-          Tratamiento completamente pagado.
-        </Alert>
-      )}
+      {totalBalance <= 0 &&
+        totalPaid > 0 &&
+        caseData?.status !== "abandonado" && (
+          <Alert severity="success" icon={false} sx={{ mt: 1.5 }}>
+            Tratamiento completamente pagado.
+          </Alert>
+        )}
     </Box>
   );
 }
@@ -778,11 +774,13 @@ function AppointmentPaymentsSection({ appt }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
-  const { entriesByRef, saving, fetchByRef, register, registerRefund, remove } =
+  const { entriesByRef, saving, fetchByRef, register, registerRefund } =
     useLedgerStore();
   const role = useAuthStore((s) => s.role);
-
-  const payments = entriesByRef[appt.id] ?? [];
+  const payments = useMemo(
+    () => entriesByRef[appt.id] ?? [],
+    [entriesByRef, appt.id],
+  );
   const paymentsTotal = useMemo(
     () =>
       payments.reduce((acc, p) => {

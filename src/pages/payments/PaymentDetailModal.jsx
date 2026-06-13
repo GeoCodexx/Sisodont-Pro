@@ -1107,23 +1107,10 @@ function AppointmentPaymentView({ row, onDirty }) {
 export default function PaymentDetailModal({ open, row, onClose }) {
   const { isMobile } = useBreakpoint();
   const [dirty, setDirty] = useState(false);
-  const [showButtons, setShowButtons] = useState(false);
 
   useEffect(() => {
     setDirty(false);
   }, [row]);
-
-  // Animación de entrada de botones en mobile
-  useEffect(() => {
-    if (open && isMobile) {
-      const timer = setTimeout(() => setShowButtons(true), 300);
-      return () => clearTimeout(timer);
-    } else if (open) {
-      setShowButtons(true);
-    } else {
-      setShowButtons(false);
-    }
-  }, [open, isMobile]);
 
   if (!row) return null;
   const isCase = row.ref_type === "case";

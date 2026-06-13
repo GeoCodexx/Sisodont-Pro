@@ -118,11 +118,6 @@ const PortalAccessCard = memo(function PortalAccessCard({ patient }) {
   const [form, setForm] = useState({ email: "", password: "" });
   const [feedback, setFeedback] = useState({ msg: "", type: "success" });
 
-  // Solo ADMIN puede gestionar el portal
-  if (role !== "ADMIN") return null;
-
-  const hasPortal = !!patient.user_id;
-
   // Handler de campo estable — useCallback en lugar de factory inline
   const handleFieldChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -165,6 +160,11 @@ const PortalAccessCard = memo(function PortalAccessCard({ patient }) {
     if (error) setFeedback({ msg: error, type: "error" });
     else setFeedback({ msg: "Acceso al portal desactivado.", type: "success" });
   }, [patient.id, deactivatePortalAccess]);
+
+  // Solo ADMIN puede gestionar el portal
+  if (role !== "ADMIN") return null;
+
+  const hasPortal = !!patient.user_id;
 
   return (
     <>
@@ -307,24 +307,30 @@ export default function PatientDetailPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
-  const appBarHeight = isMobile ? 56 : 64;
+  // ── Sticky barra de filtros ───────────────────────────────
   const [isSticky, setIsSticky] = useState(false);
-  const headerRef = useRef(null);
+  const filterBarRef = useRef(null);
+  const stickyThreshold = useRef(0); // ← referencia fija
+  const appBarHeight = isMobile ? 56 : 64;
+  const filterBarHeightRef = useRef(0);
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (!headerRef.current) return;
+    if (!filterBarRef.current) return;
 
-      // offsetTop es la distancia del header desde el top del documento
-      // Si el scroll supera esa posición menos el AppBar, está sticky
-      const headerOffsetTop = headerRef.current.offsetTop;
-      setIsSticky(window.scrollY >= headerOffsetTop - appBarHeight);
+    // Capturar el offsetTop UNA SOLA VEZ antes de que sticky lo altere
+    stickyThreshold.current =
+      filterBarRef.current.getBoundingClientRect().top +
+      window.scrollY -
+      appBarHeight;
+
+    filterBarHeightRef.current = filterBarRef.current.offsetHeight;
+
+    const handleScroll = () => {
+      setIsSticky(window.scrollY >= stickyThreshold.current);
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
-
-    // Ejecutar una vez al montar por si ya hay scroll
-    handleScroll();
+    handleScroll(); // por si hay scroll previo al montar
 
     return () => window.removeEventListener("scroll", handleScroll);
   }, [appBarHeight]);
@@ -366,33 +372,17 @@ export default function PatientDetailPage() {
     <Box>
       {/* Header */}
       <Box
-      ref={headerRef}
+        ref={filterBarRef}
         sx={{
           position: "sticky",
           top: `${appBarHeight}px`,
           zIndex: theme.zIndex.appBar - 1,
-
-          display: "flex",
-          alignItems: "center",
-          gap: 2,
-
-          // Solo se expande cuando está sticky
           mx: isSticky ? { xs: -2, sm: -3 } : 0,
-          px: isSticky ? { xs: 2, sm: 3 } : 2,
-          minHeight: 64,
-
-          // px: 2,
-          py: 1.5,
-          mb: 3,
-
-          bgcolor: "background.paper",
-
-          borderBottom: 1,
-          borderColor: "divider",
-
-          // Sombra más pronunciada al estar sticky para dar sensación de elevación
-          boxShadow: isSticky ? 3 : 1,
-          // Transición suave
+          px: isSticky ? { xs: 2, sm: 3 } : 0,
+          bgcolor: "background.default",
+          pb: 1.5,
+          pt: isSticky ? 1 : 0,
+          boxShadow: isSticky ? 2 : 0,
           transition:
             "box-shadow 0.2s ease, margin 0.2s ease, padding 0.2s ease",
         }}
