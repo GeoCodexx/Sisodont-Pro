@@ -252,7 +252,7 @@ export default function UsersPage() {
   }, [openInvite, isMobile]);
 
   useEffect(() => {
-    fetchUsers();
+    if (users.length === 0) fetchUsers();
     // fetchUsers es estable si el store la define fuera del render
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

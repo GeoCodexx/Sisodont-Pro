@@ -24,26 +24,52 @@ export default function CatalogPage() {
     <Box>
       <PageHeader title="Catálogo clínico" />
 
-      <Tabs
-        value={tab}
-        onChange={(_, v) => {
-          setTab(v);
-        }}
-        variant={isMobile ? "fullWidth" : "standard"}
-        sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}
-      >
-        <Tab label="Especialidades" sx={{ fontSize: { xs: 12, sm: 14 } }} />
-        <Tab label="Doctores" sx={{ fontSize: { xs: 12, sm: 14 } }} />
-        <Tab label="Tratamientos" sx={{ fontSize: { xs: 12, sm: 14 } }} />
-      </Tabs>
+      {/** Build tabs based on role: SuperAdmin -> [Specialties, Doctors, Treatments]
+          Admin -> [Doctors, Treatments] */}
+      {(() => {
+        const tabs = [];
+        if (isSuperAdmin) {
+          tabs.push({
+            key: "specialties",
+            label: "Especialidades",
+            component: <SpecialtiesTab isSuperAdmin={isSuperAdmin} />,
+          });
+        }
+        if (isSuperAdmin || isAdmin) {
+          tabs.push({
+            key: "doctors",
+            label: "Doctores",
+            component: <DoctorsTab isAdmin={isAdmin} />,
+          });
+          tabs.push({
+            key: "treatments",
+            label: "Tratamientos",
+            component: (
+              <TreatmentsTab isSuperAdmin={isSuperAdmin} isAdmin={isAdmin} />
+            ),
+          });
+        }
 
-      {/* isSuperAdmin se pasa a cada tab para controlar
-          visibilidad de acciones CRUD */}
-      {tab === 0 && <SpecialtiesTab isSuperAdmin={isSuperAdmin} />}
-      {tab === 1 && <DoctorsTab isAdmin={isAdmin} />}
-      {tab === 2 && (
-        <TreatmentsTab isSuperAdmin={isSuperAdmin} isAdmin={isAdmin} />
-      )}
+        // Ensure current tab index is in range
+        if (tab >= tabs.length) setTab(0);
+
+        return (
+          <>
+            <Tabs
+              value={tab}
+              onChange={(_, v) => setTab(v)}
+              variant={isMobile ? "fullWidth" : "standard"}
+              sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}
+            >
+              {tabs.map((t) => (
+                <Tab key={t.key} label={t.label} sx={{ fontSize: { xs: 12, sm: 14 } }} />
+              ))}
+            </Tabs>
+
+            {tabs[tab] && tabs[tab].component}
+          </>
+        );
+      })()}
     </Box>
   );
 }

@@ -32,8 +32,8 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
-import ToggleOnIcon from "@mui/icons-material/ToggleOn";
-import ToggleOffIcon from "@mui/icons-material/ToggleOff";
+import ToggleOnIcon from "@mui/icons-material/TaskAlt";
+import ToggleOffIcon from "@mui/icons-material/Block";
 import { useCatalogStore } from "../../stores/useCatalogStore";
 import { useUsersStore } from "../../stores/useUsersStore";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
@@ -109,7 +109,7 @@ function DoctorCard({ d, onEdit, onToggleActive, isAdmin }) {
             alignItems: "center",
           }}
         >
-          {d.specialty ? (
+          {/* {d.specialty ? (
             <Chip
               label={d.specialty.name}
               size="small"
@@ -124,7 +124,7 @@ function DoctorCard({ d, onEdit, onToggleActive, isAdmin }) {
             <Typography variant="caption" sx={{ color: "textSecondary" }}>
               Sin especialidad
             </Typography>
-          )}
+          )} */}
           {d.license && (
             <Typography variant="caption" sx={{ color: "textSecondary" }}>
               N.° {d.license}
@@ -221,9 +221,9 @@ export default function DoctorsTab({ isAdmin }) {
       validationErrors.profile_id = "Seleccione un perfil.";
     }
 
-    if (!form.specialty_id) {
+    /*if (!form.specialty_id) {
       validationErrors.specialty_id = "Selecciona una especialidad.";
-    }
+    }*/
 
     if (Object.keys(validationErrors).length) {
       setErrors(validationErrors);
@@ -338,7 +338,7 @@ export default function DoctorsTab({ isAdmin }) {
             <TableHead>
               <TableRow>
                 <TableCell>Doctor</TableCell>
-                <TableCell>Especialidad</TableCell>
+                {/* <TableCell>Especialidad</TableCell> */}
                 <TableCell>N.° colegiatura</TableCell>
                 <TableCell>Estado</TableCell>
                 {isAdmin && <TableCell align="right">Acciones</TableCell>}
@@ -382,7 +382,7 @@ export default function DoctorsTab({ isAdmin }) {
                       </Box>
                     </Box>
                   </TableCell>
-                  <TableCell>
+                  {/* <TableCell>
                     {d.specialty ? (
                       <Chip
                         label={d.specialty.name}
@@ -397,7 +397,7 @@ export default function DoctorsTab({ isAdmin }) {
                     ) : (
                       "—"
                     )}
-                  </TableCell>
+                  </TableCell> */}
                   <TableCell>
                     <Typography variant="body2">
                       {d.license ? d.license : "—"}
@@ -522,7 +522,7 @@ export default function DoctorsTab({ isAdmin }) {
               ))}
             </TextField>
           )}
-          <TextField
+          {/* <TextField
             select
             label="Especialidad"
             value={form.specialty_id}
@@ -547,7 +547,7 @@ export default function DoctorsTab({ isAdmin }) {
                 {s.name}
               </MenuItem>
             ))}
-          </TextField>
+          </TextField> */}
           <TextField
             label="N.° de colegiatura"
             value={form.license}

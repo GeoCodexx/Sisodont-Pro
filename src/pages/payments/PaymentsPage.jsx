@@ -478,7 +478,7 @@ export default function PaymentsPage() {
   }, [page, pageSize, filters, fetchPayments]);
 
   useEffect(() => {
-    load();
+    if (rows.length === 0) load();
   }, [load]);
 
   // Reset página cuando cambian los filtros globales

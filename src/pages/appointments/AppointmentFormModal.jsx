@@ -459,14 +459,18 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
 
   const showTotalField = !isObturacion && !isMultisession && !isUnitPrice;
 
-  const filteredDoctors = useMemo(() => {
+  /* const filteredDoctors = useMemo(() => {
     const activeDoctors = doctors.filter((d) => d.active === true);
     return selectedTreatment?.specialty_id
       ? activeDoctors.filter(
           (d) => d.specialty_id === selectedTreatment.specialty_id,
         )
       : activeDoctors;
-  }, [doctors, selectedTreatment?.specialty_id]);
+  }, [doctors, selectedTreatment?.specialty_id]);*/
+  const filteredDoctors = useMemo(() => {
+    const activeDoctors = doctors.filter((d) => d.active === true);
+    return activeDoctors;
+  }, [doctors]);
 
   useEffect(() => {
     if (!open) return;
@@ -604,11 +608,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       if (isObturacion && (!teethCount || parseInt(teethCount) < 1)) {
         manualErrors.teethCount = "Ingresa la cantidad de dientes a tratar.";
       }
-      if (
-        isMultisession &&
-        (!openCase || caseOption === "new") &&
-        !totalCost
-      ) {
+      if (isMultisession && (!openCase || caseOption === "new") && !totalCost) {
         manualErrors.totalCost = "Ingresa el costo total pactado.";
       }
 
@@ -623,8 +623,7 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
       try {
         const startDate = new Date(data.date);
         const endDate = new Date(
-          startDate.getTime() +
-            (selectedTreatment?.duration_min ?? 30) * 60000,
+          startDate.getTime() + (selectedTreatment?.duration_min ?? 30) * 60000,
         );
         const total = isObturacion
           ? (parseFloat(unitPrice) || 0) * (parseInt(teethCount) || 0)
@@ -743,19 +742,25 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
   );
 
   // Opciones de tratamiento: siempre incluye el centinela al inicio
-  const treatmentOptions = useMemo(
+  /* const treatmentOptions = useMemo(
     () => [NO_TREATMENT, ...treatments],
     [treatments],
-  );
+  );*/
+  const treatmentOptions = useMemo(() => {
+    const sorted = [...treatments].sort((a, b) =>
+      (a.category_name ?? "").localeCompare(b.category_name ?? "", "es"),
+    );
+    return [NO_TREATMENT, ...sorted];
+  }, [treatments]);
 
   // Valor actual del Autocomplete de tratamiento
   const treatmentValue = useMemo(
-    () =>
-      treatments.find((t) => t.id === watchTreatmentId) ?? NO_TREATMENT,
+    () => treatments.find((t) => t.id === watchTreatmentId) ?? NO_TREATMENT,
     [treatments, watchTreatmentId],
   );
 
-  const isSubmitDisabled = isSubmitting || saving || quickSaving || checkingCase;
+  const isSubmitDisabled =
+    isSubmitting || saving || quickSaving || checkingCase;
 
   return (
     <Dialog
@@ -795,7 +800,6 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
 
       <DialogContent dividers>
         <Grid container spacing={2}>
-
           {/* ── Paciente ──────────────────────────────────── */}
           <Grid size={{ xs: 12 }}>
             <Autocomplete
@@ -812,7 +816,9 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                   error={!!fieldErrors.patient_id}
                   helperText={
                     fieldErrors.patient_id ??
-                    (selectedPatient ? "" : "Escribe para buscar o crea uno nuevo")
+                    (selectedPatient
+                      ? ""
+                      : "Escribe para buscar o crea uno nuevo")
                   }
                 />
               )}
@@ -860,6 +866,40 @@ export default function AppointmentFormModal({ open, prefillDate, onClose }) {
                   onChange={(_, val) => {
                     field.onChange(val?.id ?? "");
                   }}
+                  groupBy={(t) =>
+                    t.id === "" ? "" : (t.category_name ?? "Sin categoría")
+                  }
+                  renderGroup={(params) => (
+                    <li key={params.key}>
+                      {params.group && (
+                        <Box
+                          sx={{
+                            px: 2,
+                            py: 0.5,
+                            position: "sticky",
+                            top: -8,
+                            zIndex: 1,
+                            bgcolor: "background.paper",
+                            borderBottom: "1px solid",
+                            borderColor: "divider",
+                          }}
+                        >
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontWeight: 600,
+                              color: "primary.main",
+                              textTransform: "uppercase",
+                              letterSpacing: 0.5,
+                            }}
+                          >
+                            {params.group}
+                          </Typography>
+                        </Box>
+                      )}
+                      <ul style={{ padding: 0 }}>{params.children}</ul>
+                    </li>
+                  )}
                   renderOption={(props, t) => (
                     <Box component="li" {...props} key={t.id}>
                       <Box

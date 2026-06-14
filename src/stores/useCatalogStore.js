@@ -19,6 +19,7 @@ import { useAuthStore } from "./useAuthStore";
 export const useCatalogStore = create((set, get) => ({
   specialties: [],
   treatments: [],
+  treatmentCategories: [],
   treatmentsCatalog: [], // vista treatments_catalog (todos, con effective_price/active)
   doctors: [],
   odontogramActions: [],
@@ -30,29 +31,32 @@ export const useCatalogStore = create((set, get) => ({
   fetchAll: async () => {
     set({ loading: true, error: null });
 
-    const [specs, treats, docs] = await Promise.all([
-      supabase.from("specialties").select("*")
-      //.eq("active", true)
-      .order("name"),
+    const [specs, categories, treats, docs] = await Promise.all([
+      supabase.from("specialties").select("*").order("name"),
+
       supabase
-        .from("treatments_catalog")
-        .select("*, specialty:specialties(id, name, color)")
+        .from("treatment_categories")
+        .select("*")
+        .eq("active", true)
         .order("name"),
+
+      supabase.from("treatments_catalog").select("*").order("name"),
+
       supabase
         .from("doctors")
         .select(
           `
-          *,
-          profile:profiles(id, full_name, email, phone),
-          specialty:specialties(id, name, color)
-        `,
+        *,
+        profile:profiles(id, full_name, email, phone),
+        specialty:specialties(id, name, color)
+      `,
         )
-        //.eq("active", true)
         .order("created_at"),
     ]);
 
     set({
       specialties: specs.data ?? [],
+      treatmentCategories: categories.data ?? [],
       treatmentsCatalog: treats.data ?? [], // NUEVO — todos
       treatments: (treats.data ?? []).filter((t) => t.effective_active), // activos
       doctors: docs.data ?? [],
@@ -210,8 +214,6 @@ export const useCatalogStore = create((set, get) => ({
   },
 
   // ── ACCIONES ODONTOGRAMA — solo SUPER_ADMIN ───────────────
-
-  odontogramActions: [],
 
   fetchOdontogramActions: async () => {
     const { data } = await supabase
@@ -379,6 +381,7 @@ export const useCatalogStore = create((set, get) => ({
 
   // Upsert de precio y/o estado en tenant_treatment_config
   upsertTreatmentConfig: async (treatmentId, patch) => {
+    set({ saving: true });
     // patch puede ser { custom_price }, { is_active } o ambos
     const userId = useAuthStore.getState().user?.id ?? null;
 
@@ -393,8 +396,6 @@ export const useCatalogStore = create((set, get) => ({
         { onConflict: "tenant_id,treatment_id" },
       )
       .select();
-
-    console.log("upsert result:", { data, error, status, statusText });
 
     if (!error) {
       set((s) => {
@@ -417,36 +418,7 @@ export const useCatalogStore = create((set, get) => ({
         };
       });
     }
-
-    /*if (!error) {
-      // Actualizar treatmentsCatalog en memoria
-      set((s) => ({
-        treatmentsCatalog: s.treatmentsCatalog.map((t) => {
-          if (t.id !== treatmentId) return t;
-          const newActive = t.is_tenant_own
-            ? (patch.is_active ?? t.effective_active) // propio: el tenant controla
-            : t.effective_active; // global: no cambia en memoria (t.active manda)
-          const newPrice = patch.custom_price ?? t.custom_price;
-          return {
-            ...t,
-            custom_price: newPrice,
-            effective_active: newActive,
-            effective_price: newPrice ?? t.base_price,
-          };
-        }),
-        // Sincronizar treatments (solo activos)
-        treatments: s.treatmentsCatalog
-          .map((t) =>
-            t.id !== treatmentId
-              ? t
-              : {
-                  ...t,
-                  effective_active: patch.is_active ?? t.effective_active,
-                },
-          )
-          .filter((t) => t.effective_active),
-      }));
-    }*/
+    set({ saving: false });
     return { error: error?.message ?? null };
   },
 }));

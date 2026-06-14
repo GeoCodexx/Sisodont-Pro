@@ -92,7 +92,6 @@ export default function OdontogramPage() {
     setOdontogramType,
     saveOdontogram,
     selectTooth,
-    selectedTooth,
     reset,
   } = useOdontogramStore();
 

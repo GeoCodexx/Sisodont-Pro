@@ -33,13 +33,14 @@ import {
   InputLabel,
   Fade,
   Stack,
+  Skeleton,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import LockIcon from "@mui/icons-material/Lock";
-import ToggleOnIcon from "@mui/icons-material/ToggleOn";
-import ToggleOffIcon from "@mui/icons-material/ToggleOff";
+import ToggleOnIcon from "@mui/icons-material/TaskAlt";
+import ToggleOffIcon from "@mui/icons-material/Block";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import SearchIcon from "@mui/icons-material/Search";
 import SaveIcon from "@mui/icons-material/Save";
@@ -63,6 +64,83 @@ const EMPTY = {
   is_multisession: false,
   unit_price: "",
 };
+
+// ── Skeleton móvil ────────────────────────────────────────────
+function TreatmentCardSkeleton() {
+  return (
+    <Card variant="outlined" sx={{ mb: 1.5 }}>
+      <CardContent sx={{ pb: "12px !important" }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            mb: 0.5,
+          }}
+        >
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Skeleton variant="text" width="60%" height={20} />
+            <Skeleton variant="text" width="85%" height={16} sx={{ mt: 0.5 }} />
+          </Box>
+          <Box sx={{ display: "flex", gap: 0.5, ml: 1 }}>
+            <Skeleton variant="circular" width={28} height={28} />
+            <Skeleton variant="circular" width={28} height={28} />
+          </Box>
+        </Box>
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1,
+            flexWrap: "wrap",
+            mt: 1,
+            alignItems: "center",
+          }}
+        >
+          <Skeleton variant="rounded" width={72} height={20} />
+          <Skeleton variant="rounded" width={64} height={20} />
+          <Skeleton variant="text" width={80} height={20} />
+          <Skeleton variant="text" width={40} height={16} />
+          <Skeleton variant="rounded" width={52} height={20} />
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Skeleton desktop (filas de tabla) ─────────────────────────
+function TreatmentRowSkeleton({ colSpan }) {
+  return (
+    <TableRow>
+      <TableCell>
+        <Skeleton variant="text" width="55%" height={18} />
+        <Skeleton variant="text" width="75%" height={14} sx={{ mt: 0.5 }} />
+      </TableCell>
+      <TableCell>
+        <Skeleton variant="text" width={90} height={18} />
+      </TableCell>
+      <TableCell>
+        <Skeleton variant="rounded" width={72} height={20} />
+      </TableCell>
+      <TableCell>
+        <Skeleton variant="text" width={70} height={18} />
+      </TableCell>
+      <TableCell>
+        <Skeleton variant="text" width={45} height={18} />
+      </TableCell>
+      <TableCell>
+        <Skeleton variant="rounded" width={52} height={20} />
+      </TableCell>
+      {colSpan === 7 && (
+        <TableCell align="right">
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.5 }}>
+            <Skeleton variant="circular" width={28} height={28} />
+            <Skeleton variant="circular" width={28} height={28} />
+          </Box>
+        </TableCell>
+      )}
+    </TableRow>
+  );
+}
 
 // ── Chips de tipo de tratamiento ──────────────────────────────
 function TreatmentTypeChip({ isMultisession, unitPrice }) {
@@ -233,18 +311,17 @@ function TreatmentCard({
 // isSuperAdmin = true  → CRUD completo
 // isSuperAdmin = false → solo lectura + banner informativo
 // ─────────────────────────────────────────────────────────────
-export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
+export default function TreatmentsTab({ isSuperAdmin, isAdmin }) {
   const showSnackbar = useSnackbarStore((state) => state.showSnackbar);
   const canManage = isSuperAdmin || isAdmin;
   const { isMobile } = useBreakpoint();
   const {
     treatmentsCatalog,
-    specialties,
+    //specialties,
     saving,
     loading,
     createTreatment,
     updateTreatment,
-    deleteTreatment,
     createTenantTreatment,
     updateTenantTreatment,
     upsertTreatmentConfig,
@@ -343,7 +420,7 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
 
   const onSubmit = async (data) => {
     if (!data.is_multisession && !data.unit_price && !data.price) {
-      onNotify("Ingresa un precio.", "error");
+      showSnackbar("Ingresa un precio.", "error");
       return;
     }
     const payload = {
@@ -366,20 +443,20 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
 
     const { error } = await fn;
     if (error) {
-      onNotify(error, "error");
+      showSnackbar(error, "error");
       return;
     }
-    onNotify(editId ? "Tratamiento actualizado." : "Tratamiento creado.");
+    showSnackbar(editId ? "Tratamiento actualizado." : "Tratamiento creado.");
     setOpen(false);
   };
 
   // SOLO PARA EL SUPER ADMIN
-  const handleDelete = async (id) => {
+  /*const handleDelete = async (id) => {
     if (!window.confirm("¿Desactivar este tratamiento?")) return;
     const { error } = await deleteTreatment(id);
     if (error) onNotify(error, "error");
     else onNotify("Tratamiento desactivado.");
-  };
+  };*/
 
   const openPriceDialog = (t) =>
     setPriceDialog({
@@ -392,9 +469,9 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
     const { error } = await upsertTreatmentConfig(priceDialog.treatment.id, {
       custom_price: Number(priceDialog.value),
     });
-    if (error) onNotify(error, "error");
+    if (error) showSnackbar(error, "error");
     else {
-      onNotify("Precio actualizado.");
+      showSnackbar("Precio actualizado.");
       setPriceDialog({ open: false, treatment: null, value: "" });
     }
   };
@@ -656,7 +733,11 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
       {/* Vista móvil */}
       {isMobile ? (
         <Box>
-          {paginated.length === 0 ? (
+          {loading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <TreatmentCardSkeleton key={i} />
+            ))
+          ) : paginated.length === 0 ? (
             <Typography
               sx={{ color: "textSecondary", textAlign: "center", mt: 4 }}
             >
@@ -670,7 +751,7 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
                 key={t.id}
                 t={t}
                 onEdit={openEdit}
-                onDelete={handleDelete}
+                //onDelete={handleDelete}
                 onToggleActive={() => setTreatmentToToggle(t)}
                 onOpenPriceDialog={openPriceDialog}
                 canEdit={isSuperAdmin || t.is_tenant_own}
@@ -708,141 +789,149 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {paginated.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={canManage ? 7 : 6}
-                      align="center"
-                      sx={{ py: 4, color: "text.secondary" }}
-                    >
-                      {search || origin !== "all"
-                        ? "Sin resultados para los filtros aplicados."
-                        : "No hay tratamientos registrados."}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {paginated.map((t) => (
-                  <TableRow key={t.id} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={500}>
-                        {t.name}
-                      </Typography>
-                      {t.description && (
-                        <Typography
-                          variant="caption"
-                          color="textSecondary"
-                          sx={{
-                            display: "block",
-                            maxWidth: 220,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
+                {loading ? (
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <TreatmentRowSkeleton key={i} colSpan={canManage ? 7 : 6} />
+                  ))
+                ) : (
+                  <>
+                    {paginated.length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={canManage ? 7 : 6}
+                          align="center"
+                          sx={{ py: 4, color: "text.secondary" }}
                         >
-                          {t.description}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {t.specialty ? (
-                        <Chip
-                          label={t.specialty.name}
-                          size="small"
-                          variant="outlined"
-                          sx={{
-                            bgcolor: t.specialty.color + "22",
-                            color: t.specialty.color,
-                            borderColor: t.specialty.color,
-                          }}
-                        />
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <TreatmentTypeChip
-                        isMultisession={t.is_multisession}
-                        unitPrice={t.unit_price}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                        fontWeight={500}
-                        sx={{
-                          color: t.is_multisession
-                            ? "text.secondary"
-                            : t.unit_price
-                              ? "warning.dark"
-                              : "success.main",
-                        }}
-                      >
-                        {t.unit_price
-                          ? `S/ ${Number(t.effective_price).toFixed(2)}/ud.`
-                          : t.is_multisession
-                            ? "Pactado por caso"
-                            : `S/ ${Number(t.effective_price).toFixed(2)}`}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="textSecondary">
-                        {t.duration_min} min
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={t.effective_active ? "Activo" : "Inactivo"}
-                        size="small"
-                        color={t.effective_active ? "success" : "default"}
-                        variant="outlined"
-                        sx={{ fontSize: 10, height: 20 }}
-                      />
-                    </TableCell>
-                    {canManage && (
-                      <TableCell align="right">
-                        {/* Editar: SUPER_ADMIN edita cualquiera, ADMIN solo los suyos */}
-                        {(isSuperAdmin || t.is_tenant_own) && (
-                          <Tooltip title="Editar">
-                            <IconButton
-                              size="small"
-                              onClick={() => openEdit(t)}
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-
-                        {/* Precio custom: solo ADMIN sobre tratamientos globales */}
-                        {isAdmin && !t.is_tenant_own && (
-                          <Tooltip title="Ajustar precio">
-                            <IconButton
-                              size="small"
-                              onClick={() => openPriceDialog(t)}
-                            >
-                              <AttachMoneyIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-
-                        {/* Activar/desactivar */}
-                        <Tooltip
-                          title={t.effective_active ? "Desactivar" : "Activar"}
-                        >
-                          <IconButton
-                            size="small"
-                            onClick={() => setTreatmentToToggle(t)}
-                          >
-                            {t.effective_active ? (
-                              <ToggleOffIcon fontSize="small" color="error" />
-                            ) : (
-                              <ToggleOnIcon fontSize="small" color="success" />
-                            )}
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
+                          {search || origin !== "all"
+                            ? "Sin resultados para los filtros aplicados."
+                            : "No hay tratamientos registrados."}
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </TableRow>
-                ))}
+                    {paginated.map((t) => (
+                      <TableRow key={t.id} hover>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={500}>
+                            {t.name}
+                          </Typography>
+                          {t.description && (
+                            <Tooltip title={t.description ?? ""}>
+                              <Typography
+                                variant="caption"
+                                color="textSecondary"
+                                sx={{
+                                  display: "block",
+                                  maxWidth: 220,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {t.description}
+                              </Typography>
+                            </Tooltip>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="textSecondary">
+                            {t.category_name ?? "—"}
+                          </Typography>
+                        </TableCell>
+
+                        <TableCell>
+                          <TreatmentTypeChip
+                            isMultisession={t.is_multisession}
+                            unitPrice={t.unit_price}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography
+                            variant="body2"
+                            fontWeight={500}
+                            sx={{
+                              color: t.is_multisession
+                                ? "text.secondary"
+                                : t.unit_price
+                                  ? "warning.dark"
+                                  : "success.main",
+                            }}
+                          >
+                            {t.unit_price
+                              ? `S/ ${Number(t.effective_price).toFixed(2)}/ud.`
+                              : t.is_multisession
+                                ? "Pactado por caso"
+                                : `S/ ${Number(t.effective_price).toFixed(2)}`}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="textSecondary">
+                            {t.duration_min} min
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={t.effective_active ? "Activo" : "Inactivo"}
+                            size="small"
+                            color={t.effective_active ? "success" : "default"}
+                            variant="outlined"
+                            sx={{ fontSize: 10, height: 20 }}
+                          />
+                        </TableCell>
+                        {canManage && (
+                          <TableCell align="right">
+                            {/* Editar: SUPER_ADMIN edita cualquiera, ADMIN solo los suyos */}
+                            {(isSuperAdmin || t.is_tenant_own) && (
+                              <Tooltip title="Editar">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => openEdit(t)}
+                                >
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+
+                            {/* Precio custom: solo ADMIN sobre tratamientos globales */}
+                            {isAdmin && !t.is_tenant_own && (
+                              <Tooltip title="Ajustar precio">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => openPriceDialog(t)}
+                                >
+                                  <AttachMoneyIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+
+                            {/* Activar/desactivar */}
+                            <Tooltip
+                              title={
+                                t.effective_active ? "Desactivar" : "Activar"
+                              }
+                            >
+                              <IconButton
+                                size="small"
+                                onClick={() => setTreatmentToToggle(t)}
+                              >
+                                {t.effective_active ? (
+                                  <ToggleOffIcon
+                                    fontSize="small"
+                                    color="error"
+                                  />
+                                ) : (
+                                  <ToggleOnIcon
+                                    fontSize="small"
+                                    color="success"
+                                  />
+                                )}
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </>
+                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -928,7 +1017,7 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
               </Grid>
 
               {/* Especialidad */}
-              <Grid size={{ xs: 12 }}>
+              {/* <Grid size={{ xs: 12 }}>
                 <Controller
                   name="specialty_id"
                   control={control}
@@ -951,7 +1040,7 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
                     </TextField>
                   )}
                 />
-              </Grid>
+              </Grid> */}
 
               {/* Tipo de tratamiento */}
               <Grid size={{ xs: 12 }}>
@@ -1252,7 +1341,11 @@ export default function TreatmentsTab({ onNotify, isSuperAdmin, isAdmin }) {
             onClick={handleSavePrice}
             disabled={saving}
           >
-            Guardar precio
+            {saving ? (
+              <CircularProgress size={18} color="inherit" />
+            ) : (
+              "Guardar precio"
+            )}
           </Button>
         </DialogActions>
       </Dialog>

@@ -30,70 +30,125 @@ const UsersPage = lazy(
 
 // Clínica
 const PatientsPage = lazy(
-  () => import(/* webpackChunkName: "patients" */ "../pages/patients/PatientsPage"),
+  () =>
+    import(/* webpackChunkName: "patients" */ "../pages/patients/PatientsPage"),
 );
 const PatientDetailPage = lazy(
-  () => import(/* webpackChunkName: "patients" */ "../pages/patients/PatientDetailPage"),
+  () =>
+    import(
+      /* webpackChunkName: "patients" */ "../pages/patients/PatientDetailPage"
+    ),
 );
 const AppointmentsPage = lazy(
-  () => import(/* webpackChunkName: "appointments" */ "../pages/appointments/AppointmentsPage"),
+  () =>
+    import(
+      /* webpackChunkName: "appointments" */ "../pages/appointments/AppointmentsPage"
+    ),
 );
 const OdontogramPage = lazy(
-  () => import(/* webpackChunkName: "odontogram" */ "../pages/odontogram/OdontogramPage"),
+  () =>
+    import(
+      /* webpackChunkName: "odontogram" */ "../pages/odontogram/OdontogramPage"
+    ),
 );
 const HistoryPage = lazy(
-  () => import(/* webpackChunkName: "history" */ "../pages/history/HistoryPage"),
+  () =>
+    import(/* webpackChunkName: "history" */ "../pages/history/HistoryPage"),
 );
 
 // Finanzas
 const PaymentsPage = lazy(
-  () => import(/* webpackChunkName: "payments" */ "../pages/payments/PaymentsPage"),
+  () =>
+    import(/* webpackChunkName: "payments" */ "../pages/payments/PaymentsPage"),
 );
 
 // Config
 const CatalogPage = lazy(
-  () => import(/* webpackChunkName: "catalog" */ "../pages/catalog/CatalogPage"),
+  () =>
+    import(/* webpackChunkName: "catalog" */ "../pages/catalog/CatalogPage"),
 );
 const SettingsPage = lazy(
-  () => import(/* webpackChunkName: "settings" */ "../pages/settings/SettingsPage"),
+  () =>
+    import(/* webpackChunkName: "settings" */ "../pages/settings/SettingsPage"),
 );
 const ProfilePage = lazy(
-  () => import(/* webpackChunkName: "profile" */ "../pages/profile/ProfilePage"),
+  () =>
+    import(/* webpackChunkName: "profile" */ "../pages/profile/ProfilePage"),
 );
 
 // Dashboard
 const DashboardPage = lazy(
-  () => import(/* webpackChunkName: "dashboard" */ "../pages/dashboard/DashboardPage"),
+  () =>
+    import(
+      /* webpackChunkName: "dashboard" */ "../pages/dashboard/DashboardPage"
+    ),
 );
 const MyAppointmentsPage = lazy(
-  () => import(/* webpackChunkName: "my-appointments" */ "../pages/my-appointments/MyAppointmentsPage"),
+  () =>
+    import(
+      /* webpackChunkName: "my-appointments" */ "../pages/my-appointments/MyAppointmentsPage"
+    ),
 );
 
 // Super Admin
 const SuperAdminDashboard = lazy(
-  () => import(/* webpackChunkName: "super-admin" */ "../pages/super-admin/SuperAdminDashboard"),
+  () =>
+    import(
+      /* webpackChunkName: "super-admin" */ "../pages/super-admin/SuperAdminDashboard"
+    ),
 );
 const TenantDetailPage = lazy(
-  () => import(/* webpackChunkName: "super-admin" */ "../pages/super-admin/TenantDetailPage"),
+  () =>
+    import(
+      /* webpackChunkName: "super-admin" */ "../pages/super-admin/TenantDetailPage"
+    ),
 );
 const SuperAdminCatalogPage = lazy(
-  () => import(/* webpackChunkName: "super-admin" */ "../pages/super-admin/SuperAdminCatalogPage"),
+  () =>
+    import(
+      /* webpackChunkName: "super-admin" */ "../pages/super-admin/SuperAdminCatalogPage"
+    ),
 );
 
 // ─────────────────────────────────────────────────────────────
 // Preloaders — úsalos en hover o idle para anticipar navegación
 // ─────────────────────────────────────────────────────────────
 export const preloadRoutes = {
-  dashboard:       () => import(/* webpackChunkName: "dashboard" */       "../pages/dashboard/DashboardPage"),
-  patients:        () => import(/* webpackChunkName: "patients" */        "../pages/patients/PatientsPage"),
-  appointments:    () => import(/* webpackChunkName: "appointments" */    "../pages/appointments/AppointmentsPage"),
-  payments:        () => import(/* webpackChunkName: "payments" */        "../pages/payments/PaymentsPage"),
-  myAppointments:  () => import(/* webpackChunkName: "my-appointments" */ "../pages/my-appointments/MyAppointmentsPage"),
+  dashboard: () =>
+    import(
+      /* webpackChunkName: "dashboard" */ "../pages/dashboard/DashboardPage"
+    ),
+  patients: () =>
+    import(/* webpackChunkName: "patients" */ "../pages/patients/PatientsPage"),
+  appointments: () =>
+    import(
+      /* webpackChunkName: "appointments" */ "../pages/appointments/AppointmentsPage"
+    ),
+  payments: () =>
+    import(/* webpackChunkName: "payments" */ "../pages/payments/PaymentsPage"),
+  myAppointments: () =>
+    import(
+      /* webpackChunkName: "my-appointments" */ "../pages/my-appointments/MyAppointmentsPage"
+    ),
 };
 
 // ─────────────────────────────────────────────────────────────
 // PageLoader
 // ─────────────────────────────────────────────────────────────
+// function PageLoader() {
+//   return (
+//     <Box
+//       sx={{
+//         display: "flex",
+//         justifyContent: "center",
+//         alignItems: "center",
+//         height: "100vh",
+//       }}
+//     >
+//       <CircularProgress />
+//     </Box>
+//   );
+// }
 function PageLoader() {
   return (
     <Box
@@ -101,10 +156,11 @@ function PageLoader() {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        height: "100vh",
+        minHeight: "60vh",
+        width: "100%",
       }}
     >
-      <CircularProgress />
+      <CircularProgress size={32} thickness={3} />
     </Box>
   );
 }
@@ -152,7 +208,7 @@ function Loadable({ children }) {
 // Grupos de roles
 // ─────────────────────────────────────────────────────────────
 const STAFF = ["ADMIN", "DOCTOR", "ASSISTANT"];
-const ALL   = ["ADMIN", "DOCTOR", "ASSISTANT", "PATIENT"];
+const ALL = ["ADMIN", "DOCTOR", "ASSISTANT", "PATIENT"];
 
 // ─────────────────────────────────────────────────────────────
 // RootRedirect — separado para evitar llamadas de hook en render

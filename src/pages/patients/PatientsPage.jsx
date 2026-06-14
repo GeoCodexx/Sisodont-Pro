@@ -385,7 +385,7 @@ export default function PatientsPage() {
   // Aplica debounce al fetch: espera a que debouncedSearch,
   // activeStatus o paginación cambien para lanzar la consulta
   useEffect(() => {
-    load();
+    if (patients.length === 0) load();
   }, [load]);
 
   // Reset página cuando cambia la búsqueda o el filtro de estado
@@ -506,11 +506,15 @@ export default function PatientsPage() {
       setOpenForm(false);
       setEditTarget(null);
       if (saved) {
-        setFeedback(wasEditing ? "Paciente actualizado." : "Paciente creado.");
+        //setFeedback(wasEditing ? "Paciente actualizado." : "Paciente creado.");
+        showSnackbar(
+          wasEditing ? "Paciente actualizado." : "Paciente creado.",
+          "success",
+        );
         setReloadAfterSave(true);
       }
     },
-    [editTarget],
+    [editTarget, showSnackbar],
   );
 
   useEffect(() => {

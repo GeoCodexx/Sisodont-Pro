@@ -21,6 +21,7 @@ import {
   Popover,
   MenuItem,
   ListItemIcon as MenuItemIcon,
+  CircularProgress,
 } from "@mui/material";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PeopleIcon from "@mui/icons-material/People";
@@ -394,7 +395,7 @@ function UserMenu({ profile, role, onLogout, onProfile }) {
 // ─────────────────────────────────────────────────────────────
 // NavItem — ítem de lista con preloading en hover
 // ─────────────────────────────────────────────────────────────
-function NavItem({
+/*function NavItem({
   label,
   path,
   icon,
@@ -445,8 +446,73 @@ function NavItem({
       </ListItemButton>
     </ListItem>
   );
-}
+}*/
+// DESPUÉS:
+function NavItem({
+  label,
+  path,
+  icon,
+  active,
+  navigate,
+  onItemClick,
+  preload,
+  isSuperAdmin,
+  navigating,
+  setNavigating,
+}) {
+  const handleMouseEnter = useCallback(() => {
+    if (preload && preloadRoutes[preload]) {
+      preloadRoutes[preload]();
+    }
+  }, [preload]);
 
+  // Limpiar indicador cuando la ruta ya está activa (chunk cargado)
+  useEffect(() => {
+    if (active && navigating) {
+      setNavigating(false);
+    }
+  }, [active, navigating, setNavigating]);
+
+  const isLoading = navigating === path;
+
+  return (
+    <ListItem disablePadding sx={{ mb: 0.5 }}>
+      <ListItemButton
+        onClick={() => {
+          if (active) return; // ya estamos aquí
+          setNavigating(path);
+          navigate(path);
+          onItemClick?.();
+        }}
+        onMouseEnter={handleMouseEnter}
+        selected={active}
+        sx={{
+          borderRadius: 2,
+          "&.Mui-selected": {
+            bgcolor: isSuperAdmin ? "warning.main" : "primary.main",
+            color: "white",
+            "& .MuiListItemIcon-root": { color: "white" },
+            "&:hover": {
+              bgcolor: isSuperAdmin ? "warning.dark" : "primary.dark",
+            },
+          },
+        }}
+      >
+        <ListItemIcon
+          sx={{ minWidth: 36, color: active ? "white" : "text.secondary" }}
+        >
+          {isLoading ? <CircularProgress size={18} color="inherit" /> : icon}
+        </ListItemIcon>
+        <ListItemText
+          primary={label}
+          slotProps={{
+            primary: { sx: { fontSize: 14, fontWeight: active ? 500 : 400 } },
+          }}
+        />
+      </ListItemButton>
+    </ListItem>
+  );
+}
 // ─────────────────────────────────────────────────────────────
 // SidebarUserButton — botón de usuario al fondo del sidebar
 // ─────────────────────────────────────────────────────────────
@@ -597,6 +663,8 @@ function SidebarContent({
   role,
   clinicName,
   isSuperAdmin,
+  navigating,
+  setNavigating,
   onItemClick,
   onProfile,
   onLogout,
@@ -632,6 +700,8 @@ function SidebarContent({
             navigate={navigate}
             onItemClick={onItemClick}
             isSuperAdmin={isSuperAdmin}
+            navigating={navigating}
+            setNavigating={setNavigating}
           />
         ))}
       </List>
@@ -688,6 +758,8 @@ export default function MainLayout() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const [navigating, setNavigating] = useState(false);
+
   useEffect(() => {
     if (profile?.id) {
       fetchSettings();
@@ -727,6 +799,18 @@ export default function MainLayout() {
 
   const handleProfile = () => navigate("/profile");
 
+  /*const sidebarProps = {
+    mainItems,
+    bottomItems,
+    location,
+    navigate,
+    profile,
+    role,
+    clinicName,
+    isSuperAdmin,
+    onProfile: handleProfile,
+    onLogout: handleLogout,
+  };*/
   const sidebarProps = {
     mainItems,
     bottomItems,
@@ -736,6 +820,8 @@ export default function MainLayout() {
     role,
     clinicName,
     isSuperAdmin,
+    navigating,
+    setNavigating,
     onProfile: handleProfile,
     onLogout: handleLogout,
   };

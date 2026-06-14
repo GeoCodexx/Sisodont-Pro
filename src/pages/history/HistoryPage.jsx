@@ -481,7 +481,7 @@ export default function HistoryPage() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [appBarHeight]);
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { if (treatments.length === 0) fetchAll(); }, []);
 
   // ── Carga de datos ─────────────────────────────────────────
   const load = useCallback(async () => {
